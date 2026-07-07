@@ -688,5 +688,177 @@ async def link_matches(
 
         await db.commit()
 
+# ==========================================================
+# PROPAGATION
+# ==========================================================
+
+async def advance_winner(
+    self,
+    match_id: int
+) -> None:
+    """
+    Envoie automatiquement le vainqueur
+    vers le prochain match.
+    """
+
+    match = await self.get_match(match_id)
+
+    if match is None:
+        raise MatchNotFound(match_id)
+
+    # -------------------------
+    # Pas encore de vainqueur
+    # -------------------------
+
+    if match.winner_id is None:
+        return
+
+    # -------------------------
+    # Finale
+    # -------------------------
+
+    if match.next_match_id is None:
+
+        await self.finish_tournament(
+            match.tournament_id,
+            match.winner_id
+        )
+
+        return
+
+    next_match = await self.get_match(
+        match.next_match_id
+    )
+
+    if next_match is None:
+        raise MatchNotFound(match.next_match_id)
+
+    async with await self.connect() as db:
+
+        # -------------------------
+        # Placement automatique
+        # -------------------------
+
+        if match.next_slot == 1:
+
+            await db.execute(
+                """
+                UPDATE matches
+
+                SET
+
+                    player1_id = ?,
+                    player1_name = ?
+
+                WHERE id = ?
+                """,
+                (
+                    match.winner_id,
+                    match.player1_name
+                    if match.player1_id == match.winner_id
+                    else match.player2_name,
+
+                    next_match.id
+                )
+            )
+
+        else:
+
+            await db.execute(
+                """
+                UPDATE matches
+
+                SET
+
+                    player2_id = ?,
+                    player2_name = ?
+
+                WHERE id = ?
+                """,
+                (
+                    match.winner_id,
+                    match.player1_name
+                    if match.player1_id == match.winner_id
+                    else match.player2_name,
+
+                    next_match.id
+                )
+            )
+
+        await db.commit()
+
+    # Recharge le match
+
+    next_match = await self.get_match(
+        next_match.id
+    )
+
+    # -------------------------
+    # Les deux joueurs sont prêts
+    # -------------------------
+
+    if (
+        next_match.player1_id is not None
+        and
+        next_match.player2_id is not None
+    ):
+
+        await self.set_match_waiting(
+            next_match.id
+        )
+
+async def set_match_waiting(
+    self,
+    match_id: int
+) -> None:
+
+    async with await self.connect() as db:
+
+        await db.execute(
+            """
+            UPDATE matches
+
+            SET status = ?
+
+            WHERE id = ?
+            """,
+            (
+                MatchStatus.WAITING.value,
+                match_id
+            )
+        )
+
+        await db.commit()
+
+async def finish_tournament(
+    self,
+    tournament_id: int,
+    winner_id: str
+):
+
+    async with await self.connect() as db:
+
+        await db.execute(
+            """
+            UPDATE tournaments
+
+            SET
+
+                status='finished',
+
+                winner_id=?
+
+            WHERE id=?
+            """,
+            (
+                winner_id,
+                tournament_id
+            )
+        )
+
+        await db.commit()
+
+
+
 
 
