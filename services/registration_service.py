@@ -14,42 +14,20 @@ class RegistrationService:
         deck: str
     ) -> Registration:
 
+        if await self.is_registered(tournament_id, discord_id):
+            raise ValueError("Le joueur est déjà inscrit.")
+
         async with aiosqlite.connect(DATABASE) as db:
 
-            # Vérifie que le joueur n'est pas déjà inscrit
             cursor = await db.execute(
                 """
-                SELECT id
-                FROM registrations
-                WHERE tournament_id=?
-                AND discord_id=?
-                """,
-                (
-                    tournament_id,
-                    discord_id
-                )
-            )
-
-            if await cursor.fetchone():
-                raise ValueError(
-                    "Ce joueur est déjà inscrit."
-                )
-
-            await db.execute(
-                """
                 INSERT INTO registrations(
-
                     tournament_id,
-
                     discord_id,
-
                     username,
-
                     deck
-
                 )
-
-                VALUES(?,?,?,?)
+                VALUES (?, ?, ?, ?)
                 """,
                 (
                     tournament_id,
@@ -61,15 +39,7 @@ class RegistrationService:
 
             await db.commit()
 
-            cursor = await db.execute(
-                """
-                SELECT last_insert_rowid()
-                """
-            )
-
-            registration_id = (
-                await cursor.fetchone()
-            )[0]
+            registration_id = cursor.lastrowid
 
         return Registration(
             id=registration_id,
@@ -90,9 +60,7 @@ class RegistrationService:
             await db.execute(
                 """
                 DELETE FROM registrations
-
                 WHERE tournament_id=?
-
                 AND discord_id=?
                 """,
                 (
@@ -103,29 +71,36 @@ class RegistrationService:
 
             await db.commit()
 
-    async def players(
+    async def get_players(
         self,
         tournament_id: int
-    ):
+    ) -> list[Registration]:
+
+        registrations = []
 
         async with aiosqlite.connect(DATABASE) as db:
+
+            db.row_factory = aiosqlite.Row
 
             cursor = await db.execute(
                 """
                 SELECT *
-
                 FROM registrations
-
                 WHERE tournament_id=?
-
                 ORDER BY username
                 """,
-                (
-                    tournament_id,
-                )
+                (tournament_id,)
             )
 
-            return await cursor.fetchall()
+            rows = await cursor.fetchall()
+
+        for row in rows:
+
+            registrations.append(
+                Registration(**dict(row))
+            )
+
+        return registrations
 
     async def count(
         self,
@@ -137,19 +112,13 @@ class RegistrationService:
             cursor = await db.execute(
                 """
                 SELECT COUNT(*)
-
                 FROM registrations
-
                 WHERE tournament_id=?
                 """,
-                (
-                    tournament_id,
-                )
+                (tournament_id,)
             )
 
-            return (
-                await cursor.fetchone()
-            )[0]
+            return (await cursor.fetchone())[0]
 
     async def is_registered(
         self,
@@ -162,11 +131,8 @@ class RegistrationService:
             cursor = await db.execute(
                 """
                 SELECT 1
-
                 FROM registrations
-
                 WHERE tournament_id=?
-
                 AND discord_id=?
                 """,
                 (
@@ -175,52 +141,21 @@ class RegistrationService:
                 )
             )
 
-            return (
-                await cursor.fetchone()
-            ) is not None
+            return await cursor.fetchone() is not None
 
-    async def is_full(
+    async def clear(
         self,
         tournament_id: int
-    ) -> bool:
+    ):
 
         async with aiosqlite.connect(DATABASE) as db:
 
-            cursor = await db.execute(
+            await db.execute(
                 """
-                SELECT max_players
-
-                FROM tournaments
-
-                WHERE id=?
-                """,
-                (
-                    tournament_id,
-                )
-            )
-
-            tournament = await cursor.fetchone()
-
-            if tournament is None:
-                return False
-
-            max_players = tournament[0]
-
-            cursor = await db.execute(
-                """
-                SELECT COUNT(*)
-
-                FROM registrations
-
+                DELETE FROM registrations
                 WHERE tournament_id=?
                 """,
-                (
-                    tournament_id,
-                )
+                (tournament_id,)
             )
 
-            registered = (
-                await cursor.fetchone()
-            )[0]
-
-            return registered >= max_players
+            await db.commit()
