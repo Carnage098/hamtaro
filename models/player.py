@@ -1,42 +1,86 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from sqlite3 import Row
 
 
 @dataclass(slots=True)
 class Player:
-    """
-    Représente un joueur inscrit.
-    """
 
-    discord_id: Optional[str]
+    discord_id: str
+    guild_id: str
 
     username: str
 
-    deck: Optional[str] = None
+    display_name: str | None = None
+    avatar_url: str | None = None
 
-    seed: Optional[int] = None
+    wins: int = 0
+    losses: int = 0
 
-    checked_in: bool = True
+    tournaments_played: int = 0
+    tournaments_won: int = 0
 
-    @property
-    def is_bye(self) -> bool:
-        return self.discord_id is None
-
-    @classmethod
-    def bye(cls) -> "Player":
-        return cls(
-            discord_id=None,
-            username="BYE"
-        )
+    joined_at: str | None = None
 
     @classmethod
-    def from_row(cls, row):
+    def from_row(cls, row: Row | dict):
+
         return cls(
             discord_id=row["discord_id"],
+            guild_id=row["guild_id"],
             username=row["username"],
-            deck=row["deck"] if "deck" in row.keys() else None,
-            seed=row["seed"] if "seed" in row.keys() else None,
-            checked_in=bool(row["checked_in"]) if "checked_in" in row.keys() else True
+            display_name=row["display_name"],
+            avatar_url=row["avatar_url"],
+            wins=row["wins"],
+            losses=row["losses"],
+            tournaments_played=row["tournaments_played"],
+            tournaments_won=row["tournaments_won"],
+            joined_at=row["joined_at"],
         )
+
+    def to_dict(self):
+
+        return {
+            "discord_id": self.discord_id,
+            "guild_id": self.guild_id,
+            "username": self.username,
+            "display_name": self.display_name,
+            "avatar_url": self.avatar_url,
+            "wins": self.wins,
+            "losses": self.losses,
+            "tournaments_played": self.tournaments_played,
+            "tournaments_won": self.tournaments_won,
+            "joined_at": self.joined_at,
+        }
+
+    @property
+    def matches_played(self):
+
+        return self.wins + self.losses
+
+    @property
+    def winrate(self):
+
+        total = self.matches_played
+
+        if total == 0:
+            return 0.0
+
+        return round((self.wins / total) * 100, 2)
+
+    def record_win(self):
+
+        self.wins += 1
+
+    def record_loss(self):
+
+        self.losses += 1
+
+    def won_tournament(self):
+
+        self.tournaments_won += 1
+
+    def played_tournament(self):
+
+        self.tournaments_played += 1
