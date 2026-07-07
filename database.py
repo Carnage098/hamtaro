@@ -10,9 +10,9 @@ async def init_db():
         # Active les clés étrangères
         await db.execute("PRAGMA foreign_keys = ON;")
 
-        # ==========================================
+        # ==========================================================
         # TOURNOIS
-        # ==========================================
+        # ==========================================================
 
         await db.execute("""
         CREATE TABLE IF NOT EXISTS tournaments (
@@ -40,9 +40,9 @@ async def init_db():
         )
         """)
 
-        # ==========================================
+        # ==========================================================
         # JOUEURS
-        # ==========================================
+        # ==========================================================
 
         await db.execute("""
         CREATE TABLE IF NOT EXISTS players (
@@ -58,9 +58,9 @@ async def init_db():
         )
         """)
 
-        # ==========================================
+        # ==========================================================
         # INSCRIPTIONS
-        # ==========================================
+        # ==========================================================
 
         await db.execute("""
         CREATE TABLE IF NOT EXISTS registrations (
@@ -86,9 +86,9 @@ async def init_db():
         )
         """)
 
-        # ==========================================
+        # ==========================================================
         # MATCHS
-        # ==========================================
+        # ==========================================================
 
         await db.execute("""
         CREATE TABLE IF NOT EXISTS matches (
@@ -105,6 +105,10 @@ async def init_db():
 
             player2_id TEXT,
 
+            player1_name TEXT,
+
+            player2_name TEXT,
+
             winner_id TEXT,
 
             score TEXT,
@@ -118,22 +122,22 @@ async def init_db():
         )
         """)
 
-        # ==========================================
+        # ==========================================================
         # INDEX
-        # ==========================================
+        # ==========================================================
 
         await db.execute("""
-        CREATE INDEX IF NOT EXISTS idx_tournaments_guild
+        CREATE INDEX IF NOT EXISTS idx_tournament_guild
         ON tournaments(guild_id)
         """)
 
         await db.execute("""
-        CREATE INDEX IF NOT EXISTS idx_registrations_tournament
+        CREATE INDEX IF NOT EXISTS idx_registration_tournament
         ON registrations(tournament_id)
         """)
 
         await db.execute("""
-        CREATE INDEX IF NOT EXISTS idx_matches_tournament
+        CREATE INDEX IF NOT EXISTS idx_match_tournament
         ON matches(tournament_id)
         """)
 
