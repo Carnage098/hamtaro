@@ -15,6 +15,13 @@ Fonctions principales :
 from __future__ import annotations
 from services.base_service import BaseService
 
+
+class BracketService(BaseService):
+
+    def __init__(self):
+
+        super().__init__()
+
 import math
 import random
 from dataclasses import dataclass
