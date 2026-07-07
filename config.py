@@ -6,4 +6,8 @@ load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-DATABASE = "database.db"
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+
+DATABASE = BASE_DIR / "database.db"
