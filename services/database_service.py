@@ -816,11 +816,11 @@ class DatabaseService:
 
         return int(value or 0)
 
-        async def update_player_profile(
+    async def update_player_profile(
         self,
         discord_id: str,
         guild_id: str,
-        username: str,
+        username: str | None = None,
         display_name: str | None = None,
         avatar_url: str | None = None,
     ) -> None:
@@ -828,23 +828,38 @@ class DatabaseService:
         Met à jour les informations visibles d'un joueur.
         """
 
-        await self.update(
-            """
+        fields: list[str] = []
+        params: list[Any] = []
+
+        if username is not None:
+            fields.append("username = ?")
+            params.append(username)
+
+        if display_name is not None:
+            fields.append("display_name = ?")
+            params.append(display_name)
+
+        if avatar_url is not None:
+            fields.append("avatar_url = ?")
+            params.append(avatar_url)
+
+        if not fields:
+            return
+
+        fields.append("updated_at = CURRENT_TIMESTAMP")
+
+        params.append(discord_id)
+        params.append(guild_id)
+
+        await self.execute(
+            f"""
             UPDATE players
-            SET
-                username = ?,
-                display_name = ?,
-                avatar_url = ?
+            SET {", ".join(fields)}
             WHERE discord_id = ?
             AND guild_id = ?
             """,
-            (
-                username,
-                display_name,
-                avatar_url,
-                discord_id,
-                guild_id,
-            ),
+            tuple(params),
+            commit=True,
         )
     async def add_player_win(
         self,
