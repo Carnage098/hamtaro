@@ -18,31 +18,23 @@ class TournamentService:
 
         if max_players not in [4, 8, 16, 32, 64]:
             raise ValueError(
-                "Le nombre de joueurs doit être 4, 8, 16, 32 ou 64."
+                "Nombre de joueurs invalide."
             )
 
-        code = await self.generate_code(format)
+        code = await self._generate_code(format)
 
         async with aiosqlite.connect(DATABASE) as db:
 
             cursor = await db.execute(
                 """
                 INSERT INTO tournaments(
-
                     guild_id,
-
                     code,
-
                     name,
-
                     format,
-
                     max_players,
-
                     status
-
                 )
-
                 VALUES(?,?,?,?,?,?)
                 """,
                 (
@@ -72,72 +64,83 @@ class TournamentService:
     async def get(
         self,
         tournament_id: int
-    ):
+    ) -> Tournament | None:
 
         async with aiosqlite.connect(DATABASE) as db:
+
+            db.row_factory = aiosqlite.Row
 
             cursor = await db.execute(
                 """
                 SELECT *
-
                 FROM tournaments
-
-                WHERE id = ?
+                WHERE id=?
                 """,
-                (
-                    tournament_id,
-                )
+                (tournament_id,)
             )
 
             row = await cursor.fetchone()
 
-        return row
+        if row is None:
+            return None
+
+        return Tournament(**dict(row))
 
     async def get_by_code(
         self,
         code: str
-    ):
+    ) -> Tournament | None:
 
         async with aiosqlite.connect(DATABASE) as db:
+
+            db.row_factory = aiosqlite.Row
 
             cursor = await db.execute(
                 """
                 SELECT *
-
                 FROM tournaments
-
-                WHERE code = ?
+                WHERE code=?
                 """,
-                (
-                    code,
-                )
+                (code,)
             )
 
-            return await cursor.fetchone()
+            row = await cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return Tournament(**dict(row))
 
     async def list(
         self,
         guild_id: str
-    ):
+    ) -> list[Tournament]:
+
+        tournaments = []
 
         async with aiosqlite.connect(DATABASE) as db:
+
+            db.row_factory = aiosqlite.Row
 
             cursor = await db.execute(
                 """
                 SELECT *
-
                 FROM tournaments
-
                 WHERE guild_id=?
-
                 ORDER BY created_at DESC
                 """,
-                (
-                    guild_id,
-                )
+                (guild_id,)
             )
 
-            return await cursor.fetchall()
+            rows = await cursor.fetchall()
+
+        for row in rows:
+
+            tournaments.append(
+                Tournament(**dict(row))
+            )
+
+        return tournaments
 
     async def delete(
         self,
@@ -149,45 +152,34 @@ class TournamentService:
             await db.execute(
                 """
                 DELETE FROM tournaments
-
                 WHERE id=?
                 """,
-                (
-                    tournament_id,
-                )
+                (tournament_id,)
             )
 
             await db.commit()
 
-    async def open_registration(
+    async def update_status(
         self,
-        tournament_id: int
+        tournament_id: int,
+        status: str
     ):
 
-        await self.change_status(
-            tournament_id,
-            "registration"
-        )
+        async with aiosqlite.connect(DATABASE) as db:
 
-    async def close_registration(
-        self,
-        tournament_id: int
-    ):
+            await db.execute(
+                """
+                UPDATE tournaments
+                SET status=?
+                WHERE id=?
+                """,
+                (
+                    status,
+                    tournament_id
+                )
+            )
 
-        await self.change_status(
-            tournament_id,
-            "closed"
-        )
-
-    async def start(
-        self,
-        tournament_id: int
-    ):
-
-        await self.change_status(
-            tournament_id,
-            "running"
-        )
+            await db.commit()
 
     async def finish(
         self,
@@ -203,39 +195,14 @@ class TournamentService:
 
                 SET
 
-                status=?,
+                    status='finished',
 
-                winner_id=?
+                    winner_id=?
 
                 WHERE id=?
                 """,
                 (
-                    "finished",
                     winner_id,
-                    tournament_id
-                )
-            )
-
-            await db.commit()
-
-    async def change_status(
-        self,
-        tournament_id: int,
-        status: str
-    ):
-
-        async with aiosqlite.connect(DATABASE) as db:
-
-            await db.execute(
-                """
-                UPDATE tournaments
-
-                SET status=?
-
-                WHERE id=?
-                """,
-                (
-                    status,
                     tournament_id
                 )
             )
@@ -253,7 +220,7 @@ class TournamentService:
 
         return tournament is not None
 
-    async def generate_code(
+    async def _generate_code(
         self,
         format: str
     ) -> str:
@@ -283,16 +250,11 @@ class TournamentService:
             "T"
         )
 
-        random_part = "".join(
-
+        random_code = "".join(
             random.choices(
-
                 string.digits,
-
                 k=4
-
             )
-
         )
 
-        return f"{prefix}-{random_part}"
+        return f"{prefix}-{random_code}"
