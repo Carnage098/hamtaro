@@ -1127,6 +1127,9 @@ class BracketService(BaseService):
     # ==========================================================
     # OUTILS STAFF / CONTRÔLE
     # ==========================================================
+    # ==========================================================
+    # STAFF / ADMIN HELPERS
+    # ==========================================================
 
     async def can_start(
         self,
@@ -1136,32 +1139,23 @@ class BracketService(BaseService):
         Vérifie si un tournoi peut démarrer.
         """
 
-        tournament = await self.db.get_tournament(tournament_id)
-
-        if tournament is None:
-            return False
-
-        if tournament.status not in (
-            TournamentStatus.REGISTRATION,
-            TournamentStatus.CHECK_IN,
-        ):
-            return False
-
-        players = await self.db.list_checked_in_registrations(
+        error = await self.get_start_error(
             tournament_id
         )
 
-        return len(players) >= 2
+        return error is None
 
     async def get_start_error(
         self,
         tournament_id: int,
     ) -> str | None:
         """
-        Retourne la raison pour laquelle le tournoi ne peut pas démarrer.
+        Retourne une erreur si le tournoi ne peut pas démarrer.
         """
 
-        tournament = await self.db.get_tournament(tournament_id)
+        tournament = await self.db.get_tournament(
+            tournament_id
+        )
 
         if tournament is None:
             return "Tournoi introuvable."
@@ -1172,15 +1166,22 @@ class BracketService(BaseService):
         ):
             return "Le tournoi n'est pas en phase d'inscription ou de check-in."
 
-        players = await self.db.list_checked_in_registrations(
+        checked_in_count = await self.db.count_checked_in(
             tournament_id
         )
 
-        if len(players) < 2:
+        if checked_in_count < 2:
             return "Il faut au moins 2 joueurs check-in pour démarrer."
 
-        if len(players) > tournament.max_players:
-            return "Il y a plus de joueurs que la limite du tournoi."
+        if checked_in_count > tournament.max_players:
+            return "Il y a plus de joueurs check-in que de places disponibles."
+
+        has_matches = await self.db.has_matches(
+            tournament_id
+        )
+
+        if has_matches:
+            return "Un bracket existe déjà pour ce tournoi."
 
         return None
 
@@ -1189,24 +1190,39 @@ class BracketService(BaseService):
         tournament_id: int,
     ) -> None:
         """
-        Supprime le bracket d'un tournoi.
+        Supprime le bracket et remet le tournoi en inscription.
         """
 
-        tournament = await self.db.get_tournament(tournament_id)
-
-        if tournament is None:
-            raise ValueError("Tournoi introuvable.")
-
-        await self.db.clear_matches(tournament_id)
-
-        await self.db.update_tournament_status(
-            tournament_id,
-            TournamentStatus.REGISTRATION,
+        tournament = await self.db.get_tournament(
+            tournament_id
         )
 
-        await self.db.update_current_round(
-            tournament_id,
-            0,
+        if tournament is None:
+            raise ValueError(
+                "Tournoi introuvable."
+            )
+
+        await self.db.clear_matches(
+            tournament_id
+        )
+
+        await self.db.execute(
+            """
+            UPDATE tournaments
+            SET status = ?,
+                current_round = NULL,
+                total_rounds = NULL,
+                winner_id = NULL,
+                winner_name = NULL,
+                started_at = NULL,
+                finished_at = NULL
+            WHERE id = ?
+            """,
+            (
+                TournamentStatus.REGISTRATION.value,
+                tournament_id,
+            ),
+            commit=True,
         )
 
     async def regenerate_bracket(
@@ -1214,12 +1230,14 @@ class BracketService(BaseService):
         tournament_id: int,
         *,
         shuffle: bool = True,
-    ) -> dict[int, list[Match]]:
+    ) -> list[Match]:
         """
-        Régénère complètement le bracket.
+        Supprime puis régénère le bracket.
         """
 
-        await self.reset_bracket(tournament_id)
+        await self.reset_bracket(
+            tournament_id
+        )
 
         return await self.generate_bracket(
             tournament_id,
@@ -1230,56 +1248,61 @@ class BracketService(BaseService):
     async def get_ready_matches(
         self,
         tournament_id: int,
-        round_number: int | None = None,
     ) -> list[Match]:
+        """
+        Retourne les matchs jouables.
+        """
 
         return await self.db.get_ready_matches(
-            tournament_id,
-            round_number,
+            tournament_id
         )
 
     async def get_waiting_matches(
         self,
         tournament_id: int,
-        round_number: int | None = None,
     ) -> list[Match]:
+        """
+        Retourne les matchs en attente.
+        """
 
         return await self.db.get_waiting_matches(
-            tournament_id,
-            round_number,
+            tournament_id
         )
 
     async def get_playing_matches(
         self,
         tournament_id: int,
-        round_number: int | None = None,
     ) -> list[Match]:
+        """
+        Retourne les matchs en cours.
+        """
 
         return await self.db.get_playing_matches(
-            tournament_id,
-            round_number,
+            tournament_id
         )
 
     async def get_reported_matches(
         self,
         tournament_id: int,
-        round_number: int | None = None,
     ) -> list[Match]:
+        """
+        Retourne les matchs reportés.
+        """
 
         return await self.db.get_reported_matches(
-            tournament_id,
-            round_number,
+            tournament_id
         )
 
     async def get_completed_matches(
         self,
         tournament_id: int,
-        round_number: int | None = None,
     ) -> list[Match]:
+        """
+        Retourne les matchs terminés.
+        """
 
         return await self.db.get_completed_matches(
-            tournament_id,
-            round_number,
+            tournament_id
         )
 
     async def format_reported_matches(
@@ -1287,7 +1310,7 @@ class BracketService(BaseService):
         tournament_id: int,
     ) -> str:
         """
-        Formate les matchs en attente de validation staff.
+        Formate les résultats en attente de validation.
         """
 
         matches = await self.get_reported_matches(
@@ -1298,50 +1321,7 @@ class BracketService(BaseService):
             return "✅ Aucun résultat en attente de validation."
 
         lines = [
-            "## 📝 Résultats en attente",
-            "",
-        ]
-
-        for match in matches:
-
-            player1 = match.player1_name or "À déterminer"
-            player2 = match.player2_name or "À déterminer"
-            winner = match.winner_name or "Inconnu"
-            score = match.score or "Score non renseigné"
-
-            lines.append(
-                f"**Match ID {match.id}** — Round {match.round}, Match {match.match_number}"
-            )
-            lines.append(
-                f"{player1} vs {player2}"
-            )
-            lines.append(
-                f"Score : `{score}`"
-            )
-            lines.append(
-                f"Vainqueur déclaré : **{winner}**"
-            )
-            lines.append("")
-
-        return "\n".join(lines).strip()
-
-    async def format_ready_matches(
-        self,
-        tournament_id: int,
-    ) -> str:
-        """
-        Formate les matchs jouables.
-        """
-
-        matches = await self.get_ready_matches(
-            tournament_id
-        )
-
-        if not matches:
-            return "❌ Aucun match jouable pour le moment."
-
-        lines = [
-            "## ⚔️ Matchs jouables",
+            "📝 **Résultats en attente de validation**",
             "",
         ]
 
@@ -1353,14 +1333,44 @@ class BracketService(BaseService):
 
             lines.append("")
 
-        return "\n".join(lines).strip()
+        return "\n".join(lines)
+
+    async def format_ready_matches(
+        self,
+        tournament_id: int,
+    ) -> str:
+        """
+        Formate les matchs actuellement jouables.
+        """
+
+        matches = await self.get_ready_matches(
+            tournament_id
+        )
+
+        if not matches:
+            return "❌ Aucun match jouable pour le moment."
+
+        lines = [
+            "⚔️ **Matchs jouables**",
+            "",
+        ]
+
+        for match in matches:
+
+            lines.append(
+                self.format_match(match)
+            )
+
+            lines.append("")
+
+        return "\n".join(lines)
 
     async def cancel_tournament(
         self,
         tournament_id: int,
     ) -> None:
         """
-        Annule un tournoi et ses matchs.
+        Annule un tournoi.
         """
 
         tournament = await self.db.get_tournament(
@@ -1368,20 +1378,9 @@ class BracketService(BaseService):
         )
 
         if tournament is None:
-            raise ValueError("Tournoi introuvable.")
-
-        matches = await self.db.list_matches(
-            tournament_id
-        )
-
-        for match in matches:
-
-            if match.id is not None and match.status != MatchStatus.COMPLETED:
-
-                await self.db.cancel_match(
-                    match.id,
-                    notes="Tournoi annulé.",
-                )
+            raise ValueError(
+                "Tournoi introuvable."
+            )
 
         await self.db.cancel_tournament(
             tournament_id
@@ -1394,10 +1393,12 @@ class BracketService(BaseService):
         winner_name: str,
         validated_by: str,
         guild_id: str,
+        *,
+        score: str = "ADMIN",
         notes: str | None = None,
     ) -> Match:
         """
-        Termine un match par décision staff.
+        Termine un match de force.
         """
 
         return await self.admin_win(
@@ -1406,7 +1407,8 @@ class BracketService(BaseService):
             winner_name=winner_name,
             validated_by=validated_by,
             guild_id=guild_id,
-            notes=notes or "Match terminé par décision staff.",
+            score=score,
+            notes=notes,
         )
 
     async def sync_current_round(
@@ -1414,21 +1416,70 @@ class BracketService(BaseService):
         tournament_id: int,
     ) -> int | None:
         """
-        Recalcule et sauvegarde le round actuel.
+        Recalcule le round actuel du tournoi.
         """
 
-        current_round = await self.get_current_round(
+        tournament = await self.db.get_tournament(
             tournament_id
         )
 
-        if current_round is None:
-            return None
+        if tournament is None:
+            raise ValueError(
+                "Tournoi introuvable."
+            )
 
-        await self.db.update_current_round(
-            tournament_id,
-            current_round,
+        rounds = await self.db.get_tournament_rounds(
+            tournament_id
         )
 
-        return current_round
+        if not rounds:
 
+            await self.db.execute(
+                """
+                UPDATE tournaments
+                SET current_round = NULL
+                WHERE id = ?
+                """,
+                (
+                    tournament_id,
+                ),
+                commit=True,
+            )
 
+            return None
+
+        for round_number in sorted(
+            rounds,
+            reverse=True,
+        ):
+
+            matches = await self.db.list_round_matches(
+                tournament_id=tournament_id,
+                round_number=round_number,
+            )
+
+            unfinished = [
+                match
+                for match in matches
+                if match.status not in (
+                    MatchStatus.COMPLETED,
+                    MatchStatus.CANCELLED,
+                )
+            ]
+
+            if unfinished:
+
+                await self.db.update_current_round(
+                    tournament_id=tournament_id,
+                    current_round=round_number,
+                )
+
+                return round_number
+
+        await self._try_finish_tournament(
+            tournament_id,
+            guild_id=tournament.guild_id,
+        )
+
+        return None
+   
