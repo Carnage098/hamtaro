@@ -816,7 +816,7 @@ class DatabaseService:
 
         return int(value or 0)
 
-    async def update_player_profile(
+        async def update_player_profile(
         self,
         discord_id: str,
         guild_id: str,
@@ -843,21 +843,9 @@ class DatabaseService:
                 display_name,
                 avatar_url,
                 discord_id,
-                guild Met à jour les informations visibles d'un joueur.
-        """
-
-        await self.update(
-            """
-            UPDATE players
-            SET
-                username = ?,
-                display_name = ?,
-                avatar_url = ?
-            WHERE discord_id = ?
-            AND guild_id,
+                guild_id,
             ),
         )
-
     async def add_player_win(
         self,
         discord_id: str,
