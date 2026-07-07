@@ -29,11 +29,15 @@ async def init_db():
 
             max_players INTEGER NOT NULL,
 
-            status TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'registration',
 
             current_round INTEGER DEFAULT 0,
 
+            total_rounds INTEGER DEFAULT 0,
+
             winner_id TEXT,
+
+            bracket_message_id TEXT,
 
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
@@ -75,6 +79,10 @@ async def init_db():
 
             deck TEXT,
 
+            seed INTEGER,
+
+            checked_in INTEGER DEFAULT 1,
+
             registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
             UNIQUE(tournament_id, discord_id),
@@ -101,6 +109,10 @@ async def init_db():
 
             match_number INTEGER NOT NULL,
 
+            bracket_position INTEGER NOT NULL,
+
+            next_match_id INTEGER,
+
             player1_id TEXT,
 
             player2_id TEXT,
@@ -109,11 +121,25 @@ async def init_db():
 
             player2_name TEXT,
 
+            player1_score INTEGER DEFAULT 0,
+
+            player2_score INTEGER DEFAULT 0,
+
             winner_id TEXT,
 
             score TEXT,
 
-            status TEXT NOT NULL,
+            reported_by TEXT,
+
+            validated_by TEXT,
+
+            reported_at TIMESTAMP,
+
+            validated_at TIMESTAMP,
+
+            status TEXT NOT NULL DEFAULT 'waiting',
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
             FOREIGN KEY(tournament_id)
                 REFERENCES tournaments(id)
@@ -139,6 +165,16 @@ async def init_db():
         await db.execute("""
         CREATE INDEX IF NOT EXISTS idx_match_tournament
         ON matches(tournament_id)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_match_round
+        ON matches(tournament_id, round)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_match_status
+        ON matches(status)
         """)
 
         await db.commit()
