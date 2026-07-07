@@ -10,12 +10,12 @@ async def init_db():
         # Active les clés étrangères
         await db.execute("PRAGMA foreign_keys = ON;")
 
-        # ==========================
+        # ==========================================
         # TOURNOIS
-        # ==========================
+        # ==========================================
 
         await db.execute("""
-        CREATE TABLE IF NOT EXISTS tournaments(
+        CREATE TABLE IF NOT EXISTS tournaments (
 
             id INTEGER PRIMARY KEY AUTOINCREMENT,
 
@@ -36,32 +36,34 @@ async def init_db():
             winner_id TEXT,
 
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
         )
         """)
 
-        # ==========================
+        # ==========================================
         # JOUEURS
-        # ==========================
+        # ==========================================
 
         await db.execute("""
-        CREATE TABLE IF NOT EXISTS players(
+        CREATE TABLE IF NOT EXISTS players (
 
-            discord_id TEXT,
+            discord_id TEXT NOT NULL,
 
-            guild_id TEXT,
+            guild_id TEXT NOT NULL,
 
-            username TEXT,
+            username TEXT NOT NULL,
 
-            PRIMARY KEY(discord_id,guild_id)
+            PRIMARY KEY (discord_id, guild_id)
+
         )
         """)
 
-        # ==========================
+        # ==========================================
         # INSCRIPTIONS
-        # ==========================
+        # ==========================================
 
         await db.execute("""
-        CREATE TABLE IF NOT EXISTS registrations(
+        CREATE TABLE IF NOT EXISTS registrations (
 
             id INTEGER PRIMARY KEY AUTOINCREMENT,
 
@@ -75,20 +77,21 @@ async def init_db():
 
             registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-            UNIQUE(tournament_id,discord_id),
+            UNIQUE(tournament_id, discord_id),
 
             FOREIGN KEY(tournament_id)
-            REFERENCES tournaments(id)
-            ON DELETE CASCADE
+                REFERENCES tournaments(id)
+                ON DELETE CASCADE
+
         )
         """)
 
-        # ==========================
+        # ==========================================
         # MATCHS
-        # ==========================
+        # ==========================================
 
         await db.execute("""
-        CREATE TABLE IF NOT EXISTS matches(
+        CREATE TABLE IF NOT EXISTS matches (
 
             id INTEGER PRIMARY KEY AUTOINCREMENT,
 
@@ -96,80 +99,42 @@ async def init_db():
 
             round INTEGER NOT NULL,
 
-            bracket TEXT DEFAULT 'winner',
+            match_number INTEGER NOT NULL,
 
             player1_id TEXT,
 
             player2_id TEXT,
 
-            player1_name TEXT,
-
-            player2_name TEXT,
-
-            player1_deck TEXT,
-
-            player2_deck TEXT,
+            winner_id TEXT,
 
             score TEXT,
 
-            winner_id TEXT,
-
-            loser_id TEXT,
-
-            status TEXT,
-
-            validated INTEGER DEFAULT 0,
-
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status TEXT NOT NULL,
 
             FOREIGN KEY(tournament_id)
-            REFERENCES tournaments(id)
-            ON DELETE CASCADE
+                REFERENCES tournaments(id)
+                ON DELETE CASCADE
+
         )
         """)
 
-        # ==========================
-        # DECKLISTS
-        # ==========================
+        # ==========================================
+        # INDEX
+        # ==========================================
 
         await db.execute("""
-        CREATE TABLE IF NOT EXISTS decklists(
-
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-            tournament_id INTEGER,
-
-            discord_id TEXT,
-
-            archetype TEXT,
-
-            ydk TEXT,
-
-            validated INTEGER DEFAULT 0,
-
-            FOREIGN KEY(tournament_id)
-            REFERENCES tournaments(id)
-            ON DELETE CASCADE
-        )
+        CREATE INDEX IF NOT EXISTS idx_tournaments_guild
+        ON tournaments(guild_id)
         """)
 
-        # ==========================
-        # INDEX SQL
-        # ==========================
-
         await db.execute("""
-        CREATE INDEX IF NOT EXISTS idx_tournament
+        CREATE INDEX IF NOT EXISTS idx_registrations_tournament
         ON registrations(tournament_id)
         """)
 
         await db.execute("""
-        CREATE INDEX IF NOT EXISTS idx_matches
+        CREATE INDEX IF NOT EXISTS idx_matches_tournament
         ON matches(tournament_id)
-        """)
-
-        await db.execute("""
-        CREATE INDEX IF NOT EXISTS idx_players
-        ON players(discord_id)
         """)
 
         await db.commit()
