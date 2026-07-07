@@ -13,9 +13,10 @@ from services.database_service import DatabaseService
 COGS = [
     "cogs.registration",
     "cogs.tournament",
+    "cogs.bracket",
+    "cogs.results",
     "cogs.profile",
     "cogs.admin",
-    "cogs.bracket",
 ]
 
 
