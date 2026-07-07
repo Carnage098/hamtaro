@@ -896,7 +896,7 @@ class BracketService(BaseService):
     # FORMATAGE TEXTE
     # ==========================================================
 
-    def format_match(
+        def format_match(
         self,
         match: Match,
     ) -> str:
@@ -907,15 +907,23 @@ class BracketService(BaseService):
         player1 = match.player1_name or "À déterminer"
         player2 = match.player2_name or "À déterminer"
 
-        status = match.status.value
+        match_title = f"**Match {match.match_number}** — ID `{match.id}`"
 
         if match.status == MatchStatus.COMPLETED:
 
             winner = match.winner_name or "Inconnu"
             score = match.score or "Score non renseigné"
 
+            if match.is_bye:
+                return (
+                    f"{match_title}\n"
+                    f"{player1} vs {player2}\n"
+                    f"✅ Victoire automatique : **{winner}**\n"
+                    f"📊 Score : `{score}`"
+                )
+
             return (
-                f"**Match {match.match_number}**\n"
+                f"{match_title}\n"
                 f"{player1} vs {player2}\n"
                 f"✅ Vainqueur : **{winner}**\n"
                 f"📊 Score : `{score}`"
@@ -927,7 +935,7 @@ class BracketService(BaseService):
             score = match.score or "Score non renseigné"
 
             return (
-                f"**Match {match.match_number}**\n"
+                f"{match_title}\n"
                 f"{player1} vs {player2}\n"
                 f"📝 Résultat reporté : `{score}`\n"
                 f"🏆 Vainqueur déclaré : **{winner}**\n"
@@ -937,15 +945,16 @@ class BracketService(BaseService):
         if match.status == MatchStatus.PLAYING:
 
             return (
-                f"**Match {match.match_number}**\n"
+                f"{match_title}\n"
                 f"⚔️ {player1} vs {player2}\n"
-                f"🟢 En cours"
+                f"🟢 En cours\n"
+                f"➡️ Pour reporter : `/result match_id:{match.id}`"
             )
 
         if match.status == MatchStatus.WAITING:
 
             return (
-                f"**Match {match.match_number}**\n"
+                f"{match_title}\n"
                 f"{player1} vs {player2}\n"
                 f"⏳ En attente"
             )
@@ -953,15 +962,15 @@ class BracketService(BaseService):
         if match.status == MatchStatus.CANCELLED:
 
             return (
-                f"**Match {match.match_number}**\n"
+                f"{match_title}\n"
                 f"{player1} vs {player2}\n"
                 f"🚫 Annulé"
             )
 
         return (
-            f"**Match {match.match_number}**\n"
+            f"{match_title}\n"
             f"{player1} vs {player2}\n"
-            f"Statut : `{status}`"
+            f"Statut : `{match.status.value}`"
         )
 
     def format_round(
