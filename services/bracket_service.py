@@ -900,9 +900,9 @@ class BracketService(BaseService):
         self,
         match: Match,
     ) -> str:
-        """
-        Formate un match pour Discord.
-        """
+                """
+                Formate un match pour Discord.
+                """
 
         player1 = match.player1_name or "À déterminer"
         player2 = match.player2_name or "À déterminer"
