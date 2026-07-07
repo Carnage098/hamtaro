@@ -1,4 +1,3 @@
-import os
 import discord
 
 from discord.ext import commands
@@ -6,29 +5,55 @@ from discord.ext import commands
 from config import TOKEN
 
 intents = discord.Intents.default()
+
 intents.members = True
+
 intents.message_content = True
 
 bot = commands.Bot(
+
     command_prefix="!",
+
     intents=intents
+
 )
+
+
+COGS = [
+
+    "cogs.registration",
+
+    "cogs.tournament",
+
+    "cogs.profile",
+
+    "cogs.admin"
+
+]
 
 
 @bot.event
 async def on_ready():
 
-    print("---------------------")
-    print("🐹 Hamtaro connecté")
-    print(bot.user)
-    print("---------------------")
+    print("------------------------")
 
-    await bot.load_extension("cogs.registration")
-    await bot.load_extension("cogs.tournament")
-    await bot.load_extension("cogs.results")
-    await bot.load_extension("cogs.statistics")
-    await bot.load_extension("cogs.admin")
-    await bot.load_extension("cogs.profile")
+    print("🐹 HAMTARO")
+
+    print(bot.user)
+
+    print("------------------------")
+
+    for cog in COGS:
+
+        try:
+
+            await bot.load_extension(cog)
+
+            print(f"✅ {cog}")
+
+        except Exception as e:
+
+            print(e)
 
     synced = await bot.tree.sync()
 
