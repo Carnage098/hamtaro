@@ -94,59 +94,65 @@ async def init_db():
         )
         """)
 
-        # ==========================================================
-        # MATCHS
-        # ==========================================================
+       # ==========================================================
+# MATCHS
+# ==========================================================
 
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS matches (
+await db.execute("""
+CREATE TABLE IF NOT EXISTS matches (
 
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-            tournament_id INTEGER NOT NULL,
+    tournament_id INTEGER NOT NULL,
 
-            round INTEGER NOT NULL,
+    round INTEGER NOT NULL,
 
-            match_number INTEGER NOT NULL,
+    match_number INTEGER NOT NULL,
 
-            bracket_position INTEGER NOT NULL,
+    bracket_position INTEGER NOT NULL,
 
-            next_match_id INTEGER,
+    next_match_id INTEGER,
 
-            player1_id TEXT,
+    next_slot INTEGER,
 
-            player2_id TEXT,
+    player1_id TEXT,
 
-            player1_name TEXT,
+    player2_id TEXT,
 
-            player2_name TEXT,
+    player1_name TEXT,
 
-            player1_score INTEGER DEFAULT 0,
+    player2_name TEXT,
 
-            player2_score INTEGER DEFAULT 0,
+    player1_score INTEGER DEFAULT 0,
 
-            winner_id TEXT,
+    player2_score INTEGER DEFAULT 0,
 
-            score TEXT,
+    winner_id TEXT,
 
-            reported_by TEXT,
+    score TEXT,
 
-            validated_by TEXT,
+    reported_by TEXT,
 
-            reported_at TIMESTAMP,
+    validated_by TEXT,
 
-            validated_at TIMESTAMP,
+    reported_at TIMESTAMP,
 
-            status TEXT NOT NULL DEFAULT 'waiting',
+    validated_at TIMESTAMP,
 
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT NOT NULL DEFAULT 'waiting',
 
-            FOREIGN KEY(tournament_id)
-                REFERENCES tournaments(id)
-                ON DELETE CASCADE
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-        )
-        """)
+    FOREIGN KEY(tournament_id)
+        REFERENCES tournaments(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(next_match_id)
+        REFERENCES matches(id)
+        ON DELETE SET NULL
+
+)
+""")
 
         # ==========================================================
         # INDEX
