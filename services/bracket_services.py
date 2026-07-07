@@ -13,6 +13,7 @@ Fonctions principales :
 """
 
 from __future__ import annotations
+from services.base_service import BaseService
 
 import math
 import random
