@@ -2,6 +2,8 @@ import aiosqlite
 
 DATABASE = "database.db"
 
+DB_VERSION = 1
+
 
 async def init_db():
 
@@ -12,6 +14,33 @@ async def init_db():
         # ==========================================================
 
         await db.execute("PRAGMA foreign_keys = ON;")
+        await db.execute("PRAGMA journal_mode = WAL;")
+        await db.execute("PRAGMA synchronous = NORMAL;")
+
+        # ==========================================================
+        # META
+        # ==========================================================
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS metadata (
+
+            key TEXT PRIMARY KEY,
+
+            value TEXT NOT NULL
+
+        )
+        """)
+
+        await db.execute("""
+        INSERT OR IGNORE INTO metadata(
+            key,
+            value
+        )
+        VALUES(
+            'db_version',
+            ?
+        )
+        """, (str(DB_VERSION),))
 
         # ==========================================================
         # TOURNOIS
@@ -34,15 +63,23 @@ async def init_db():
 
             status TEXT NOT NULL DEFAULT 'registration',
 
-            current_round INTEGER DEFAULT 0,
+            current_round INTEGER NOT NULL DEFAULT 0,
 
-            total_rounds INTEGER DEFAULT 0,
+            total_rounds INTEGER NOT NULL DEFAULT 0,
 
             winner_id TEXT,
 
+            winner_name TEXT,
+
             bracket_message_id TEXT,
 
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_by TEXT NOT NULL,
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+            started_at TIMESTAMP,
+
+            finished_at TIMESTAMP
 
         )
         """)
@@ -59,6 +96,20 @@ async def init_db():
             guild_id TEXT NOT NULL,
 
             username TEXT NOT NULL,
+
+            display_name TEXT,
+
+            avatar_url TEXT,
+
+            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+            wins INTEGER NOT NULL DEFAULT 0,
+
+            losses INTEGER NOT NULL DEFAULT 0,
+
+            tournaments_played INTEGER NOT NULL DEFAULT 0,
+
+            tournaments_won INTEGER NOT NULL DEFAULT 0,
 
             PRIMARY KEY (
                 discord_id,
@@ -87,16 +138,22 @@ async def init_db():
 
             seed INTEGER,
 
-            checked_in INTEGER DEFAULT 1,
+            checked_in INTEGER NOT NULL DEFAULT 1,
+
+            dropped INTEGER NOT NULL DEFAULT 0,
+
+            disqualified INTEGER NOT NULL DEFAULT 0,
+
+            final_rank INTEGER,
 
             registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-            UNIQUE(
+            UNIQUE (
                 tournament_id,
                 discord_id
             ),
 
-            FOREIGN KEY(tournament_id)
+            FOREIGN KEY (tournament_id)
                 REFERENCES tournaments(id)
                 ON DELETE CASCADE
 
@@ -125,42 +182,56 @@ async def init_db():
             next_slot INTEGER,
 
             player1_id TEXT,
-
             player2_id TEXT,
 
             player1_name TEXT,
-
             player2_name TEXT,
 
-            player1_score INTEGER DEFAULT 0,
-
-            player2_score INTEGER DEFAULT 0,
+            player1_score INTEGER NOT NULL DEFAULT 0,
+            player2_score INTEGER NOT NULL DEFAULT 0,
 
             winner_id TEXT,
-
             winner_name TEXT,
 
             score TEXT,
 
             reported_by TEXT,
-
             validated_by TEXT,
 
             reported_at TIMESTAMP,
-
             validated_at TIMESTAMP,
 
             status TEXT NOT NULL DEFAULT 'waiting',
 
+            is_bye INTEGER NOT NULL DEFAULT 0,
+
+            notes TEXT,
+
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-            FOREIGN KEY(tournament_id)
+            FOREIGN KEY (tournament_id)
                 REFERENCES tournaments(id)
                 ON DELETE CASCADE,
 
-            FOREIGN KEY(next_match_id)
+            FOREIGN KEY (next_match_id)
                 REFERENCES matches(id)
-                ON DELETE SET NULL
+                ON DELETE SET NULL,
+
+            CHECK (
+                next_slot IS NULL
+                OR next_slot IN (1, 2)
+            ),
+
+            CHECK (
+                status IN (
+                    'waiting',
+                    'playing',
+                    'reported',
+                    'validated',
+                    'completed',
+                    'cancelled'
+                )
+            )
 
         )
         """)
@@ -172,6 +243,11 @@ async def init_db():
         await db.execute("""
         CREATE INDEX IF NOT EXISTS idx_tournament_guild
         ON tournaments(guild_id)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_tournament_status
+        ON tournaments(status)
         """)
 
         await db.execute("""
@@ -191,10 +267,7 @@ async def init_db():
 
         await db.execute("""
         CREATE INDEX IF NOT EXISTS idx_match_round
-        ON matches(
-            tournament_id,
-            round
-        )
+        ON matches(tournament_id, round)
         """)
 
         await db.execute("""
@@ -207,6 +280,22 @@ async def init_db():
         ON matches(next_match_id)
         """)
 
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_match_players
+        ON matches(player1_id, player2_id)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_match_winner
+        ON matches(winner_id)
+        """)
+
+        # ==========================================================
+        # FIN
+        # ==========================================================
+
         await db.commit()
 
-    print("✅ Base de données initialisée.")
+    print("✅ Base de données Hamtaro initialisée.")
+
+
