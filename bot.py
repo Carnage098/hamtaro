@@ -15,6 +15,7 @@ COGS = [
     "cogs.tournament",
     "cogs.profile",
     "cogs.admin",
+    "cogs.bracket",
 ]
 
 
