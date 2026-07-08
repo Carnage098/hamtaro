@@ -250,48 +250,96 @@ class TournamentCog(commands.Cog):
     # ==========================================================
     # LANCER TOURNOI
     # ==========================================================
+    # ==========================================================
+    # LANCER TOURNOI
+    # ==========================================================
 
-    @bot.tree.command(name="start_tournament", description="Lancer le tournoi")
-    async def start_tournament(interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+    @app_commands.command(
+        name="start_tournament",
+        description="Lancer le tournoi actif"
+    )
+    @app_commands.default_permissions(
+        manage_guild=True
+    )
+    async def start_tournament(
+        self,
+        interaction: discord.Interaction,
+    ):
 
-    try:
-        # récupère le tournoi actif ici
-    tournament = await get_active_tournament(interaction.guild.id)
-
-        if not tournament:
-                return await interaction.followup.send(
-                "❌ Aucun tournoi actif trouvé.",
-                ephemeral=True
-            )
-
-        if tournament["status"] == "running":
-                return await interaction.followup.send(
-                "❌ Le tournoi est déjà lancé.",
-                ephemeral=True
-            )
-
-        if tournament["status"] not in ("registration", "checkin"):
-                return await interaction.followup.send(
-                "❌ Le tournoi doit être en inscription ou en check-in pour être lancé.",
-                ephemeral=True
-            )
-
-        # lancement réel du tournoi ici
-        await start_tournament_service(tournament["id"])
-
-        await interaction.followup.send(
-            "✅ Tournoi lancé avec succès.",
+        await interaction.response.defer(
             ephemeral=True
         )
 
-    except Exception as e:
-        print("ERREUR /start_tournament :", e)
+        try:
 
-            
-    await interaction.followup.send(
-                f"❌ Erreur pendant le lancement du tournoi : `{e}`",
-                ephemeral=True
+            guild_id = self._guild_id(interaction)
+
+            tournament = await self.db.get_active_tournament(
+                guild_id
+            )
+
+            if tournament is None:
+
+                await interaction.followup.send(
+                    "❌ Aucun tournoi actif trouvé.",
+                    ephemeral=True,
+                )
+
+                return
+
+            status = tournament.status.value
+
+            if status == "running":
+
+                await interaction.followup.send(
+                    "❌ Le tournoi est déjà lancé.",
+                    ephemeral=True,
+                )
+
+                return
+
+            if status not in (
+                "registration",
+                "checkin",
+            ):
+
+                await interaction.followup.send(
+                    "❌ Le tournoi doit être en inscription ou en check-in pour être lancé.",
+                    ephemeral=True,
+                )
+
+                return
+
+            await self.brackets.generate(
+                tournament.id
+            )
+
+        except ValueError as error:
+
+            await interaction.followup.send(
+                f"❌ {error}",
+                ephemeral=True,
+            )
+
+            return
+
+        except Exception as error:
+
+            print(
+                "ERREUR /start_tournament :",
+                error,
+            )
+
+            await interaction.followup.send(
+                f"❌ Erreur pendant le lancement du tournoi : `{error}`",
+                ephemeral=True,
+            )
+
+            return
+
+        await interaction.followup.send(
+            "✅ Tournoi lancé avec succès.",
+            ephemeral=True,
         )
 
     # ==========================================================
