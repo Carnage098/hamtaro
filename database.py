@@ -418,13 +418,6 @@ async def init_db():
         # FIN
         # ==========================================================
         
-    CREATE TABLE IF NOT EXISTS swiss_rounds (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tournament_id INTEGER NOT NULL,
-    round_number INTEGER NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
        
         await db.commit()
 
