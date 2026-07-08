@@ -1516,6 +1516,587 @@ class DatabaseService:
         )
 
     # ==========================================================
+    # RONDES SUISSES
+    # ==========================================================
+
+    async def start_swiss_tournament(
+        self,
+        tournament_id: int,
+        total_rounds: int,
+    ) -> None:
+        """
+        Initialise le système de rondes suisses pour un tournoi.
+        """
+
+        if total_rounds < 1:
+            raise ValueError(
+                "Le nombre de rondes doit être supérieur ou égal à 1."
+            )
+
+        await self.update(
+            """
+            INSERT INTO swiss_settings (
+                tournament_id,
+                total_rounds,
+                current_round,
+                status,
+                started_at,
+                finished_at
+            )
+            VALUES (?, ?, 0, 'running', CURRENT_TIMESTAMP, NULL)
+
+            ON CONFLICT(tournament_id)
+            DO UPDATE SET
+                total_rounds = excluded.total_rounds,
+                current_round = 0,
+                status = 'running',
+                started_at = CURRENT_TIMESTAMP,
+                finished_at = NULL
+            """,
+            (
+                tournament_id,
+                total_rounds,
+            ),
+        )
+
+        await self.update(
+            """
+            UPDATE tournaments
+            SET
+                status = 'running',
+                current_round = 0,
+                total_rounds = ?
+            WHERE id = ?
+            """,
+            (
+                total_rounds,
+                tournament_id,
+            ),
+        )
+
+    async def reset_swiss_tournament(
+        self,
+        tournament_id: int,
+    ) -> None:
+        """
+        Supprime toutes les données suisses d'un tournoi.
+        """
+
+        await self.update(
+            """
+            DELETE FROM swiss_matches
+            WHERE tournament_id = ?
+            """,
+            (tournament_id,),
+        )
+
+        await self.update(
+            """
+            DELETE FROM swiss_settings
+            WHERE tournament_id = ?
+            """,
+            (tournament_id,),
+        )
+
+        await self.update(
+            """
+            UPDATE tournaments
+            SET
+                current_round = 0,
+                total_rounds = 0
+            WHERE id = ?
+            """,
+            (tournament_id,),
+        )
+
+    async def get_swiss_settings(
+        self,
+        tournament_id: int,
+    ):
+        """
+        Récupère les paramètres suisses d'un tournoi.
+        """
+
+        return await self.fetchone(
+            """
+            SELECT *
+            FROM swiss_settings
+            WHERE tournament_id = ?
+            """,
+            (tournament_id,),
+        )
+
+    async def set_swiss_current_round(
+        self,
+        tournament_id: int,
+        round_number: int,
+    ) -> None:
+        """
+        Met à jour la ronde suisse actuelle.
+        """
+
+        await self.update(
+            """
+            UPDATE swiss_settings
+            SET current_round = ?
+            WHERE tournament_id = ?
+            """,
+            (
+                round_number,
+                tournament_id,
+            ),
+        )
+
+        await self.update(
+            """
+            UPDATE tournaments
+            SET current_round = ?
+            WHERE id = ?
+            """,
+            (
+                round_number,
+                tournament_id,
+            ),
+        )
+
+    async def finish_swiss_tournament(
+        self,
+        tournament_id: int,
+    ) -> None:
+        """
+        Termine la partie rondes suisses du tournoi.
+        """
+
+        await self.update(
+            """
+            UPDATE swiss_settings
+            SET
+                status = 'finished',
+                finished_at = CURRENT_TIMESTAMP
+            WHERE tournament_id = ?
+            """,
+            (tournament_id,),
+        )
+
+    async def create_swiss_match(
+        self,
+        tournament_id: int,
+        round_number: int,
+        table_number: int,
+        player1_id: str,
+        player1_name: str,
+        player2_id: str | None,
+        player2_name: str | None,
+        *,
+        is_bye: bool = False,
+    ) -> int:
+        """
+        Crée un match de ronde suisse.
+        """
+
+        status = "completed" if is_bye else "pending"
+
+        winner_id = player1_id if is_bye else None
+        winner_name = player1_name if is_bye else None
+
+        return await self.insert(
+            """
+            INSERT INTO swiss_matches (
+                tournament_id,
+                round_number,
+                table_number,
+                player1_id,
+                player1_name,
+                player2_id,
+                player2_name,
+                winner_id,
+                winner_name,
+                is_bye,
+                status,
+                reported_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                tournament_id,
+                round_number,
+                table_number,
+                player1_id,
+                player1_name,
+                player2_id,
+                player2_name,
+                winner_id,
+                winner_name,
+                int(is_bye),
+                status,
+            ),
+        )
+
+    async def list_swiss_matches(
+        self,
+        tournament_id: int,
+        round_number: int | None = None,
+    ):
+        """
+        Liste les matchs suisses d'un tournoi.
+        """
+
+        if round_number is None:
+
+            return await self.fetchall(
+                """
+                SELECT *
+                FROM swiss_matches
+                WHERE tournament_id = ?
+                ORDER BY round_number ASC, table_number ASC
+                """,
+                (tournament_id,),
+            )
+
+        return await self.fetchall(
+            """
+            SELECT *
+            FROM swiss_matches
+            WHERE tournament_id = ?
+            AND round_number = ?
+            ORDER BY table_number ASC
+            """,
+            (
+                tournament_id,
+                round_number,
+            ),
+        )
+
+    async def get_swiss_match(
+        self,
+        match_id: int,
+    ):
+        """
+        Récupère un match suisse par son ID.
+        """
+
+        return await self.fetchone(
+            """
+            SELECT *
+            FROM swiss_matches
+            WHERE id = ?
+            """,
+            (match_id,),
+        )
+
+    async def count_pending_swiss_matches(
+        self,
+        tournament_id: int,
+        round_number: int,
+    ) -> int:
+        """
+        Compte les matchs non terminés d'une ronde suisse.
+        """
+
+        value = await self.fetchval(
+            """
+            SELECT COUNT(*)
+            FROM swiss_matches
+            WHERE tournament_id = ?
+            AND round_number = ?
+            AND status = 'pending'
+            """,
+            (
+                tournament_id,
+                round_number,
+            ),
+        )
+
+        return int(value or 0)
+
+    async def swiss_round_exists(
+        self,
+        tournament_id: int,
+        round_number: int,
+    ) -> bool:
+        """
+        Vérifie si une ronde suisse existe déjà.
+        """
+
+        value = await self.fetchval(
+            """
+            SELECT 1
+            FROM swiss_matches
+            WHERE tournament_id = ?
+            AND round_number = ?
+            LIMIT 1
+            """,
+            (
+                tournament_id,
+                round_number,
+            ),
+        )
+
+        return value is not None
+
+    async def report_swiss_result(
+        self,
+        match_id: int,
+        winner_id: str | None,
+        winner_name: str | None,
+        player1_score: int,
+        player2_score: int,
+        *,
+        is_draw: bool = False,
+        reported_by: str | None = None,
+    ) -> None:
+        """
+        Enregistre le résultat d'un match suisse.
+        """
+
+        match = await self.get_swiss_match(match_id)
+
+        if match is None:
+            raise ValueError("Match suisse introuvable.")
+
+        if match["status"] != "pending":
+            raise ValueError(
+                "Ce match suisse est déjà terminé."
+            )
+
+        if player1_score < 0 or player2_score < 0:
+            raise ValueError(
+                "Les scores ne peuvent pas être négatifs."
+            )
+
+        if is_draw:
+
+            winner_id = None
+            winner_name = None
+
+        elif winner_id is None:
+
+            raise ValueError(
+                "Il faut indiquer un gagnant ou déclarer une égalité."
+            )
+
+        await self.update(
+            """
+            UPDATE swiss_matches
+            SET
+                player1_score = ?,
+                player2_score = ?,
+                winner_id = ?,
+                winner_name = ?,
+                is_draw = ?,
+                status = 'completed',
+                reported_by = ?,
+                reported_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                player1_score,
+                player2_score,
+                winner_id,
+                winner_name,
+                int(is_draw),
+                reported_by,
+                match_id,
+            ),
+        )
+
+    async def get_swiss_opponents(
+        self,
+        tournament_id: int,
+        discord_id: str,
+    ) -> set[str]:
+        """
+        Retourne tous les adversaires déjà affrontés par un joueur.
+        """
+
+        rows = await self.fetchall(
+            """
+            SELECT
+                CASE
+                    WHEN player1_id = ? THEN player2_id
+                    WHEN player2_id = ? THEN player1_id
+                END AS opponent_id
+            FROM swiss_matches
+            WHERE tournament_id = ?
+            AND is_bye = 0
+            AND (
+                player1_id = ?
+                OR player2_id = ?
+            )
+            """,
+            (
+                discord_id,
+                discord_id,
+                tournament_id,
+                discord_id,
+                discord_id,
+            ),
+        )
+
+        return {
+            row["opponent_id"]
+            for row in rows
+            if row["opponent_id"] is not None
+        }
+
+    async def has_received_swiss_bye(
+        self,
+        tournament_id: int,
+        discord_id: str,
+    ) -> bool:
+        """
+        Vérifie si un joueur a déjà reçu un BYE.
+        """
+
+        value = await self.fetchval(
+            """
+            SELECT 1
+            FROM swiss_matches
+            WHERE tournament_id = ?
+            AND player1_id = ?
+            AND is_bye = 1
+            LIMIT 1
+            """,
+            (
+                tournament_id,
+                discord_id,
+            ),
+        )
+
+        return value is not None
+
+    async def get_swiss_standings(
+        self,
+        tournament_id: int,
+    ):
+        """
+        Classement suisse :
+        victoire = 3 points,
+        égalité = 1 point,
+        défaite = 0 point,
+        BYE = 3 points.
+        """
+
+        return await self.fetchall(
+            """
+            WITH results AS (
+
+                SELECT
+                    player1_id AS discord_id,
+
+                    CASE
+                        WHEN is_bye = 1 THEN 3
+                        WHEN is_draw = 1 THEN 1
+                        WHEN winner_id = player1_id THEN 3
+                        ELSE 0
+                    END AS points,
+
+                    CASE
+                        WHEN is_bye = 0 AND is_draw = 0 AND winner_id = player1_id THEN 1
+                        ELSE 0
+                    END AS wins,
+
+                    CASE
+                        WHEN is_draw = 1 THEN 1
+                        ELSE 0
+                    END AS draws,
+
+                    CASE
+                        WHEN is_bye = 0
+                        AND is_draw = 0
+                        AND winner_id IS NOT NULL
+                        AND winner_id != player1_id THEN 1
+                        ELSE 0
+                    END AS losses,
+
+                    CASE
+                        WHEN is_bye = 1 THEN 1
+                        ELSE 0
+                    END AS byes,
+
+                    1 AS played
+
+                FROM swiss_matches
+                WHERE tournament_id = ?
+                AND status = 'completed'
+
+                UNION ALL
+
+                SELECT
+                    player2_id AS discord_id,
+
+                    CASE
+                        WHEN is_draw = 1 THEN 1
+                        WHEN winner_id = player2_id THEN 3
+                        ELSE 0
+                    END AS points,
+
+                    CASE
+                        WHEN is_bye = 0 AND is_draw = 0 AND winner_id = player2_id THEN 1
+                        ELSE 0
+                    END AS wins,
+
+                    CASE
+                        WHEN is_draw = 1 THEN 1
+                        ELSE 0
+                    END AS draws,
+
+                    CASE
+                        WHEN is_bye = 0
+                        AND is_draw = 0
+                        AND winner_id IS NOT NULL
+                        AND winner_id != player2_id THEN 1
+                        ELSE 0
+                    END AS losses,
+
+                    0 AS byes,
+
+                    1 AS played
+
+                FROM swiss_matches
+                WHERE tournament_id = ?
+                AND status = 'completed'
+                AND player2_id IS NOT NULL
+            )
+
+            SELECT
+                registrations.discord_id,
+                registrations.username,
+
+                COALESCE(SUM(results.points), 0) AS points,
+                COALESCE(SUM(results.played), 0) AS played,
+                COALESCE(SUM(results.wins), 0) AS wins,
+                COALESCE(SUM(results.draws), 0) AS draws,
+                COALESCE(SUM(results.losses), 0) AS losses,
+                COALESCE(SUM(results.byes), 0) AS byes
+
+            FROM registrations
+
+            LEFT JOIN results
+                ON results.discord_id = registrations.discord_id
+
+            WHERE registrations.tournament_id = ?
+            AND registrations.dropped = 0
+            AND registrations.disqualified = 0
+
+            GROUP BY
+                registrations.discord_id,
+                registrations.username
+
+            ORDER BY
+                points DESC,
+                wins DESC,
+                draws DESC,
+                byes ASC,
+                registrations.username ASC
+            """,
+            (
+                tournament_id,
+                tournament_id,
+                tournament_id,
+            ),
+        )
+    # ==========================================================
     # MATCHS
     # ==========================================================
 
