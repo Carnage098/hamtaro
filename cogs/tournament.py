@@ -257,7 +257,7 @@ class TournamentCog(commands.Cog):
 
     try:
         # récupère le tournoi actif ici
-        tournament = await get_active_tournament(interaction.guild.id)
+    tournament = await get_active_tournament(interaction.guild.id)
 
         if not tournament:
             return await interaction.followup.send(
