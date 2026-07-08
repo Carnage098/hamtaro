@@ -259,28 +259,28 @@ class TournamentCog(commands.Cog):
         # récupère le tournoi actif ici
         tournament = await get_active_tournament(interaction.guild.id)
 
-            if not tournament:
+        if not tournament:
                 return await interaction.followup.send(
                 "❌ Aucun tournoi actif trouvé.",
                 ephemeral=True
             )
 
-            if tournament["status"] == "running":
+        if tournament["status"] == "running":
                 return await interaction.followup.send(
                 "❌ Le tournoi est déjà lancé.",
                 ephemeral=True
             )
 
-            if tournament["status"] not in ("registration", "checkin"):
+        if tournament["status"] not in ("registration", "checkin"):
                 return await interaction.followup.send(
                 "❌ Le tournoi doit être en inscription ou en check-in pour être lancé.",
                 ephemeral=True
             )
 
         # lancement réel du tournoi ici
-            await start_tournament_service(tournament["id"])
+        await start_tournament_service(tournament["id"])
 
-            await interaction.followup.send(
+        await interaction.followup.send(
             "✅ Tournoi lancé avec succès.",
             ephemeral=True
         )
