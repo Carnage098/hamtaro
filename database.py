@@ -383,6 +383,36 @@ async def init_db():
         CREATE INDEX IF NOT EXISTS idx_match_winner
         ON matches(winner_id)
         """)
+        
+                await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_swiss_settings_tournament
+        ON swiss_settings(tournament_id)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_swiss_match_tournament
+        ON swiss_matches(tournament_id)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_swiss_match_round
+        ON swiss_matches(tournament_id, round_number)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_swiss_match_players
+        ON swiss_matches(player1_id, player2_id)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_swiss_match_status
+        ON swiss_matches(status)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_swiss_match_winner
+        ON swiss_matches(winner_id)
+        """)
 
         # ==========================================================
         # FIN
@@ -395,24 +425,7 @@ async def init_db():
     status TEXT NOT NULL DEFAULT 'pending',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
-       CREATE TABLE IF NOT EXISTS swiss_matches (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tournament_id INTEGER NOT NULL,
-    round_number INTEGER NOT NULL,
-
-    player1_id TEXT NOT NULL,
-    player1_name TEXT NOT NULL,
-
-    player2_id TEXT,
-    player2_name TEXT,
-
-    winner_id TEXT,
-    is_draw INTEGER NOT NULL DEFAULT 0,
-    is_bye INTEGER NOT NULL DEFAULT 0,
-
-    status TEXT NOT NULL DEFAULT 'pending',
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
+       
         await db.commit()
 
     print("✅ Base de données Hamtaro initialisée.")
