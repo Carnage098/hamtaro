@@ -286,7 +286,7 @@ class TournamentCog(commands.Cog):
         )
 
     except Exception as e:
-    print("ERREUR /start_tournament :", e)
+        print("ERREUR /start_tournament :", e)
 
             await interaction.followup.send(
                 f"❌ Erreur pendant le lancement du tournoi : `{e}`",
