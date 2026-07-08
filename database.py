@@ -384,7 +384,7 @@ async def init_db():
         ON matches(winner_id)
         """)
         
-                await db.execute("""
+        await db.execute("""
         CREATE INDEX IF NOT EXISTS idx_swiss_settings_tournament
         ON swiss_settings(tournament_id)
         """)
