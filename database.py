@@ -235,7 +235,101 @@ async def init_db():
 
         )
         """)
+        # ==========================================================
+        # RONDES SUISSES - PARAMÈTRES
+        # ==========================================================
 
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS swiss_settings (
+
+            tournament_id INTEGER PRIMARY KEY,
+
+            total_rounds INTEGER NOT NULL,
+
+            current_round INTEGER NOT NULL DEFAULT 0,
+
+            status TEXT NOT NULL DEFAULT 'running',
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+            finished_at TIMESTAMP,
+
+            FOREIGN KEY (tournament_id)
+                REFERENCES tournaments(id)
+                ON DELETE CASCADE,
+
+            CHECK (
+                status IN (
+                    'running',
+                    'finished',
+                    'cancelled'
+                )
+            )
+
+        )
+        """)
+
+        # ==========================================================
+        # RONDES SUISSES - MATCHS
+        # ==========================================================
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS swiss_matches (
+
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            tournament_id INTEGER NOT NULL,
+
+            round_number INTEGER NOT NULL,
+
+            table_number INTEGER NOT NULL,
+
+            player1_id TEXT NOT NULL,
+            player1_name TEXT NOT NULL,
+
+            player2_id TEXT,
+            player2_name TEXT,
+
+            player1_score INTEGER NOT NULL DEFAULT 0,
+            player2_score INTEGER NOT NULL DEFAULT 0,
+
+            winner_id TEXT,
+            winner_name TEXT,
+
+            is_draw INTEGER NOT NULL DEFAULT 0,
+
+            is_bye INTEGER NOT NULL DEFAULT 0,
+
+            status TEXT NOT NULL DEFAULT 'pending',
+
+            reported_by TEXT,
+
+            reported_at TIMESTAMP,
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+            UNIQUE (
+                tournament_id,
+                round_number,
+                table_number
+            ),
+
+            FOREIGN KEY (tournament_id)
+                REFERENCES tournaments(id)
+                ON DELETE CASCADE,
+
+            CHECK (
+                status IN (
+                    'pending',
+                    'completed',
+                    'cancelled'
+                )
+            )
+
+        )
+        """)
         # ==========================================================
         # INDEXES
         # ==========================================================
@@ -293,6 +387,7 @@ async def init_db():
         # ==========================================================
         # FIN
         # ==========================================================
+        
        CREATE TABLE IF NOT EXISTS swiss_rounds (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tournament_id INTEGER NOT NULL,
