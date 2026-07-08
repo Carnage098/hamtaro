@@ -293,7 +293,31 @@ async def init_db():
         # ==========================================================
         # FIN
         # ==========================================================
+       CREATE TABLE IF NOT EXISTS swiss_rounds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tournament_id INTEGER NOT NULL,
+    round_number INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+       CREATE TABLE IF NOT EXISTS swiss_matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tournament_id INTEGER NOT NULL,
+    round_number INTEGER NOT NULL,
 
+    player1_id TEXT NOT NULL,
+    player1_name TEXT NOT NULL,
+
+    player2_id TEXT,
+    player2_name TEXT,
+
+    winner_id TEXT,
+    is_draw INTEGER NOT NULL DEFAULT 0,
+    is_bye INTEGER NOT NULL DEFAULT 0,
+
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
         await db.commit()
 
     print("✅ Base de données Hamtaro initialisée.")
