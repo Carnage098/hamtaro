@@ -250,10 +250,7 @@ class TournamentCog(commands.Cog):
     # ==========================================================
     # LANCER TOURNOI
     # ==========================================================
-    # ==========================================================
-    # LANCER TOURNOI
-    # ==========================================================
-
+  
     @app_commands.command(
         name="start_tournament",
         description="Lancer le tournoi actif"
@@ -300,11 +297,10 @@ class TournamentCog(commands.Cog):
 
             if status not in (
                 "registration",
-                "checkin",
             ):
 
                 await interaction.followup.send(
-                    "❌ Le tournoi doit être en inscription ou en check-in pour être lancé.",
+                    "❌ Le tournoi doit être dans la phase inscription pour être lancé.",
                     ephemeral=True,
                 )
 
