@@ -138,8 +138,8 @@ class TournamentCog(commands.Cog):
         )
 
         embed.set_footer(
-            text="Utilise /register pour t'inscrire."
-        )
+    text="Inscris-toi avec /register. Quand les inscriptions sont terminées, le staff lance le tournoi."
+)
 
         await interaction.followup.send(
             embed=embed,
@@ -192,9 +192,7 @@ class TournamentCog(commands.Cog):
             tournament.id
         )
 
-        checked_in = await self.db.count_checked_in(
-            tournament.id
-        )
+    
 
         embed = discord.Embed(
             title="🏆 Tournoi actif",
@@ -231,11 +229,7 @@ class TournamentCog(commands.Cog):
             inline=True,
         )
 
-        embed.add_field(
-            name="Check-in",
-            value=str(checked_in),
-            inline=True,
-        )
+        
 
         embed.add_field(
             name="Round actuel",
