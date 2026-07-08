@@ -252,7 +252,7 @@ class TournamentCog(commands.Cog):
     # ==========================================================
 
     @bot.tree.command(name="start_tournament", description="Lancer le tournoi")
-async def start_tournament(interaction: discord.Interaction):
+    async def start_tournament(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
     try:
