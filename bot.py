@@ -17,6 +17,7 @@ COGS = [
     "cogs.results",
     "cogs.profile",
     "cogs.admin",
+    "cogs.swiss",
 ]
 
 
