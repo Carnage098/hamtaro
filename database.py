@@ -2,7 +2,7 @@ import aiosqlite
 
 DATABASE = "database.db"
 
-DB_VERSION = 1
+DB_VERSION = 2
 
 
 async def init_db():
