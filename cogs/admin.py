@@ -242,7 +242,73 @@ class AdminCog(commands.Cog):
             f"✅ Round synchronisé : `{current_round}`",
             ephemeral=True,
         )
+        
+    # ==========================================================
+    # AJOUTER JOUEUR
+    # ==========================================================
 
+    @app_commands.command(
+        name="admin_add_player",
+        description="Ajouter manuellement un joueur au tournoi actif"
+    )
+    @app_commands.describe(
+        joueur="Joueur à ajouter au tournoi",
+        deck="Deck du joueur, optionnel"
+    )
+    @app_commands.default_permissions(
+        manage_guild=True
+    )
+    async def admin_add_player(
+        self,
+        interaction: discord.Interaction,
+        joueur: discord.Member,
+        deck: str | None = None,
+    ):
+
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
+        try:
+
+            guild_id = self._guild_id(interaction)
+
+            tournament = await self._get_active_tournament(
+                interaction
+            )
+
+            if tournament is None:
+
+                await interaction.followup.send(
+                    "❌ Aucun tournoi actif.",
+                    ephemeral=True,
+                )
+
+                return
+
+            await self.db.register_player(
+                tournament_id=tournament.id,
+                guild_id=guild_id,
+                discord_id=str(joueur.id),
+                username=joueur.name,
+                deck=deck,
+                display_name=joueur.display_name,
+                avatar_url=joueur.display_avatar.url,
+            )
+
+        except ValueError as error:
+
+            await interaction.followup.send(
+                f"❌ {error}",
+                ephemeral=True,
+            )
+
+            return
+
+        await interaction.followup.send(
+            f"✅ {joueur.mention} a été ajouté au tournoi actif.",
+            ephemeral=True,
+        )
     # ==========================================================
     # DROP JOUEUR
     # ==========================================================
