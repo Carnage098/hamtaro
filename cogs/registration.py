@@ -1,9 +1,11 @@
 from __future__ import annotations
-from utils.embeds import success_embed, error_embed, info_embed
+
 import discord
 
 from discord.ext import commands
 from discord import app_commands
+
+from utils.embeds import success_embed, error_embed, info_embed
 
 
 class RegistrationCog(commands.Cog):
@@ -44,7 +46,7 @@ class RegistrationCog(commands.Cog):
 
     def _display_name(
         self,
-        user: discord.abc.User,
+        user,
     ) -> str:
         return (
             user.display_name
@@ -54,7 +56,7 @@ class RegistrationCog(commands.Cog):
 
     def _avatar_url(
         self,
-        user: discord.abc.User,
+        user,
     ) -> str | None:
         avatar = getattr(user, "display_avatar", None)
 
@@ -62,6 +64,23 @@ class RegistrationCog(commands.Cog):
             return None
 
         return avatar.url
+
+    async def _send_error(
+        self,
+        interaction: discord.Interaction,
+        title: str,
+        description: str,
+        ephemeral: bool = True,
+    ):
+        embed = error_embed(
+            title=title,
+            description=description,
+        )
+
+        await interaction.followup.send(
+            embed=embed,
+            ephemeral=ephemeral,
+        )
 
     # ==========================================================
     # INSCRIPTION
@@ -91,9 +110,10 @@ class RegistrationCog(commands.Cog):
             )
 
             if tournament is None:
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif avec inscriptions ouvertes.",
-                    ephemeral=True,
+                await self._send_error(
+                    interaction=interaction,
+                    title="Aucun tournoi actif",
+                    description="Aucun tournoi actif avec inscriptions ouvertes.",
                 )
                 return
 
@@ -116,19 +136,19 @@ class RegistrationCog(commands.Cog):
             )
 
         except ValueError as error:
-            await interaction.followup.send(
-                f"❌ {error}",
-                ephemeral=True,
+            await self._send_error(
+                interaction=interaction,
+                title="Inscription impossible",
+                description=str(error),
             )
             return
 
-        embed = discord.Embed(
-            title="🐹 Inscription validée",
+        embed = success_embed(
+            title="Inscription validée",
             description=(
                 f"{interaction.user.mention}, tu es bien inscrit au tournoi.\n\n"
                 "Aucun check-in n'est nécessaire : ton inscription confirme ta disponibilité."
             ),
-            color=discord.Color.green(),
         )
 
         embed.add_field(
@@ -147,6 +167,10 @@ class RegistrationCog(commands.Cog):
             name="📊 Inscrits",
             value=f"**{current}/{tournament.max_players}**",
             inline=True,
+        )
+
+        embed.set_footer(
+            text="Hamtaro Tournament Manager"
         )
 
         await interaction.followup.send(
@@ -176,9 +200,10 @@ class RegistrationCog(commands.Cog):
             )
 
             if tournament is None:
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif.",
-                    ephemeral=True,
+                await self._send_error(
+                    interaction=interaction,
+                    title="Aucun tournoi actif",
+                    description="Il n'y a actuellement aucun tournoi actif.",
                 )
                 return
 
@@ -188,19 +213,23 @@ class RegistrationCog(commands.Cog):
             )
 
         except ValueError as error:
-            await interaction.followup.send(
-                f"❌ {error}",
-                ephemeral=True,
+            await self._send_error(
+                interaction=interaction,
+                title="Désinscription impossible",
+                description=str(error),
             )
             return
 
-        embed = discord.Embed(
-            title="🐹 Désinscription validée",
+        embed = success_embed(
+            title="Désinscription validée",
             description=(
                 f"{interaction.user.mention}, tu es désinscrit du tournoi "
                 f"**{tournament.name}**."
             ),
-            color=discord.Color.orange(),
+        )
+
+        embed.set_footer(
+            text="Hamtaro Tournament Manager"
         )
 
         await interaction.followup.send(
@@ -220,11 +249,21 @@ class RegistrationCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-        await interaction.response.send_message(
-            (
-                "🐹 Le check-in n'est plus nécessaire.\n\n"
-                "Si tu es inscrit au tournoi, tu es automatiquement considéré comme disponible."
+        embed = info_embed(
+            title="Check-in désactivé",
+            description=(
+                "Le check-in n'est plus nécessaire.\n\n"
+                "Si tu es inscrit au tournoi, tu es automatiquement considéré "
+                "comme disponible."
             ),
+        )
+
+        embed.set_footer(
+            text="Hamtaro Tournament Manager"
+        )
+
+        await interaction.response.send_message(
+            embed=embed,
             ephemeral=True,
         )
 
@@ -236,11 +275,20 @@ class RegistrationCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-        await interaction.response.send_message(
-            (
-                "🐹 Le système de check-in est désactivé.\n\n"
+        embed = info_embed(
+            title="Check-in désactivé",
+            description=(
+                "Le système de check-in est désactivé.\n\n"
                 "Tu n'as rien à annuler : seule l'inscription compte maintenant."
             ),
+        )
+
+        embed.set_footer(
+            text="Hamtaro Tournament Manager"
+        )
+
+        await interaction.response.send_message(
+            embed=embed,
             ephemeral=True,
         )
 
@@ -270,9 +318,10 @@ class RegistrationCog(commands.Cog):
             )
 
             if tournament is None:
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif.",
-                    ephemeral=True,
+                await self._send_error(
+                    interaction=interaction,
+                    title="Aucun tournoi actif",
+                    description="Il n'y a actuellement aucun tournoi actif.",
                 )
                 return
 
@@ -282,9 +331,10 @@ class RegistrationCog(commands.Cog):
             )
 
             if registration is None:
-                await interaction.followup.send(
-                    "❌ Tu n'es pas inscrit à ce tournoi.",
-                    ephemeral=True,
+                await self._send_error(
+                    interaction=interaction,
+                    title="Joueur non inscrit",
+                    description="Tu n'es pas inscrit à ce tournoi.",
                 )
                 return
 
@@ -295,24 +345,28 @@ class RegistrationCog(commands.Cog):
             )
 
         except ValueError as error:
-            await interaction.followup.send(
-                f"❌ {error}",
-                ephemeral=True,
+            await self._send_error(
+                interaction=interaction,
+                title="Modification impossible",
+                description=str(error),
             )
             return
 
-        embed = discord.Embed(
-            title="🐹 Deck mis à jour",
+        embed = success_embed(
+            title="Deck mis à jour",
             description=(
                 f"{interaction.user.mention}, ton deck a bien été modifié."
             ),
-            color=discord.Color.blue(),
         )
 
         embed.add_field(
             name="🎴 Nouveau deck",
             value=f"`{deck}`",
             inline=False,
+        )
+
+        embed.set_footer(
+            text="Hamtaro Tournament Manager"
         )
 
         await interaction.followup.send(
@@ -342,8 +396,10 @@ class RegistrationCog(commands.Cog):
             )
 
             if tournament is None:
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif.",
+                await self._send_error(
+                    interaction=interaction,
+                    title="Aucun tournoi actif",
+                    description="Il n'y a actuellement aucun tournoi actif.",
                     ephemeral=True,
                 )
                 return
@@ -353,15 +409,26 @@ class RegistrationCog(commands.Cog):
             )
 
         except ValueError as error:
-            await interaction.followup.send(
-                f"❌ {error}",
+            await self._send_error(
+                interaction=interaction,
+                title="Erreur",
+                description=str(error),
                 ephemeral=True,
             )
             return
 
         if not registrations:
+            embed = info_embed(
+                title="Aucun joueur inscrit",
+                description="Aucun joueur n'est inscrit pour le moment.",
+            )
+
+            embed.set_footer(
+                text="Hamtaro Tournament Manager"
+            )
+
             await interaction.followup.send(
-                "❌ Aucun joueur inscrit pour le moment.",
+                embed=embed,
                 ephemeral=True,
             )
             return
@@ -378,15 +445,17 @@ class RegistrationCog(commands.Cog):
                 f"{index}. ✅ **{registration.username}** — `{deck}`"
             )
 
-        embed = discord.Embed(
-            title=f"👥 Joueurs inscrits — {tournament.name}",
+        embed = info_embed(
+            title=f"Joueurs inscrits — {tournament.name}",
             description="\n".join(lines),
-            color=discord.Color.green(),
         )
 
         embed.add_field(
             name="📌 Disponibilité",
-            value="Tous les joueurs inscrits sont automatiquement considérés comme disponibles.",
+            value=(
+                "Tous les joueurs inscrits sont automatiquement considérés "
+                "comme disponibles."
+            ),
             inline=False,
         )
 
