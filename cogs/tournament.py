@@ -1,12 +1,11 @@
 from __future__ import annotations
-from utils.permissions import staff_only
+
 import discord
 
 from discord.ext import commands
 from discord import app_commands
 
 from services.bracket_service import BracketService
-from models.enums import TournamentStatus
 
 
 FORMATS = [
@@ -27,16 +26,11 @@ FORMATS = [
 class TournamentCog(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
-
         self.bot = bot
         self.db = bot.db
         self.brackets = BracketService(self.db)
 
-    def _guild_id(
-        self,
-        interaction: discord.Interaction,
-    ) -> str:
-
+    def _guild_id(self, interaction: discord.Interaction) -> str:
         if interaction.guild is None:
             raise ValueError(
                 "Cette commande doit être utilisée dans un serveur."
@@ -76,13 +70,11 @@ class TournamentCog(commands.Cog):
         format: app_commands.Choice[str],
         max_players: int,
     ):
-
         await interaction.response.defer(
             ephemeral=False
         )
 
         try:
-
             guild_id = self._guild_id(interaction)
 
             tournament = await self.db.create_tournament(
@@ -94,16 +86,15 @@ class TournamentCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         embed = discord.Embed(
             title="🏆 Tournoi créé",
+            description="Les inscriptions sont maintenant ouvertes.",
             color=discord.Color.gold(),
         )
 
@@ -138,8 +129,8 @@ class TournamentCog(commands.Cog):
         )
 
         embed.set_footer(
-    text="Inscris-toi avec /register. Quand les inscriptions sont terminées, le staff lance le tournoi."
-)
+            text="Inscris-toi avec /register. Le staff lancera le tournoi quand les inscriptions seront terminées."
+        )
 
         await interaction.followup.send(
             embed=embed,
@@ -157,13 +148,11 @@ class TournamentCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-
         await interaction.response.defer(
             ephemeral=False
         )
 
         try:
-
             guild_id = self._guild_id(interaction)
 
             tournament = await self.db.get_active_tournament(
@@ -171,28 +160,22 @@ class TournamentCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         if tournament is None:
-
             await interaction.followup.send(
                 "❌ Aucun tournoi actif sur ce serveur.",
                 ephemeral=True,
             )
-
             return
 
         registered = await self.db.count_registrations(
             tournament.id
         )
-
-    
 
         embed = discord.Embed(
             title="🏆 Tournoi actif",
@@ -229,8 +212,6 @@ class TournamentCog(commands.Cog):
             inline=True,
         )
 
-        
-
         embed.add_field(
             name="Round actuel",
             value=str(tournament.current_round),
@@ -244,7 +225,7 @@ class TournamentCog(commands.Cog):
     # ==========================================================
     # LANCER TOURNOI
     # ==========================================================
-  
+
     @app_commands.command(
         name="start_tournament",
         description="Lancer le tournoi actif"
@@ -256,13 +237,11 @@ class TournamentCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-
         await interaction.response.defer(
             ephemeral=True
         )
 
         try:
-
             guild_id = self._guild_id(interaction)
 
             tournament = await self.db.get_active_tournament(
@@ -270,34 +249,26 @@ class TournamentCog(commands.Cog):
             )
 
             if tournament is None:
-
                 await interaction.followup.send(
                     "❌ Aucun tournoi actif trouvé.",
                     ephemeral=True,
                 )
-
                 return
 
             status = tournament.status.value
 
             if status == "running":
-
                 await interaction.followup.send(
                     "❌ Le tournoi est déjà lancé.",
                     ephemeral=True,
                 )
-
                 return
 
-            if status not in (
-                "registration",
-            ):
-
+            if status != "registration":
                 await interaction.followup.send(
-                    "❌ Le tournoi doit être dans la phase inscription pour être lancé.",
+                    "❌ Le tournoi doit être en phase d'inscription pour être lancé.",
                     ephemeral=True,
                 )
-
                 return
 
             await self.brackets.generate(
@@ -305,16 +276,13 @@ class TournamentCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         except Exception as error:
-
             print(
                 "ERREUR /start_tournament :",
                 error,
@@ -324,7 +292,6 @@ class TournamentCog(commands.Cog):
                 f"❌ Erreur pendant le lancement du tournoi : `{error}`",
                 ephemeral=True,
             )
-
             return
 
         await interaction.followup.send(
@@ -344,13 +311,11 @@ class TournamentCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-
         await interaction.response.defer(
             ephemeral=True
         )
 
         try:
-
             guild_id = self._guild_id(interaction)
 
             tournaments = await self.db.list_tournaments(
@@ -359,27 +324,22 @@ class TournamentCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         if not tournaments:
-
             await interaction.followup.send(
                 "❌ Aucun tournoi trouvé.",
                 ephemeral=True,
             )
-
             return
 
         lines = []
 
         for tournament in tournaments[:10]:
-
             lines.append(
                 f"🏆 **{tournament.name}** — `{tournament.code}` "
                 f"({tournament.format}) — `{tournament.status.value}`"
@@ -405,13 +365,11 @@ class TournamentCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-
         await interaction.response.defer(
             ephemeral=True
         )
 
         try:
-
             guild_id = self._guild_id(interaction)
 
             tournament = await self.db.get_active_tournament(
@@ -419,12 +377,10 @@ class TournamentCog(commands.Cog):
             )
 
             if tournament is None:
-
                 await interaction.followup.send(
                     "❌ Aucun tournoi actif à annuler.",
                     ephemeral=True,
                 )
-
                 return
 
             await self.brackets.cancel_tournament(
@@ -432,12 +388,10 @@ class TournamentCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         await interaction.followup.send(
@@ -445,26 +399,8 @@ class TournamentCog(commands.Cog):
             ephemeral=True,
         )
 
-@app_commands.command(
-    name="repair_tournament",
-    description="Répare un tournoi bloqué ou incohérent."
-)
-@staff_only()
-async def repair_tournament(
-    self,
-    interaction: discord.Interaction,
-    tournament_id: int
-):
-    await interaction.response.send_message(
-        f"🔧 Réparation du tournoi `{tournament_id}` en cours...",
-        ephemeral=True
-    )
 
-  
-async def setup(
-    bot: commands.Bot,
-):
-
+async def setup(bot: commands.Bot):
     await bot.add_cog(
         TournamentCog(bot)
     )
