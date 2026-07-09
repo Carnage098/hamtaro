@@ -25,6 +25,7 @@ COGS = [
     "cogs.repair",
     "cogs.staff_logs",
     "cogs.tournament_status",
+    "cogs.nextmatch",
 ]
 
 
