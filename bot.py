@@ -19,6 +19,7 @@ COGS = [
     "cogs.profile",
     "cogs.admin",
     "cogs.swiss",
+    "cogs.match_history",
 ]
 
 
