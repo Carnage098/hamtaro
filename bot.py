@@ -23,6 +23,7 @@ COGS = [
     "cogs.swiss",
     "cogs.match_history",
     "cogs.repair",
+    "cogs.staff_logs",
 ]
 
 
