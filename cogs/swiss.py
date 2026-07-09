@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import aiosqlite
 import discord
 
 from discord.ext import commands
 from discord import app_commands
 
+from database import DATABASE
 from services.swiss_service import SwissService
 
 
@@ -79,6 +81,314 @@ class SwissCog(commands.Cog):
                 table_number,
             ),
         )
+
+    async def _report_double_loss(
+        self,
+        match,
+        reported_by: str,
+    ) -> None:
+        """
+        Enregistre un double loss uniquement pour une ronde suisse.
+
+        Règle Hamtaro :
+        - pas de nul ;
+        - double loss seulement en rondes suisses ;
+        - 0 point pour les deux joueurs ;
+        - pire qu'une défaite normale en cas d'égalité au classement.
+        """
+
+        if int(match["is_bye"] or 0) == 1:
+            raise ValueError(
+                "Impossible de mettre un double loss sur un BYE."
+            )
+
+        if match["player2_id"] is None:
+            raise ValueError(
+                "Impossible de mettre un double loss : il manque le joueur 2."
+            )
+
+        if str(match["status"]).lower() == "completed":
+            raise ValueError(
+                "Ce match suisse est déjà terminé."
+            )
+
+        match_id = int(match["id"])
+
+        async with aiosqlite.connect(DATABASE) as db:
+            await db.execute("PRAGMA foreign_keys = ON;")
+
+            await db.execute(
+                """
+                UPDATE swiss_matches
+                SET player1_score = 0,
+                    player2_score = 0,
+                    winner_id = NULL,
+                    winner_name = NULL,
+                    is_draw = 0,
+                    is_double_loss = 1,
+                    result = 'double_loss',
+                    status = 'completed',
+                    reported_by = ?,
+                    reported_at = CURRENT_TIMESTAMP,
+                    finished_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (
+                    reported_by,
+                    match_id,
+                ),
+            )
+
+            await db.commit()
+
+    def _empty_player_stats(
+        self,
+        discord_id: str,
+        username: str,
+    ) -> dict:
+
+        return {
+            "discord_id": discord_id,
+            "username": username,
+            "points": 0,
+            "wins": 0,
+            "losses": 0,
+            "double_losses": 0,
+            "byes": 0,
+            "matches_played": 0,
+        }
+
+    def _ensure_player_in_standings(
+        self,
+        standings: dict[str, dict],
+        discord_id: str | None,
+        username: str | None,
+    ) -> None:
+
+        if discord_id is None:
+            return
+
+        discord_id = str(discord_id)
+
+        if username is None:
+            username = "Joueur inconnu"
+
+        if discord_id not in standings:
+            standings[discord_id] = self._empty_player_stats(
+                discord_id=discord_id,
+                username=str(username),
+            )
+
+    async def _format_standings_with_double_loss(
+        self,
+        tournament_id: int,
+    ) -> str:
+        """
+        Classement suisse propre avec double loss.
+
+        Tri :
+        1. points décroissants ;
+        2. double losses croissants ;
+        3. victoires décroissantes ;
+        4. défaites croissantes ;
+        5. nom du joueur.
+        """
+
+        async with aiosqlite.connect(DATABASE) as db:
+            db.row_factory = aiosqlite.Row
+
+            cursor = await db.execute(
+                """
+                SELECT discord_id, username
+                FROM registrations
+                WHERE tournament_id = ?
+                AND dropped = 0
+                AND disqualified = 0
+                ORDER BY username ASC
+                """,
+                (tournament_id,),
+            )
+
+            registrations = list(await cursor.fetchall())
+
+            cursor = await db.execute(
+                """
+                SELECT *
+                FROM swiss_matches
+                WHERE tournament_id = ?
+                AND status = 'completed'
+                ORDER BY round_number ASC, table_number ASC
+                """,
+                (tournament_id,),
+            )
+
+            matches = list(await cursor.fetchall())
+
+        if not registrations:
+            raise ValueError(
+                "Aucun joueur inscrit pour calculer le classement."
+            )
+
+        standings: dict[str, dict] = {}
+
+        for player in registrations:
+            discord_id = str(player["discord_id"])
+            username = str(player["username"])
+
+            standings[discord_id] = self._empty_player_stats(
+                discord_id=discord_id,
+                username=username,
+            )
+
+        for match in matches:
+            player1_id = match["player1_id"]
+            player1_name = match["player1_name"]
+            player2_id = match["player2_id"]
+            player2_name = match["player2_name"]
+            winner_id = match["winner_id"]
+
+            self._ensure_player_in_standings(
+                standings=standings,
+                discord_id=player1_id,
+                username=player1_name,
+            )
+
+            self._ensure_player_in_standings(
+                standings=standings,
+                discord_id=player2_id,
+                username=player2_name,
+            )
+
+            is_bye = int(match["is_bye"] or 0) == 1
+            is_draw = int(match["is_draw"] or 0) == 1
+
+            try:
+                is_double_loss = int(match["is_double_loss"] or 0) == 1
+            except Exception:
+                is_double_loss = False
+
+            try:
+                result = str(match["result"] or "none")
+            except Exception:
+                result = "none"
+
+            if is_bye:
+                if player1_id is not None:
+                    player1_id = str(player1_id)
+
+                    standings[player1_id]["points"] += 3
+                    standings[player1_id]["wins"] += 1
+                    standings[player1_id]["byes"] += 1
+                    standings[player1_id]["matches_played"] += 1
+
+                continue
+
+            if is_double_loss or result == "double_loss":
+                if player1_id is not None:
+                    player1_id = str(player1_id)
+
+                    standings[player1_id]["double_losses"] += 1
+                    standings[player1_id]["matches_played"] += 1
+
+                if player2_id is not None:
+                    player2_id = str(player2_id)
+
+                    standings[player2_id]["double_losses"] += 1
+                    standings[player2_id]["matches_played"] += 1
+
+                continue
+
+            if is_draw or result == "draw":
+                # Ancienne logique d'égalité supprimée.
+                # Si une ancienne égalité existe encore en base,
+                # on la traite comme un double loss pour respecter les nouvelles règles.
+                if player1_id is not None:
+                    player1_id = str(player1_id)
+
+                    standings[player1_id]["double_losses"] += 1
+                    standings[player1_id]["matches_played"] += 1
+
+                if player2_id is not None:
+                    player2_id = str(player2_id)
+
+                    standings[player2_id]["double_losses"] += 1
+                    standings[player2_id]["matches_played"] += 1
+
+                continue
+
+            if winner_id is None:
+                continue
+
+            winner_id = str(winner_id)
+
+            if player1_id is not None:
+                player1_id = str(player1_id)
+
+            if player2_id is not None:
+                player2_id = str(player2_id)
+
+            if winner_id not in standings:
+                if winner_id == player1_id:
+                    winner_name = player1_name
+                elif winner_id == player2_id:
+                    winner_name = player2_name
+                else:
+                    winner_name = "Joueur inconnu"
+
+                self._ensure_player_in_standings(
+                    standings=standings,
+                    discord_id=winner_id,
+                    username=winner_name,
+                )
+
+            standings[winner_id]["points"] += 3
+            standings[winner_id]["wins"] += 1
+            standings[winner_id]["matches_played"] += 1
+
+            if player1_id == winner_id:
+                loser_id = player2_id
+            else:
+                loser_id = player1_id
+
+            if loser_id is not None and loser_id in standings:
+                standings[loser_id]["losses"] += 1
+                standings[loser_id]["matches_played"] += 1
+
+        ranked_players = sorted(
+            standings.values(),
+            key=lambda player: (
+                -int(player["points"]),
+                int(player["double_losses"]),
+                -int(player["wins"]),
+                int(player["losses"]),
+                str(player["username"]).lower(),
+            ),
+        )
+
+        lines = [
+            "🏆 **Classement des rondes suisses**",
+            "",
+            "```",
+        ]
+
+        for index, player in enumerate(ranked_players, start=1):
+            username = player["username"]
+            points = player["points"]
+            wins = player["wins"]
+            losses = player["losses"]
+            double_losses = player["double_losses"]
+            byes = player["byes"]
+
+            lines.append(
+                f"{index:>2}. {username} — {points} pts | "
+                f"{wins}V / {losses}D / {double_losses}DL / {byes}BYE"
+            )
+
+        lines.append("```")
+        lines.append("")
+        lines.append("`DL` = double loss, donc 0 point et pénalité au classement en cas d'égalité.")
+
+        return "\n".join(lines)
 
     # ==========================================================
     # START
@@ -209,8 +519,8 @@ class SwissCog(commands.Cog):
                 value="player2",
             ),
             app_commands.Choice(
-                name="Égalité",
-                value="draw",
+                name="Double loss",
+                value="double_loss",
             ),
         ]
     )
@@ -273,11 +583,20 @@ class SwissCog(commands.Cog):
 
                 return
 
-            await self.swiss.report_result(
-                match_id=match["id"],
-                result=resultat.value,
-                reported_by=str(interaction.user.id),
-            )
+            if resultat.value == "double_loss":
+
+                await self._report_double_loss(
+                    match=match,
+                    reported_by=str(interaction.user.id),
+                )
+
+            else:
+
+                await self.swiss.report_result(
+                    match_id=match["id"],
+                    result=resultat.value,
+                    reported_by=str(interaction.user.id),
+                )
 
             text = await self.swiss.format_current_round(
                 tournament.id
@@ -292,10 +611,22 @@ class SwissCog(commands.Cog):
 
             return
 
-        await interaction.followup.send(
-            f"✅ Résultat validé pour la table `{table}`.\n\n{text}",
-            ephemeral=True,
-        )
+        if resultat.value == "double_loss":
+
+            await interaction.followup.send(
+                f"⏱️ **Double loss validé pour la table `{table}`.**\n"
+                "Les deux joueurs prennent **0 point**.\n"
+                "Ce résultat est réservé aux **rondes suisses**.\n\n"
+                f"{text}",
+                ephemeral=True,
+            )
+
+        else:
+
+            await interaction.followup.send(
+                f"✅ Résultat validé pour la table `{table}`.\n\n{text}",
+                ephemeral=True,
+            )
 
     # ==========================================================
     # NEXT ROUND
@@ -368,7 +699,7 @@ class SwissCog(commands.Cog):
                 interaction
             )
 
-            text = await self.swiss.format_standings(
+            text = await self._format_standings_with_double_loss(
                 tournament.id
             )
 
