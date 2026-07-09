@@ -6,11 +6,13 @@ from discord.ext import commands
 from discord import app_commands
 
 from services.bracket_service import BracketService
+from services.admin_log_service import AdminLogService
+
 from models.enums import TournamentStatus
 
 from utils.embeds import success_embed, error_embed, info_embed
 from utils.permissions import staff_only
-from services.admin_log_service import AdminLogService
+
 
 class AdminCog(commands.Cog):
 
@@ -22,38 +24,6 @@ class AdminCog(commands.Cog):
         self.db = bot.db
         self.brackets = BracketService(self.db)
         self.logs = AdminLogService()
-
-    async def _log_action(
-    self,
-    interaction: discord.Interaction,
-    action: str,
-    target: discord.Member | None = None,
-    tournament=None,
-    details: str | None = None,
-):
-    try:
-        guild_id = self._guild_id(
-            interaction
-        )
-
-        await self.logs.record(
-            guild_id=guild_id,
-            actor_id=str(interaction.user.id),
-            actor_name=interaction.user.display_name,
-            action=action,
-            target_id=str(target.id) if target else None,
-            target_name=target.display_name if target else None,
-            tournament_id=getattr(tournament, "id", None),
-            tournament_name=getattr(tournament, "name", None),
-            details=details,
-        )
-
-    except Exception as error:
-        print(
-            f"⚠️ Impossible d'enregistrer le log staff : {error}"
-        )
-
-
 
     # ==========================================================
     # OUTILS INTERNES
@@ -101,6 +71,34 @@ class AdminCog(commands.Cog):
             await interaction.response.send_message(
                 embed=embed,
                 ephemeral=ephemeral,
+            )
+
+    async def _log_action(
+        self,
+        interaction: discord.Interaction,
+        action: str,
+        target: discord.Member | None = None,
+        tournament=None,
+        details: str | None = None,
+    ):
+        try:
+            guild_id = self._guild_id(interaction)
+
+            await self.logs.record(
+                guild_id=guild_id,
+                actor_id=str(interaction.user.id),
+                actor_name=interaction.user.display_name,
+                action=action,
+                target_id=str(target.id) if target else None,
+                target_name=target.display_name if target else None,
+                tournament_id=getattr(tournament, "id", None),
+                tournament_name=getattr(tournament, "name", None),
+                details=details,
+            )
+
+        except Exception as error:
+            print(
+                f"⚠️ Impossible d'enregistrer le log staff : {error}"
             )
 
     def _status_value(
@@ -163,8 +161,17 @@ class AdminCog(commands.Cog):
         else:
             embed = error_embed(
                 title="Problème base de données",
-                description="Hamtaro n'arrive pas à joindre correctement la base de données.",
+                description=(
+                    "Hamtaro n'arrive pas à joindre correctement "
+                    "la base de données."
+                ),
             )
+
+        await self._log_action(
+            interaction=interaction,
+            action="admin_health",
+            details="OK" if ok else "Erreur base de données",
+        )
 
         await interaction.followup.send(
             embed=embed,
@@ -206,6 +213,13 @@ class AdminCog(commands.Cog):
 
             await self.brackets.reset_bracket(
                 tournament.id
+            )
+
+            await self._log_action(
+                interaction=interaction,
+                action="admin_reset_bracket",
+                tournament=tournament,
+                details="Bracket supprimé",
             )
 
         except ValueError as error:
@@ -277,6 +291,13 @@ class AdminCog(commands.Cog):
                 tournament.id
             )
 
+            await self._log_action(
+                interaction=interaction,
+                action="admin_regenerate_bracket",
+                tournament=tournament,
+                details="Bracket régénéré avec shuffle=True",
+            )
+
         except ValueError as error:
             await self._send_error(
                 interaction=interaction,
@@ -338,6 +359,13 @@ class AdminCog(commands.Cog):
 
             current_round = await self.brackets.sync_current_round(
                 tournament.id
+            )
+
+            await self._log_action(
+                interaction=interaction,
+                action="admin_sync_round",
+                tournament=tournament,
+                details=f"Round actuel : {current_round}",
             )
 
         except ValueError as error:
@@ -414,8 +442,8 @@ class AdminCog(commands.Cog):
                     description=(
                         "Tu ne peux ajouter un joueur manuellement que pendant "
                         "la phase d'inscription.\n\n"
-                        "Si le tournoi a déjà commencé, il vaut mieux éviter de modifier "
-                        "les inscrits pour ne pas casser le bracket."
+                        "Si le tournoi a déjà commencé, il vaut mieux éviter "
+                        "de modifier les inscrits pour ne pas casser le bracket."
                     ),
                 )
                 return
@@ -432,6 +460,14 @@ class AdminCog(commands.Cog):
 
             current = await self.db.count_registrations(
                 tournament.id
+            )
+
+            await self._log_action(
+                interaction=interaction,
+                action="admin_add_player",
+                target=joueur,
+                tournament=tournament,
+                details=f"Deck : {deck or 'Non renseigné'}",
             )
 
         except ValueError as error:
@@ -548,6 +584,14 @@ class AdminCog(commands.Cog):
                 tournament.id
             )
 
+            await self._log_action(
+                interaction=interaction,
+                action="remove_player",
+                target=joueur,
+                tournament=tournament,
+                details=raison or "Aucune raison indiquée",
+            )
+
         except ValueError as error:
             await self._send_error(
                 interaction=interaction,
@@ -627,6 +671,14 @@ class AdminCog(commands.Cog):
                 discord_id=str(joueur.id),
             )
 
+            await self._log_action(
+                interaction=interaction,
+                action="admin_drop",
+                target=joueur,
+                tournament=tournament,
+                details="Joueur marqué comme drop",
+            )
+
         except ValueError as error:
             await self._send_error(
                 interaction=interaction,
@@ -690,6 +742,14 @@ class AdminCog(commands.Cog):
                 discord_id=str(joueur.id),
             )
 
+            await self._log_action(
+                interaction=interaction,
+                action="admin_dq",
+                target=joueur,
+                tournament=tournament,
+                details="Joueur disqualifié",
+            )
+
         except ValueError as error:
             await self._send_error(
                 interaction=interaction,
@@ -751,6 +811,14 @@ class AdminCog(commands.Cog):
             await self.db.restore_player_registration(
                 tournament_id=tournament.id,
                 discord_id=str(joueur.id),
+            )
+
+            await self._log_action(
+                interaction=interaction,
+                action="admin_restore",
+                target=joueur,
+                tournament=tournament,
+                details="Drop/DQ annulé",
             )
 
         except ValueError as error:
@@ -827,6 +895,14 @@ class AdminCog(commands.Cog):
                 seed=seed,
             )
 
+            await self._log_action(
+                interaction=interaction,
+                action="admin_seed",
+                target=joueur,
+                tournament=tournament,
+                details=f"Seed défini : {seed}",
+            )
+
         except ValueError as error:
             await self._send_error(
                 interaction=interaction,
@@ -888,6 +964,14 @@ class AdminCog(commands.Cog):
                 tournament_id=tournament.id,
                 discord_id=str(joueur.id),
                 seed=None,
+            )
+
+            await self._log_action(
+                interaction=interaction,
+                action="admin_clear_seed",
+                target=joueur,
+                tournament=tournament,
+                details="Seed supprimé",
             )
 
         except ValueError as error:
@@ -967,9 +1051,20 @@ class AdminCog(commands.Cog):
                 )
                 return
 
+            old_status = self._status_value(
+                tournament
+            )
+
             await self.db.update_tournament_status(
                 tournament_id=tournament.id,
                 status=TournamentStatus(status.value),
+            )
+
+            await self._log_action(
+                interaction=interaction,
+                action="admin_status",
+                tournament=tournament,
+                details=f"{old_status} -> {status.value}",
             )
 
         except ValueError as error:
@@ -1002,6 +1097,10 @@ class AdminCog(commands.Cog):
 async def setup(
     bot: commands.Bot,
 ):
+    service = AdminLogService()
+
+    await service.init_table()
+
     await bot.add_cog(
         AdminCog(bot)
     )
