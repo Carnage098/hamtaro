@@ -23,6 +23,38 @@ class AdminCog(commands.Cog):
         self.brackets = BracketService(self.db)
         self.logs = AdminLogService()
 
+    async def _log_action(
+    self,
+    interaction: discord.Interaction,
+    action: str,
+    target: discord.Member | None = None,
+    tournament=None,
+    details: str | None = None,
+):
+    try:
+        guild_id = self._guild_id(
+            interaction
+        )
+
+        await self.logs.record(
+            guild_id=guild_id,
+            actor_id=str(interaction.user.id),
+            actor_name=interaction.user.display_name,
+            action=action,
+            target_id=str(target.id) if target else None,
+            target_name=target.display_name if target else None,
+            tournament_id=getattr(tournament, "id", None),
+            tournament_name=getattr(tournament, "name", None),
+            details=details,
+        )
+
+    except Exception as error:
+        print(
+            f"⚠️ Impossible d'enregistrer le log staff : {error}"
+        )
+
+
+
     # ==========================================================
     # OUTILS INTERNES
     # ==========================================================
