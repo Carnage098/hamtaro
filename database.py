@@ -6,6 +6,7 @@ DB_VERSION = 2
 
 
 async def init_db():
+    await ensure_no_checkin_needed(db)
 
     async with aiosqlite.connect(DATABASE) as db:
 
@@ -417,7 +418,23 @@ async def init_db():
         # ==========================================================
         # FIN
         # ==========================================================
-        
+        async def ensure_no_checkin_needed(db):
+    """
+    Rend tous les joueurs inscrits automatiquement disponibles.
+    On garde la colonne checked_in si elle existe, mais on ne l'utilise plus.
+    """
+
+    cursor = await db.execute("PRAGMA table_info(registrations)")
+    columns = await cursor.fetchall()
+
+    column_names = [column[1] for column in columns]
+
+    if "checked_in" in column_names:
+        await db.execute("""
+            UPDATE registrations
+            SET checked_in = 1
+            WHERE checked_in IS NULL OR checked_in = 0
+        """)
        
         await db.commit()
 
