@@ -21,6 +21,7 @@ class AdminCog(commands.Cog):
         self.bot = bot
         self.db = bot.db
         self.brackets = BracketService(self.db)
+        self.logs = AdminLogService()
 
     # ==========================================================
     # OUTILS INTERNES
