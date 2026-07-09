@@ -27,6 +27,7 @@ COGS = [
     "cogs.tournament_status",
     "cogs.nextmatch",
     "cogs.bracket_full",
+    "cogs.end_tournament",
 ]
 
 
