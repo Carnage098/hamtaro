@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from utils.permissions import staff_only
 import discord
 
 from discord.ext import commands
