@@ -1,14 +1,43 @@
 import aiosqlite
 
 DATABASE = "database.db"
-DB_VERSION = 2
+DB_VERSION = 3
 
 
-async def column_exists(db: aiosqlite.Connection, table_name: str, column_name: str) -> bool:
+async def table_exists(
+    db: aiosqlite.Connection,
+    table_name: str,
+) -> bool:
+    """
+    Vérifie si une table existe déjà dans la base SQLite.
+    """
+
+    cursor = await db.execute(
+        """
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table'
+        AND name = ?
+        """,
+        (table_name,),
+    )
+
+    row = await cursor.fetchone()
+    return row is not None
+
+
+async def column_exists(
+    db: aiosqlite.Connection,
+    table_name: str,
+    column_name: str,
+) -> bool:
     """
     Vérifie si une colonne existe déjà dans une table SQLite.
     Utile quand la base existe déjà sur Railway.
     """
+
+    if not await table_exists(db, table_name):
+        return False
 
     cursor = await db.execute(f"PRAGMA table_info({table_name})")
     columns = await cursor.fetchall()
@@ -26,13 +55,18 @@ async def ensure_column(
     Exemple : await ensure_column(db, "registrations", "deck", "TEXT")
     """
 
+    if not await table_exists(db, table_name):
+        return
+
     if not await column_exists(db, table_name, column_name):
         await db.execute(
             f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"
         )
 
 
-async def ensure_no_checkin_needed(db: aiosqlite.Connection) -> None:
+async def ensure_no_checkin_needed(
+    db: aiosqlite.Connection,
+) -> None:
     """
     Rend tous les joueurs inscrits automatiquement disponibles.
     Le check-in n'est plus nécessaire : si un joueur est inscrit, il est considéré disponible.
@@ -47,7 +81,9 @@ async def ensure_no_checkin_needed(db: aiosqlite.Connection) -> None:
         """)
 
 
-async def run_migrations(db: aiosqlite.Connection) -> None:
+async def run_migrations(
+    db: aiosqlite.Connection,
+) -> None:
     """
     Met à jour les anciennes bases déjà créées.
     CREATE TABLE IF NOT EXISTS ne modifie pas les tables existantes,
@@ -107,7 +143,27 @@ async def run_migrations(db: aiosqlite.Connection) -> None:
     await ensure_column(db, "matches", "validated_at", "TIMESTAMP")
     await ensure_column(db, "matches", "is_bye", "INTEGER NOT NULL DEFAULT 0")
     await ensure_column(db, "matches", "notes", "TEXT")
-    await ensure_column(db, "matches", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    await ensure_column(db, "matches", "created_at", "TIMESTAMP")
+
+    # ==========================================================
+    # MIGRATIONS RONDES SUISSES - MATCHS
+    # ==========================================================
+
+    await ensure_column(db, "swiss_matches", "is_double_loss", "INTEGER NOT NULL DEFAULT 0")
+    await ensure_column(db, "swiss_matches", "result", "TEXT NOT NULL DEFAULT 'none'")
+    await ensure_column(db, "swiss_matches", "finished_at", "TIMESTAMP")
+
+    # ==========================================================
+    # MIGRATIONS RONDES SUISSES - CLASSEMENT
+    # ==========================================================
+
+    await ensure_column(db, "swiss_standings", "points", "INTEGER NOT NULL DEFAULT 0")
+    await ensure_column(db, "swiss_standings", "wins", "INTEGER NOT NULL DEFAULT 0")
+    await ensure_column(db, "swiss_standings", "losses", "INTEGER NOT NULL DEFAULT 0")
+    await ensure_column(db, "swiss_standings", "double_losses", "INTEGER NOT NULL DEFAULT 0")
+    await ensure_column(db, "swiss_standings", "byes", "INTEGER NOT NULL DEFAULT 0")
+    await ensure_column(db, "swiss_standings", "matches_played", "INTEGER NOT NULL DEFAULT 0")
+    await ensure_column(db, "swiss_standings", "updated_at", "TIMESTAMP")
 
 
 async def init_db() -> None:
@@ -316,10 +372,13 @@ async def init_db() -> None:
             winner_id TEXT,
             winner_name TEXT,
             is_draw INTEGER NOT NULL DEFAULT 0,
+            is_double_loss INTEGER NOT NULL DEFAULT 0,
             is_bye INTEGER NOT NULL DEFAULT 0,
+            result TEXT NOT NULL DEFAULT 'none',
             status TEXT NOT NULL DEFAULT 'pending',
             reported_by TEXT,
             reported_at TIMESTAMP,
+            finished_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (
                 tournament_id,
@@ -335,7 +394,44 @@ async def init_db() -> None:
                     'completed',
                     'cancelled'
                 )
+            ),
+            CHECK (
+                result IN (
+                    'none',
+                    'player1',
+                    'player2',
+                    'draw',
+                    'double_loss'
+                )
             )
+        )
+        """)
+
+        # ==========================================================
+        # RONDES SUISSES - CLASSEMENT
+        # ==========================================================
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS swiss_standings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tournament_id INTEGER NOT NULL,
+            discord_id TEXT NOT NULL,
+            username TEXT NOT NULL,
+            points INTEGER NOT NULL DEFAULT 0,
+            wins INTEGER NOT NULL DEFAULT 0,
+            losses INTEGER NOT NULL DEFAULT 0,
+            double_losses INTEGER NOT NULL DEFAULT 0,
+            byes INTEGER NOT NULL DEFAULT 0,
+            matches_played INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP,
+            UNIQUE (
+                tournament_id,
+                discord_id
+            ),
+            FOREIGN KEY (tournament_id)
+                REFERENCES tournaments(id)
+                ON DELETE CASCADE
         )
         """)
 
@@ -445,6 +541,37 @@ async def init_db() -> None:
         await db.execute("""
         CREATE INDEX IF NOT EXISTS idx_swiss_match_winner
         ON swiss_matches(winner_id)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_swiss_match_result
+        ON swiss_matches(result)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_swiss_match_double_loss
+        ON swiss_matches(is_double_loss)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_swiss_standings_tournament
+        ON swiss_standings(tournament_id)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_swiss_standings_player
+        ON swiss_standings(discord_id)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_swiss_standings_rank
+        ON swiss_standings(
+            tournament_id,
+            points DESC,
+            double_losses ASC,
+            wins DESC,
+            losses ASC
+        )
         """)
 
         # ==========================================================
