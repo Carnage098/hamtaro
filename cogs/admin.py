@@ -10,7 +10,7 @@ from models.enums import TournamentStatus
 
 from utils.embeds import success_embed, error_embed, info_embed
 from utils.permissions import staff_only
-
+from services.admin_log_service import AdminLogService
 
 class AdminCog(commands.Cog):
 
