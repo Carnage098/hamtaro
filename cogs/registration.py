@@ -12,15 +12,17 @@ class RegistrationCog(commands.Cog):
         self,
         bot: commands.Bot,
     ):
-
         self.bot = bot
         self.db = bot.db
+
+    # ==========================================================
+    # OUTILS INTERNES
+    # ==========================================================
 
     def _guild_id(
         self,
         interaction: discord.Interaction,
     ) -> str:
-
         if interaction.guild is None:
             raise ValueError(
                 "Cette commande doit être utilisée dans un serveur."
@@ -32,7 +34,6 @@ class RegistrationCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-
         guild_id = self._guild_id(interaction)
 
         tournament = await self.db.get_active_tournament(
@@ -40,6 +41,27 @@ class RegistrationCog(commands.Cog):
         )
 
         return tournament
+
+    def _display_name(
+        self,
+        user: discord.abc.User,
+    ) -> str:
+        return (
+            user.display_name
+            if hasattr(user, "display_name")
+            else user.name
+        )
+
+    def _avatar_url(
+        self,
+        user: discord.abc.User,
+    ) -> str | None:
+        avatar = getattr(user, "display_avatar", None)
+
+        if avatar is None:
+            return None
+
+        return avatar.url
 
     # ==========================================================
     # INSCRIPTION
@@ -57,13 +79,11 @@ class RegistrationCog(commands.Cog):
         interaction: discord.Interaction,
         deck: str | None = None,
     ):
-
         await interaction.response.defer(
             ephemeral=True
         )
 
         try:
-
             guild_id = self._guild_id(interaction)
 
             tournament = await self.db.get_active_tournament(
@@ -71,27 +91,15 @@ class RegistrationCog(commands.Cog):
             )
 
             if tournament is None:
-
                 await interaction.followup.send(
                     "❌ Aucun tournoi actif avec inscriptions ouvertes.",
                     ephemeral=True,
                 )
-
                 return
 
             user = interaction.user
-
-            username = (
-                user.display_name
-                if hasattr(user, "display_name")
-                else user.name
-            )
-
-            avatar_url = (
-                user.display_avatar.url
-                if user.display_avatar
-                else None
-            )
+            username = self._display_name(user)
+            avatar_url = self._avatar_url(user)
 
             registration = await self.db.register_player(
                 tournament_id=tournament.id,
@@ -108,22 +116,41 @@ class RegistrationCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
-        await interaction.followup.send(
-            (
-                "✅ **Inscription validée !**\n\n"
-                f"🏆 Tournoi : **{tournament.name}**\n"
-                f"👤 Joueur : {interaction.user.mention}\n"
-                f"🎴 Deck : `{registration.deck or 'Non renseigné'}`\n"
-                f"📊 Inscrits : **{current}/{tournament.max_players}**"
+        embed = discord.Embed(
+            title="🐹 Inscription validée",
+            description=(
+                f"{interaction.user.mention}, tu es bien inscrit au tournoi.\n\n"
+                "Aucun check-in n'est nécessaire : ton inscription confirme ta disponibilité."
             ),
+            color=discord.Color.green(),
+        )
+
+        embed.add_field(
+            name="🏆 Tournoi",
+            value=f"**{tournament.name}**",
+            inline=False,
+        )
+
+        embed.add_field(
+            name="🎴 Deck",
+            value=f"`{registration.deck or 'Non renseigné'}`",
+            inline=True,
+        )
+
+        embed.add_field(
+            name="📊 Inscrits",
+            value=f"**{current}/{tournament.max_players}**",
+            inline=True,
+        )
+
+        await interaction.followup.send(
+            embed=embed,
             ephemeral=True,
         )
 
@@ -139,24 +166,20 @@ class RegistrationCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-
         await interaction.response.defer(
             ephemeral=True
         )
 
         try:
-
             tournament = await self._get_active_tournament(
                 interaction
             )
 
             if tournament is None:
-
                 await interaction.followup.send(
                     "❌ Aucun tournoi actif.",
                     ephemeral=True,
                 )
-
                 return
 
             await self.db.unregister_player(
@@ -165,142 +188,59 @@ class RegistrationCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
+        embed = discord.Embed(
+            title="🐹 Désinscription validée",
+            description=(
+                f"{interaction.user.mention}, tu es désinscrit du tournoi "
+                f"**{tournament.name}**."
+            ),
+            color=discord.Color.orange(),
+        )
+
         await interaction.followup.send(
-            "✅ Tu es désinscrit du tournoi.",
+            embed=embed,
             ephemeral=True,
         )
 
     # ==========================================================
-    # CHECK-IN
+    # CHECK-IN DÉSACTIVÉ
     # ==========================================================
 
     @app_commands.command(
         name="checkin",
-        description="Confirmer sa présence au tournoi actif"
+        description="Ancienne commande de check-in"
     )
     async def checkin(
         self,
         interaction: discord.Interaction,
     ):
-
-        await interaction.response.defer(
-            ephemeral=True
-        )
-
-        try:
-
-            tournament = await self._get_active_tournament(
-                interaction
-            )
-
-            if tournament is None:
-
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif.",
-                    ephemeral=True,
-                )
-
-                return
-
-            registration = await self.db.get_registration_by_user(
-                tournament_id=tournament.id,
-                discord_id=str(interaction.user.id),
-            )
-
-            if registration is None:
-
-                await interaction.followup.send(
-                    "❌ Tu n'es pas inscrit à ce tournoi.",
-                    ephemeral=True,
-                )
-
-                return
-
-            await self.db.check_in_player(
-                tournament_id=tournament.id,
-                discord_id=str(interaction.user.id),
-            )
-
-        except ValueError as error:
-
-            await interaction.followup.send(
-                f"❌ {error}",
-                ephemeral=True,
-            )
-
-            return
-
-        await interaction.followup.send(
-            "✅ Check-in confirmé.",
+        await interaction.response.send_message(
+            (
+                "🐹 Le check-in n'est plus nécessaire.\n\n"
+                "Si tu es inscrit au tournoi, tu es automatiquement considéré comme disponible."
+            ),
             ephemeral=True,
         )
 
     @app_commands.command(
         name="uncheckin",
-        description="Annuler son check-in"
+        description="Ancienne commande pour annuler le check-in"
     )
     async def uncheckin(
         self,
         interaction: discord.Interaction,
     ):
-
-        await interaction.response.defer(
-            ephemeral=True
-        )
-
-        try:
-
-            tournament = await self._get_active_tournament(
-                interaction
-            )
-
-            if tournament is None:
-
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif.",
-                    ephemeral=True,
-                )
-
-                return
-
-            registration = await self.db.get_registration_by_user(
-                tournament_id=tournament.id,
-                discord_id=str(interaction.user.id),
-            )
-
-            if registration is None:
-
-                await interaction.followup.send(
-                    "❌ Tu n'es pas inscrit à ce tournoi.",
-                    ephemeral=True,
-                )
-
-                return
-
-            await self.db.uncheck_player(
-                tournament_id=tournament.id,
-                discord_id=str(interaction.user.id),
-            )
-
-        except ValueError as error:
-
-            await interaction.followup.send(
-                f"❌ {error}",
-                ephemeral=True,
-            )
-
-            return
-
-        await interaction.followup.send(
-            "✅ Check-in annulé.",
+        await interaction.response.send_message(
+            (
+                "🐹 Le système de check-in est désactivé.\n\n"
+                "Tu n'as rien à annuler : seule l'inscription compte maintenant."
+            ),
             ephemeral=True,
         )
 
@@ -320,24 +260,20 @@ class RegistrationCog(commands.Cog):
         interaction: discord.Interaction,
         deck: str,
     ):
-
         await interaction.response.defer(
             ephemeral=True
         )
 
         try:
-
             tournament = await self._get_active_tournament(
                 interaction
             )
 
             if tournament is None:
-
                 await interaction.followup.send(
                     "❌ Aucun tournoi actif.",
                     ephemeral=True,
                 )
-
                 return
 
             registration = await self.db.get_registration_by_user(
@@ -346,12 +282,10 @@ class RegistrationCog(commands.Cog):
             )
 
             if registration is None:
-
                 await interaction.followup.send(
                     "❌ Tu n'es pas inscrit à ce tournoi.",
                     ephemeral=True,
                 )
-
                 return
 
             await self.db.update_registration_deck(
@@ -361,16 +295,28 @@ class RegistrationCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
+        embed = discord.Embed(
+            title="🐹 Deck mis à jour",
+            description=(
+                f"{interaction.user.mention}, ton deck a bien été modifié."
+            ),
+            color=discord.Color.blue(),
+        )
+
+        embed.add_field(
+            name="🎴 Nouveau deck",
+            value=f"`{deck}`",
+            inline=False,
+        )
+
         await interaction.followup.send(
-            f"✅ Deck mis à jour : `{deck}`",
+            embed=embed,
             ephemeral=True,
         )
 
@@ -386,24 +332,20 @@ class RegistrationCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-
         await interaction.response.defer(
             ephemeral=False
         )
 
         try:
-
             tournament = await self._get_active_tournament(
                 interaction
             )
 
             if tournament is None:
-
                 await interaction.followup.send(
                     "❌ Aucun tournoi actif.",
                     ephemeral=True,
                 )
-
                 return
 
             registrations = await self.db.list_registrations(
@@ -411,21 +353,17 @@ class RegistrationCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         if not registrations:
-
             await interaction.followup.send(
                 "❌ Aucun joueur inscrit pour le moment.",
                 ephemeral=True,
             )
-
             return
 
         lines = []
@@ -434,18 +372,22 @@ class RegistrationCog(commands.Cog):
             registrations,
             start=1,
         ):
-
-            check = "✅" if registration.checked_in else "❌"
             deck = registration.deck or "Non renseigné"
 
             lines.append(
-                f"{index}. {check} **{registration.username}** — `{deck}`"
+                f"{index}. ✅ **{registration.username}** — `{deck}`"
             )
 
         embed = discord.Embed(
             title=f"👥 Joueurs inscrits — {tournament.name}",
             description="\n".join(lines),
             color=discord.Color.green(),
+        )
+
+        embed.add_field(
+            name="📌 Disponibilité",
+            value="Tous les joueurs inscrits sont automatiquement considérés comme disponibles.",
+            inline=False,
         )
 
         embed.set_footer(
@@ -460,7 +402,6 @@ class RegistrationCog(commands.Cog):
 async def setup(
     bot: commands.Bot,
 ):
-
     await bot.add_cog(
         RegistrationCog(bot)
     )
