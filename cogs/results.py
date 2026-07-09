@@ -9,6 +9,7 @@ from services.bracket_service import BracketService
 from services.match_history_service import MatchHistoryService
 
 from utils.embeds import success_embed, error_embed, info_embed
+from utils.permissions import staff_only, is_staff_member
 
 
 class ResultsCog(commands.Cog):
@@ -41,18 +42,8 @@ class ResultsCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ) -> bool:
-        permissions = getattr(
-            interaction.user,
-            "guild_permissions",
-            None,
-        )
-
-        if permissions is None:
-            return False
-
-        return bool(
-            permissions.manage_guild
-            or permissions.administrator
+        return is_staff_member(
+            interaction.user
         )
 
     async def _get_active_tournament(
@@ -123,9 +114,8 @@ class ResultsCog(commands.Cog):
         """
         Enregistre un match dans l'historique.
 
-        Important :
-        si l'historique échoue, on ne bloque pas la validation du résultat.
-        Le tournoi doit continuer même si la table history a un souci.
+        Si l'historique échoue, on ne bloque pas la validation du résultat.
+        Le tournoi doit continuer même si la table d'historique a un souci.
         """
 
         try:
@@ -227,6 +217,9 @@ class ResultsCog(commands.Cog):
 
     # ==========================================================
     # REPORT RESULT
+    # Joueurs autorisés :
+    # - les deux joueurs du match
+    # - le staff
     # ==========================================================
 
     @app_commands.command(
@@ -356,6 +349,7 @@ class ResultsCog(commands.Cog):
 
     # ==========================================================
     # APPROVE RESULT
+    # Staff uniquement
     # ==========================================================
 
     @app_commands.command(
@@ -369,6 +363,7 @@ class ResultsCog(commands.Cog):
     @app_commands.default_permissions(
         manage_guild=True
     )
+    @staff_only()
     async def approve_result(
         self,
         interaction: discord.Interaction,
@@ -472,6 +467,7 @@ class ResultsCog(commands.Cog):
 
     # ==========================================================
     # REJECT RESULT
+    # Staff uniquement
     # ==========================================================
 
     @app_commands.command(
@@ -485,6 +481,7 @@ class ResultsCog(commands.Cog):
     @app_commands.default_permissions(
         manage_guild=True
     )
+    @staff_only()
     async def reject_result(
         self,
         interaction: discord.Interaction,
@@ -538,6 +535,7 @@ class ResultsCog(commands.Cog):
 
     # ==========================================================
     # PENDING RESULTS
+    # Staff uniquement
     # ==========================================================
 
     @app_commands.command(
@@ -547,6 +545,7 @@ class ResultsCog(commands.Cog):
     @app_commands.default_permissions(
         manage_guild=True
     )
+    @staff_only()
     async def pending_results(
         self,
         interaction: discord.Interaction,
@@ -592,6 +591,7 @@ class ResultsCog(commands.Cog):
 
     # ==========================================================
     # ADMIN WIN
+    # Staff uniquement
     # ==========================================================
 
     @app_commands.command(
@@ -606,6 +606,7 @@ class ResultsCog(commands.Cog):
     @app_commands.default_permissions(
         manage_guild=True
     )
+    @staff_only()
     async def admin_win(
         self,
         interaction: discord.Interaction,
@@ -722,6 +723,7 @@ async def setup(
     bot: commands.Bot,
 ):
     service = MatchHistoryService()
+
     await service.init_table()
 
     await bot.add_cog(
