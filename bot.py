@@ -22,6 +22,7 @@ COGS = [
     "cogs.admin",
     "cogs.swiss",
     "cogs.match_history",
+    "cogs.repair",
 ]
 
 
