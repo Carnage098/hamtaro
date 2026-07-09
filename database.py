@@ -6,7 +6,7 @@ DB_VERSION = 2
 
 
 async def init_db():
-    await ensure_no_checkin_needed(db)
+    
 
     async with aiosqlite.connect(DATABASE) as db:
 
@@ -435,7 +435,7 @@ async def init_db():
             SET checked_in = 1
             WHERE checked_in IS NULL OR checked_in = 0
         """)
-       
+       await ensure_no_checkin_needed(db)
         await db.commit()
 
     print("✅ Base de données Hamtaro initialisée.")
