@@ -445,7 +445,22 @@ class TournamentCog(commands.Cog):
             ephemeral=True,
         )
 
+@app_commands.command(
+    name="repair_tournament",
+    description="Répare un tournoi bloqué ou incohérent."
+)
+@staff_only()
+async def repair_tournament(
+    self,
+    interaction: discord.Interaction,
+    tournament_id: int
+):
+    await interaction.response.send_message(
+        f"🔧 Réparation du tournoi `{tournament_id}` en cours...",
+        ephemeral=True
+    )
 
+  
 async def setup(
     bot: commands.Bot,
 ):
