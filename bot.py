@@ -29,7 +29,7 @@ COGS = [
     "cogs.bracket_full",
     "cogs.end_tournament",
     "cogs.help",
-    "graphics_preview",
+    "cogs.graphics_preview",
 ]
 
 
