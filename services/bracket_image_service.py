@@ -1365,43 +1365,29 @@ class BracketImageService:
                 "Le renderer prend en charge jusqu'à 128 joueurs."
             )
 
-        width_by_size = {
-            2: 2600,
-            4: 3200,
-            8: 4300,
-            16: 5900,
-            32: 7600,
-            64: 9800,
-            128: 12000,
-        }
+        width = self.theme.image_width(
+    player_capacity
+)
 
-        width = width_by_size.get(
-            player_capacity,
-            min(
-                12000,
-                3000
-                + total_rounds
-                * 1400,
-            ),
-        )
+header_height = (
+    self.theme.header_height
+)
 
-        header_height = 300
-        footer_height = 230
+footer_height = (
+    self.theme.footer_height
+)
 
-        box_width = (
-            320
-            if player_capacity >= 64
-            else 360
-        )
+box_width = self.theme.box_width(
+    player_capacity
+)
 
-        box_height = (
-            94
-            if player_capacity >= 64
-            else 106
-        )
+box_height = self.theme.box_height(
+    player_capacity
+)
 
-        margin_x = 110
-
+margin_x = (
+    self.theme.horizontal_margin
+)
         positions, height = self._layout(
             bracket,
             width,
