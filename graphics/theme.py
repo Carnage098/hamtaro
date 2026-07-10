@@ -57,9 +57,9 @@ class HamtaroBracketTheme:
     # COULEURS GÉNÉRALES
     # ==========================================================
 
-    background: Color = (3, 7, 15)
-    background_center: Color = (2, 6, 13)
-    background_center_light: Color = (4, 12, 25)
+    background: Color = (255, 0, 255)
+    header_height: int = 300
+    title_font_size: int = 100
 
     header_background: Color = (4, 7, 13)
     footer_background: Color = (4, 8, 16)
