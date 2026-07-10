@@ -2085,33 +2085,7 @@ class BracketImageService:
         # Lignes graphiques du fond
         # ------------------------------------------------------
 
-        for y in range(
-            header_height,
-            height - footer_height,
-            90,
-        ):
-            alpha = (
-                14
-                if (
-                    y // 90
-                ) % 2 == 0
-                else 7
-            )
-
-            draw.rectangle(
-                (
-                    0,
-                    y,
-                    width,
-                    y + 44,
-                ),
-                fill=(
-                    255,
-                    255,
-                    255,
-                    alpha,
-                ),
-            )
+        
 
         # ------------------------------------------------------
         # Polices
