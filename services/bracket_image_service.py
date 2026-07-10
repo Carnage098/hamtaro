@@ -48,16 +48,26 @@ class BracketImageService:
     LINE = (87, 96, 120)
 
     def __init__(
-        self,
-        db: Any,
-    ):
-        self.db = db
+    self,
+    db: Any,
+    theme: HamtaroBracketTheme | None = None,
+):
+    self.db = db
 
-        self._avatar_cache: dict[
-            str,
-            Image.Image,
-        ] = {}
+    self.theme = (
+        theme
+        or HamtaroBracketTheme()
+    )
 
+    self._avatar_cache: dict[
+        str,
+        Image.Image,
+    ] = {}
+
+    self._asset_cache: dict[
+        str,
+        Image.Image,
+    ] = {}
     # ==========================================================
     # OUTILS GÉNÉRAUX
     # ==========================================================
