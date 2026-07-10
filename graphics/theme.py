@@ -1,195 +1,206 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
-@dataclass(frozen=True, slots=True)
+Color = tuple[int, int, int]
+
+
+@dataclass(slots=True)
 class HamtaroBracketTheme:
     """
-    Configuration visuelle officielle des brackets Hamtaro.
+    Configuration graphique du bracket Hamtaro.
 
     Cette classe centralise :
-    - les couleurs ;
-    - les tailles ;
-    - les chemins des ressources ;
-    - les paramètres du rendu.
 
-    Le renderer peut ainsi évoluer sans avoir à modifier
-    toutes les fonctions de dessin.
+    - les couleurs ;
+    - les dimensions ;
+    - les tailles de texte ;
+    - les tailles des cases ;
+    - les chemins vers les ressources graphiques.
+
+    Les images placées dans graphics/assets sont facultatives.
+    Le bracket fonctionne même si elles sont absentes.
     """
 
     # ==========================================================
-    # DOSSIERS
+    # DOSSIER DES RESSOURCES
     # ==========================================================
 
-    base_directory: Path = Path(__file__).resolve().parent
-    assets_directory: Path = Path(__file__).resolve().parent / "assets"
-
-    # ==========================================================
-    # RESSOURCES FACULTATIVES
-    # ==========================================================
+    assets_directory: Path = field(
+        default_factory=lambda: (
+            Path(__file__).resolve().parent
+            / "assets"
+        )
+    )
 
     logo_filename: str = "hamtaro_logo.png"
-    trophy_filename: str = "trophy.png"
     background_filename: str = "bracket_background.png"
-    champion_frame_filename: str = "champion_frame.png"
+    trophy_filename: str = "trophy.png"
 
     # ==========================================================
     # COULEURS PRINCIPALES
     # ==========================================================
 
-    background: tuple[int, int, int] = (
+    background: Color = (
+        8,
+        11,
+        20,
+    )
+
+    panel: Color = (
+        21,
+        27,
+        42,
+    )
+
+    panel_alternate: Color = (
+        28,
+        35,
+        53,
+    )
+
+    header_background: Color = (
         10,
-        13,
-        22,
-    )
-
-    header_background: tuple[int, int, int] = (
         14,
-        17,
-        28,
+        25,
     )
 
-    footer_background: tuple[int, int, int] = (
+    footer_background: Color = (
+        10,
         14,
-        17,
-        28,
+        25,
     )
 
-    panel: tuple[int, int, int] = (
-        23,
-        28,
-        43,
-    )
-
-    panel_alternate: tuple[int, int, int] = (
-        30,
-        36,
-        55,
-    )
-
-    text: tuple[int, int, int] = (
+    text: Color = (
         245,
         247,
         252,
     )
 
-    muted_text: tuple[int, int, int] = (
-        157,
-        165,
-        184,
+    muted_text: Color = (
+        154,
+        164,
+        187,
     )
 
-    left_side: tuple[int, int, int] = (
-        224,
-        67,
+    connector_line: Color = (
         75,
+        84,
+        107,
     )
 
-    right_side: tuple[int, int, int] = (
-        76,
-        145,
+    # ==========================================================
+    # COULEURS DES DEUX CÔTÉS
+    # ==========================================================
+
+    left_side: Color = (
+        225,
+        68,
+        81,
+    )
+
+    right_side: Color = (
+        72,
+        139,
         255,
     )
 
-    champion_gold: tuple[int, int, int] = (
+    # ==========================================================
+    # COULEURS DES RÉSULTATS
+    # ==========================================================
+
+    champion_gold: Color = (
         245,
         196,
         70,
     )
 
-    winner_green: tuple[int, int, int] = (
-        73,
-        197,
-        126,
+    winner_green: Color = (
+        74,
+        201,
+        128,
     )
 
-    connector_line: tuple[int, int, int] = (
-        87,
-        96,
-        120,
+    loser_red: Color = (
+        183,
+        70,
+        78,
     )
 
-    # ==========================================================
-    # COULEURS DES CLASSEMENTS
-    # ==========================================================
-
-    finalist_silver: tuple[int, int, int] = (
-        194,
-        199,
-        210,
-    )
-
-    semifinalist_bronze: tuple[int, int, int] = (
-        190,
-        125,
-        72,
-    )
-
-    defeated_red: tuple[int, int, int] = (
-        155,
-        65,
-        72,
+    pending_orange: Color = (
+        244,
+        166,
+        62,
     )
 
     # ==========================================================
     # DIMENSIONS GÉNÉRALES
     # ==========================================================
 
-    header_height: int = 300
-    footer_height: int = 230
-    horizontal_margin: int = 110
+    header_height: int = 230
+    footer_height: int = 150
 
-    normal_box_width: int = 360
-    normal_box_height: int = 106
+    horizontal_margin: int = 64
 
-    compact_box_width: int = 320
-    compact_box_height: int = 94
-
-    normal_avatar_size: int = 42
-    compact_avatar_size: int = 34
-
-    champion_avatar_size: int = 110
+    round_title_offset: int = 20
+    bracket_content_offset: int = 82
 
     # ==========================================================
-    # DIMENSIONS DES IMAGES PAR TAILLE DE BRACKET
+    # DIMENSIONS DES CASES
     # ==========================================================
 
-    width_2_players: int = 2600
-    width_4_players: int = 3200
-    width_8_players: int = 4300
-    width_16_players: int = 5900
-    width_32_players: int = 7600
-    width_64_players: int = 9800
-    width_128_players: int = 12000
+    normal_box_radius: int = 16
+    compact_box_radius: int = 12
+
+    normal_box_border_width: int = 3
+    final_box_border_width: int = 4
+
+    player_row_separator_width: int = 2
 
     # ==========================================================
-    # POLICES
+    # TEXTES DU BANDEAU
     # ==========================================================
 
-    title_font_size: int = 64
-    subtitle_font_size: int = 30
-    information_font_size: int = 23
-    round_font_size: int = 24
-
-    normal_name_font_size: int = 24
-    compact_name_font_size: int = 20
-
-    normal_score_font_size: int = 28
-    compact_score_font_size: int = 22
-
-    champion_title_font_size: int = 38
-    champion_name_font_size: int = 40
+    title_font_size: int = 52
+    subtitle_font_size: int = 26
+    information_font_size: int = 21
+    round_font_size: int = 23
 
     # ==========================================================
-    # PROPRIÉTÉS CALCULÉES
+    # TEXTES DES JOUEURS
+    # ==========================================================
+
+    normal_name_font_size: int = 22
+    normal_score_font_size: int = 22
+
+    compact_name_font_size: int = 18
+    compact_score_font_size: int = 18
+
+    # ==========================================================
+    # CARTE DU CHAMPION
+    # ==========================================================
+
+    champion_title_font_size: int = 31
+    champion_name_font_size: int = 34
+    champion_information_font_size: int = 22
+
+    champion_avatar_size: int = 112
+
+    champion_card_width: int = 650
+    champion_card_height: int = 350
+
+    # ==========================================================
+    # CHEMINS DES RESSOURCES
     # ==========================================================
 
     @property
-    def logo_path(self) -> Path:
+    def logo_path(
+        self,
+    ) -> Path:
         """
-        Chemin du logo Hamtaro.
+        Chemin du logo Hamtaro facultatif.
         """
 
         return (
@@ -198,20 +209,11 @@ class HamtaroBracketTheme:
         )
 
     @property
-    def trophy_path(self) -> Path:
+    def background_path(
+        self,
+    ) -> Path:
         """
-        Chemin de l’image du trophée.
-        """
-
-        return (
-            self.assets_directory
-            / self.trophy_filename
-        )
-
-    @property
-    def background_path(self) -> Path:
-        """
-        Chemin du fond graphique.
+        Chemin du fond graphique facultatif.
         """
 
         return (
@@ -220,18 +222,20 @@ class HamtaroBracketTheme:
         )
 
     @property
-    def champion_frame_path(self) -> Path:
+    def trophy_path(
+        self,
+    ) -> Path:
         """
-        Chemin du cadre spécial du champion.
+        Chemin du trophée facultatif.
         """
 
         return (
             self.assets_directory
-            / self.champion_frame_filename
+            / self.trophy_filename
         )
 
     # ==========================================================
-    # OUTILS
+    # LARGEUR DE L'IMAGE
     # ==========================================================
 
     def image_width(
@@ -239,60 +243,191 @@ class HamtaroBracketTheme:
         player_capacity: int,
     ) -> int:
         """
-        Retourne la largeur recommandée selon la taille
-        du bracket.
+        Retourne une largeur adaptée au nombre de joueurs.
+
+        Les valeurs sont prévues pour garder :
+
+        - des cases lisibles ;
+        - des colonnes suffisamment proches ;
+        - une finale bien visible au centre ;
+        - un rendu moins excessivement panoramique.
         """
 
-        sizes = {
-            2: self.width_2_players,
-            4: self.width_4_players,
-            8: self.width_8_players,
-            16: self.width_16_players,
-            32: self.width_32_players,
-            64: self.width_64_players,
-            128: self.width_128_players,
+        widths = {
+            2: 1700,
+            4: 2050,
+            8: 2400,
+            16: 2850,
+            32: 3300,
+            64: 3800,
+            128: 4300,
         }
 
-        return sizes.get(
+        return widths.get(
             player_capacity,
-            self.width_128_players,
+            3300,
         )
+
+    # ==========================================================
+    # LARGEUR DES CASES
+    # ==========================================================
 
     def box_width(
         self,
         player_capacity: int,
     ) -> int:
         """
-        Retourne la largeur d’une case.
+        Retourne la largeur d'une case de match.
         """
 
-        if player_capacity >= 64:
-            return self.compact_box_width
+        widths = {
+            2: 350,
+            4: 340,
+            8: 315,
+            16: 295,
+            32: 275,
+            64: 250,
+            128: 230,
+        }
 
-        return self.normal_box_width
+        return widths.get(
+            player_capacity,
+            275,
+        )
+
+    # ==========================================================
+    # HAUTEUR DES CASES
+    # ==========================================================
 
     def box_height(
         self,
         player_capacity: int,
     ) -> int:
         """
-        Retourne la hauteur d’une case.
+        Retourne la hauteur d'une case contenant deux joueurs.
         """
 
-        if player_capacity >= 64:
-            return self.compact_box_height
+        heights = {
+            2: 122,
+            4: 120,
+            8: 116,
+            16: 112,
+            32: 106,
+            64: 96,
+            128: 88,
+        }
 
-        return self.normal_box_height
+        return heights.get(
+            player_capacity,
+            106,
+        )
+
+    # ==========================================================
+    # TAILLE DES AVATARS
+    # ==========================================================
 
     def avatar_size(
+        self,
+        density_hint: int,
+    ) -> int:
+        """
+        Retourne la taille des avatars dans les cases.
+
+        Le BracketImageService transmet actuellement :
+
+        - 32 pour le rendu normal ;
+        - 64 pour le rendu compact.
+        """
+
+        if density_hint >= 64:
+            return 30
+
+        return 40
+
+    # ==========================================================
+    # ESPACEMENT VERTICAL
+    # ==========================================================
+
+    def vertical_gap(
         self,
         player_capacity: int,
     ) -> int:
         """
-        Retourne la taille d’un avatar.
+        Espacement recommandé entre deux matchs du premier tour.
+
+        Cette méthode est prévue pour une évolution ultérieure
+        du BracketImageService.
         """
 
-        if player_capacity >= 64:
-            return self.compact_avatar_size
+        gaps = {
+            2: 150,
+            4: 148,
+            8: 146,
+            16: 142,
+            32: 136,
+            64: 126,
+            128: 116,
+        }
 
-        return self.normal_avatar_size
+        return gaps.get(
+            player_capacity,
+            136,
+        )
+
+    # ==========================================================
+    # ESPACEMENT HORIZONTAL
+    # ==========================================================
+
+    def column_gap(
+        self,
+        player_capacity: int,
+    ) -> int:
+        """
+        Espacement recommandé entre deux colonnes de matchs.
+
+        Cette méthode pourra remplacer plus tard le calcul
+        automatique actuellement effectué dans _layout().
+        """
+
+        gaps = {
+            2: 460,
+            4: 440,
+            8: 415,
+            16: 390,
+            32: 365,
+            64: 340,
+            128: 320,
+        }
+
+        return gaps.get(
+            player_capacity,
+            365,
+        )
+
+    # ==========================================================
+    # VALIDATION
+    # ==========================================================
+
+    @staticmethod
+    def validate_player_capacity(
+        player_capacity: int,
+    ) -> None:
+        """
+        Vérifie que le nombre de joueurs est pris en charge.
+        """
+
+        supported = {
+            2,
+            4,
+            8,
+            16,
+            32,
+            64,
+            128,
+        }
+
+        if player_capacity not in supported:
+            raise ValueError(
+                "Le thème graphique prend uniquement en charge "
+                "2, 4, 8, 16, 32, 64 ou 128 joueurs."
+            )
