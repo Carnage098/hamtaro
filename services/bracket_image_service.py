@@ -1406,7 +1406,9 @@ margin_x = (
             ),
             self.BG + (255,),
         )
-
+        self._draw_optional_background(
+            image
+)
         draw = ImageDraw.Draw(
             image
         )
