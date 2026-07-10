@@ -28,6 +28,7 @@ COGS = [
     "cogs.nextmatch",
     "cogs.bracket_full",
     "cogs.end_tournament",
+    "cogs.help",
 ]
 
 
