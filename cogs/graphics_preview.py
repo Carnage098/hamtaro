@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 import math
 
 from dataclasses import dataclass
+from typing import Final
 
 import discord
 
@@ -10,44 +12,51 @@ from discord import app_commands
 from discord.ext import commands
 
 from services.bracket_image_service import BracketImageService
-from utils.permissions import staff_only
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 # ==========================================================
-# DONNÉES TEMPORAIRES DE PRÉVISUALISATION
+# DONNÉES FICTIVES
 # ==========================================================
+
 
 @dataclass(slots=True)
 class PreviewTournament:
-    """
-    Faux tournoi utilisé uniquement pour tester le rendu graphique.
-    """
+    """Tournoi fictif utilisé uniquement par /preview_bracket."""
 
     id: int
     name: str
     format: str
     status: str
+    date: str
+    organizer_name: str
+    duration: str
+
+
+@dataclass(slots=True)
+class PreviewParticipant:
+    """Participant fictif utilisé pour construire le bracket."""
+
+    discord_id: str
+    name: str
+    seed: int
+    deck: str
 
 
 @dataclass(slots=True)
 class PreviewMatch:
-    """
-    Faux match compatible avec BracketImageService.
-    """
+    """Match fictif compatible avec BracketImageService."""
 
     id: int
     tournament_id: int
-
     round: int
     match_number: int
     bracket_position: int
 
-    next_match_id: int | None
-    next_slot: int | None
-
     player1_id: str | None
     player2_id: str | None
-
     player1_name: str | None
     player2_name: str | None
 
@@ -60,20 +69,90 @@ class PreviewMatch:
     status: str
     is_bye: bool = False
 
+    player1_seed: int | None = None
+    player2_seed: int | None = None
+
+    player1_deck: str | None = None
+    player2_deck: str | None = None
+
+    next_match_id: int | None = None
+    next_slot: int | None = None
+
 
 # ==========================================================
 # COG
 # ==========================================================
 
+
 class GraphicsPreviewCog(commands.Cog):
     """
-    Commandes temporaires permettant de tester les images Hamtaro.
+    Commande temporaire de prévisualisation des images Hamtaro.
 
-    Cette extension pourra être supprimée lorsque les rendus
-    graphiques seront définitivement validés.
+    Elle ne lit ni ne modifie les tournois réels de la base de données.
     """
 
-    PLAYER_NAMES = [
+    PLAYER_NAMES: Final[tuple[str, ...]] = (
+        "Roro",
+        "Yusei",
+        "Jaden",
+        "Jack Atlas",
+        "Yugi",
+        "Kaiba",
+        "Akiza",
+        "Crow Hogan",
+        "Marik",
+        "Atem",
+        "Joey",
+        "Tristan",
+        "Judai Yuki",
+        "Johan",
+        "Aster",
+        "Chazz",
+        "Kaito",
+        "Yuma",
+        "Shark",
+        "Rio",
+        "Pegasus",
+        "Bakura",
+        "Mai",
+        "Mokuba",
+        "Leo",
+        "Luna",
+        "Syrus",
+        "Zane",
+        "Alexis",
+        "Bastion",
+        "Shadi",
+        "Ishizu",
+        "Rex",
+        "Weevil",
+        "Misty",
+        "Kiryū",
+        "Bruno",
+        "Kite",
+        "Vector",
+        "Astral",
+        "Quattro",
+        "Trey",
+        "Quinton",
+        "Anna",
+        "Aoi",
+        "Playmaker",
+        "Soulburner",
+        "Revolver",
+        "Blue Angel",
+        "Go Onizuka",
+        "Yuya",
+        "Yuto",
+        "Yugo",
+        "Yuri",
+        "Reiji",
+        "Shun",
+        "Rin",
+        "Ruri",
+        "Serena",
+        "Sawatori",
+        "Gongenzaka",
         "Hamtaro",
         "Bijou",
         "Boss",
@@ -90,266 +169,230 @@ class GraphicsPreviewCog(commands.Cog):
         "Panda",
         "Snoozer",
         "Sparkle",
-        "Joueur Toon",
-        "Joueur K9",
-        "Joueur Artmage",
-        "Joueur Fiendsmith",
-        "Joueur Maliss",
-        "Joueur Yummy",
-        "Joueur Mitsurugi",
-        "Joueur Dracotail",
-        "Joueur Blue-Eyes",
-        "Joueur Branded",
-        "Joueur Ryzeal",
-        "Joueur Orcust",
-        "Joueur Labrynth",
-        "Joueur Memento",
-        "Joueur Tenpai",
-        "Joueur Chimera",
-    ]
+    )
 
-    def __init__(
-        self,
-        bot: commands.Bot,
-    ):
+    DECKS: Final[tuple[str, ...]] = (
+        "Artmage",
+        "Toon",
+        "K9",
+        "Fiendsmith",
+        "Notes Elfiques",
+        "Blue-Eyes",
+        "Branded",
+        "Maliss",
+        "Yummy",
+        "Mitsurugi",
+        "Dracotail",
+        "Ryzeal",
+        "Orcust",
+        "Labrynth",
+        "Memento",
+        "Tenpai",
+        "Chimera",
+        "Sky Striker",
+        "HERO",
+        "Dark Magician",
+    )
+
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db = bot.db
+        self.renderer = BracketImageService(bot.db)
 
-        self.renderer = BracketImageService(
-            self.db
+    # ==========================================================
+    # PARTICIPANTS ET SEEDS
+    # ==========================================================
+
+    @staticmethod
+    def _seed_order(player_count: int) -> list[int]:
+        """
+        Produit un ordre de seeds adapté à un bracket à élimination directe.
+
+        Les seeds 1 et 2 sont placés dans les deux moitiés opposées afin
+        qu'ils ne puissent se rencontrer qu'en finale.
+        """
+
+        if player_count < 2 or player_count & (player_count - 1):
+            raise ValueError(
+                "Le nombre de joueurs doit être une puissance de deux."
+            )
+
+        order = [1, 2]
+        current_size = 2
+
+        while current_size < player_count:
+            current_size *= 2
+            expanded: list[int] = []
+
+            for seed in order:
+                expanded.extend(
+                    (
+                        seed,
+                        current_size + 1 - seed,
+                    )
+                )
+
+            order = expanded
+
+        return order
+
+    def _participant_for_seed(self, seed: int) -> PreviewParticipant:
+        index = seed - 1
+
+        if index < len(self.PLAYER_NAMES):
+            name = self.PLAYER_NAMES[index]
+        else:
+            name = f"Joueur {seed}"
+
+        deck = self.DECKS[index % len(self.DECKS)]
+
+        return PreviewParticipant(
+            discord_id=str(900_000 + seed),
+            name=name,
+            seed=seed,
+            deck=deck,
         )
 
-    # ==========================================================
-    # CONSTRUCTION DES FAUX JOUEURS
-    # ==========================================================
-
-    def _build_players(
+    def _build_participants(
         self,
         player_count: int,
-    ) -> list[tuple[str, str]]:
-        """
-        Construit les joueurs fictifs de l'aperçu.
-
-        Chaque joueur possède :
-        - un faux identifiant Discord ;
-        - un nom d'affichage.
-        """
-
-        players: list[
-            tuple[str, str]
-        ] = []
-
-        for index in range(
-            player_count
-        ):
-            discord_id = str(
-                100_000 + index
-            )
-
-            if index < len(
-                self.PLAYER_NAMES
-            ):
-                player_name = (
-                    self.PLAYER_NAMES[
-                        index
-                    ]
-                )
-
-            else:
-                player_name = (
-                    f"Joueur {index + 1}"
-                )
-
-            players.append(
-                (
-                    discord_id,
-                    player_name,
-                )
-            )
-
-        return players
+    ) -> list[PreviewParticipant]:
+        return [
+            self._participant_for_seed(seed)
+            for seed in self._seed_order(player_count)
+        ]
 
     # ==========================================================
-    # CONSTRUCTION DU FAUX BRACKET
+    # CONSTRUCTION DU BRACKET
     # ==========================================================
+
+    @staticmethod
+    def _winner_between(
+        player1: PreviewParticipant,
+        player2: PreviewParticipant,
+    ) -> PreviewParticipant:
+        """Le meilleur seed gagne le match fictif."""
+
+        return (
+            player1
+            if player1.seed < player2.seed
+            else player2
+        )
+
+    @staticmethod
+    def _completed_score(
+        winner_slot: int,
+        round_number: int,
+        match_index: int,
+        *,
+        is_final: bool,
+    ) -> tuple[int, int]:
+        """Crée des scores variés mais cohérents pour la maquette."""
+
+        if is_final:
+            return (
+                (3, 2)
+                if winner_slot == 1
+                else (2, 3)
+            )
+
+        loser_score = (
+            0
+            if (round_number + match_index) % 3 == 0
+            else 1
+        )
+
+        return (
+            (2, loser_score)
+            if winner_slot == 1
+            else (loser_score, 2)
+        )
 
     def _build_bracket(
         self,
         player_count: int,
         final_mode: bool,
-    ) -> dict[
-        int,
-        list[PreviewMatch],
-    ]:
+    ) -> dict[int, list[PreviewMatch]]:
         """
-        Génère un faux bracket cohérent.
+        Construit un bracket complet avec seeds, decks et progression.
 
-        Exemple avec huit joueurs :
-
-        - round 3 : quarts de finale ;
-        - round 2 : demi-finales ;
-        - round 1 : finale.
-
-        En mode actif :
-        - les anciens matchs sont terminés ;
-        - la finale est en cours.
-
-        En mode final :
-        - tous les matchs sont terminés ;
-        - le champion est affiché.
+        En mode actif, tous les tours précédents sont terminés et la finale
+        reste en cours. En mode final, la finale est également terminée.
         """
 
-        if player_count < 4:
+        if player_count not in {2, 4, 8, 16, 32, 64, 128}:
             raise ValueError(
-                "Le preview nécessite au moins quatre joueurs."
+                "Le preview prend en charge 2, 4, 8, 16, 32, 64 "
+                "ou 128 joueurs."
             )
 
-        if player_count & (
-            player_count - 1
-        ):
-            raise ValueError(
-                "Le nombre de joueurs doit être une puissance de deux."
-            )
+        total_rounds = int(math.log2(player_count))
+        participants = self._build_participants(player_count)
+        bracket: dict[int, list[PreviewMatch]] = {}
 
-        total_rounds = int(
-            math.log2(
-                player_count
-            )
-        )
+        next_match_id = 1
 
-        participants = self._build_players(
-            player_count
-        )
+        for round_number in range(total_rounds, 0, -1):
+            round_matches: list[PreviewMatch] = []
+            winners: list[PreviewParticipant] = []
+            match_count = len(participants) // 2
 
-        bracket: dict[
-            int,
-            list[PreviewMatch],
-        ] = {}
+            for match_index in range(match_count):
+                player1 = participants[match_index * 2]
+                player2 = participants[match_index * 2 + 1]
+                winner = self._winner_between(player1, player2)
+                winner_slot = 1 if winner.discord_id == player1.discord_id else 2
 
-        match_id = 1
+                is_final = round_number == 1
+                is_completed = final_mode or not is_final
 
-        for round_number in range(
-            total_rounds,
-            0,
-            -1,
-        ):
-            round_matches: list[
-                PreviewMatch
-            ] = []
-
-            next_participants: list[
-                tuple[str, str]
-            ] = []
-
-            match_count = (
-                len(participants)
-                // 2
-            )
-
-            for match_index in range(
-                match_count
-            ):
-                player1_id, player1_name = (
-                    participants[
-                        match_index * 2
-                    ]
-                )
-
-                player2_id, player2_name = (
-                    participants[
-                        match_index * 2 + 1
-                    ]
-                )
-
-                is_final = (
-                    round_number == 1
-                )
-
-                match_completed = (
-                    final_mode
-                    or not is_final
-                )
-
-                if match_completed:
+                if is_completed:
+                    player1_score, player2_score = self._completed_score(
+                        winner_slot,
+                        round_number,
+                        match_index,
+                        is_final=is_final,
+                    )
                     status = "completed"
-
-                    player1_score = 2
-                    player2_score = 1
-
-                    winner_id = player1_id
-                    winner_name = player1_name
-
+                    winner_id: str | None = winner.discord_id
+                    winner_name: str | None = winner.name
                 else:
-                    status = "playing"
-
                     player1_score = 0
                     player2_score = 0
-
+                    status = "playing"
                     winner_id = None
                     winner_name = None
 
-                if round_number > 1:
-                    next_match_id = (
-                        match_id
-                        + match_count
-                        + match_index
-                        // 2
-                    )
-
-                    next_slot = (
-                        1
-                        if match_index % 2 == 0
-                        else 2
-                    )
-
-                else:
-                    next_match_id = None
-                    next_slot = None
-
-                match = PreviewMatch(
-                    id=match_id,
-                    tournament_id=9999,
-                    round=round_number,
-                    match_number=(
-                        match_index + 1
-                    ),
-                    bracket_position=match_index,
-                    next_match_id=next_match_id,
-                    next_slot=next_slot,
-                    player1_id=player1_id,
-                    player2_id=player2_id,
-                    player1_name=player1_name,
-                    player2_name=player2_name,
-                    player1_score=player1_score,
-                    player2_score=player2_score,
-                    winner_id=winner_id,
-                    winner_name=winner_name,
-                    status=status,
-                    is_bye=False,
-                )
-
                 round_matches.append(
-                    match
-                )
-
-                # Le premier joueur est utilisé comme vainqueur
-                # fictif afin de construire le tour suivant.
-                next_participants.append(
-                    (
-                        player1_id,
-                        player1_name,
+                    PreviewMatch(
+                        id=next_match_id,
+                        tournament_id=28,
+                        round=round_number,
+                        match_number=match_index + 1,
+                        bracket_position=match_index,
+                        player1_id=player1.discord_id,
+                        player2_id=player2.discord_id,
+                        player1_name=player1.name,
+                        player2_name=player2.name,
+                        player1_score=player1_score,
+                        player2_score=player2_score,
+                        winner_id=winner_id,
+                        winner_name=winner_name,
+                        status=status,
+                        is_bye=False,
+                        player1_seed=player1.seed,
+                        player2_seed=player2.seed,
+                        player1_deck=player1.deck,
+                        player2_deck=player2.deck,
                     )
                 )
 
-                match_id += 1
+                # Même en mode actif, les finalistes doivent être connus pour
+                # construire visuellement le dernier match de démonstration.
+                winners.append(winner)
+                next_match_id += 1
 
-            bracket[
-                round_number
-            ] = round_matches
-
-            participants = (
-                next_participants
-            )
+            bracket[round_number] = round_matches
+            participants = winners
 
         return bracket
 
@@ -359,61 +402,69 @@ class GraphicsPreviewCog(commands.Cog):
 
     @app_commands.command(
         name="preview_bracket",
-        description="Tester temporairement le rendu graphique du bracket."
+        description="Prévisualiser le nouveau bracket graphique Hamtaro.",
     )
     @app_commands.describe(
-        joueurs="Nombre de joueurs fictifs à afficher.",
-        final="Afficher le bracket actif ou le bracket final.",
+        joueurs="Nombre de joueurs fictifs du bracket.",
+        final="Afficher la version active ou la version finale.",
     )
     @app_commands.choices(
         joueurs=[
+            app_commands.Choice(name="2 joueurs", value=2),
+            app_commands.Choice(name="4 joueurs", value=4),
+            app_commands.Choice(name="8 joueurs", value=8),
+            app_commands.Choice(name="16 joueurs", value=16),
+            app_commands.Choice(name="32 joueurs", value=32),
             app_commands.Choice(
-                name="4 joueurs",
-                value=4,
+                name="64 joueurs — format de la maquette",
+                value=64,
             ),
-            app_commands.Choice(
-                name="8 joueurs",
-                value=8,
-            ),
-            app_commands.Choice(
-                name="16 joueurs",
-                value=16,
-            ),
-            app_commands.Choice(
-                name="32 joueurs",
-                value=32,
-            ),
+            app_commands.Choice(name="128 joueurs", value=128),
         ]
     )
-    @app_commands.default_permissions(
-        manage_guild=True
-    )
-    @staff_only()
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_guild=True)
     async def preview_bracket(
         self,
         interaction: discord.Interaction,
         joueurs: app_commands.Choice[int],
         final: bool = False,
-    ):
-        """
-        Génère une image sans utiliser les données réelles du serveur.
-        """
+    ) -> None:
+        """Génère un aperçu sans toucher aux tournois réels."""
+
+        permissions = getattr(
+            interaction.user,
+            "guild_permissions",
+            None,
+        )
+
+        if permissions is None or not permissions.manage_guild:
+            await interaction.response.send_message(
+                "❌ Tu dois avoir la permission **Gérer le serveur** "
+                "pour utiliser cette commande temporaire.",
+                ephemeral=True,
+            )
+            return
 
         await interaction.response.defer(
-            ephemeral=True
+            thinking=True,
+            ephemeral=True,
         )
 
         player_count = joueurs.value
 
         tournament = PreviewTournament(
-            id=9999,
-            name="Tournoi de démonstration Hamtaro",
-            format="Format Actuel",
+            id=28,
+            name="HAMTARO CUP",
+            format="EDISON",
             status=(
                 "finished"
                 if final
                 else "active"
             ),
+            date="10 JUILLET 2026",
+            organizer_name="HAMTARO BOT",
+            duration="15H42",
         )
 
         try:
@@ -428,30 +479,25 @@ class GraphicsPreviewCog(commands.Cog):
                 avatar_urls=None,
                 final_mode=final,
             )
-
             image.seek(0)
 
         except Exception as error:
+            LOGGER.exception(
+                "Impossible de générer le preview graphique Hamtaro."
+            )
+
             await interaction.followup.send(
                 (
-                    "❌ Impossible de générer l'aperçu.\n\n"
+                    "❌ Impossible de générer l'aperçu graphique.\n\n"
                     f"Erreur : `{type(error).__name__}: {error}`"
                 ),
                 ephemeral=True,
             )
-
             return
 
-        mode_name = (
-            "final"
-            if final
-            else "actif"
-        )
-
+        mode_name = "final" if final else "actif"
         filename = (
-            f"hamtaro_preview_"
-            f"{player_count}_joueurs_"
-            f"{mode_name}.png"
+            f"hamtaro_preview_{player_count}_joueurs_{mode_name}.png"
         )
 
         discord_file = discord.File(
@@ -460,29 +506,22 @@ class GraphicsPreviewCog(commands.Cog):
         )
 
         embed = discord.Embed(
-            title="🎨 Aperçu graphique Hamtaro",
+            title="🎨 Prévisualisation du bracket Hamtaro",
             description=(
                 f"Mode : **{mode_name}**\n"
-                f"Joueurs fictifs : **{player_count}**\n\n"
-                "Cette image n'utilise aucune donnée réelle "
-                "et ne modifie aucun tournoi."
+                f"Joueurs fictifs : **{player_count}**\n"
+                "Tournoi de démonstration : **Hamtaro Cup #28**\n\n"
+                "Aucune donnée réelle n'a été lue ou modifiée."
             ),
             color=(
                 discord.Color.gold()
                 if final
-                else discord.Color.blurple()
+                else discord.Color.blue()
             ),
         )
-
-        embed.set_image(
-            url=f"attachment://{filename}"
-        )
-
+        embed.set_image(url=f"attachment://{filename}")
         embed.set_footer(
-            text=(
-                "Commande temporaire de test — "
-                "/preview_bracket"
-            )
+            text="Commande temporaire — /preview_bracket"
         )
 
         await interaction.followup.send(
@@ -492,9 +531,5 @@ class GraphicsPreviewCog(commands.Cog):
         )
 
 
-async def setup(
-    bot: commands.Bot,
-):
-    await bot.add_cog(
-        GraphicsPreviewCog(bot)
-    )
+async def setup(bot: commands.Bot) -> None:
+    await bot.add_cog(GraphicsPreviewCog(bot))
