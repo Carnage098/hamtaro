@@ -3,16 +3,29 @@ from __future__ import annotations
 import asyncio
 import io
 import math
+
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import aiohttp
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+from PIL import (
+    Image,
+    ImageDraw,
+    ImageFont,
+    ImageOps,
+)
+
 from graphics.theme import HamtaroBracketTheme
-from pathlib import Path
+
 
 @dataclass(slots=True)
 class PlayerVisual:
+    """
+    Données graphiques représentant un joueur dans une case.
+    """
+
     discord_id: str | None
     name: str
     score: str
@@ -26,49 +39,110 @@ class BracketImageService:
     """
     Génère les images PNG HD utilisées par :
 
-    - /bracket
-    - /final_bracket
+    - /bracket ;
+    - /final_bracket ;
+    - la future commande temporaire /bracket_preview.
 
-    Le moteur est indépendant des commandes Discord.
-    Il reçoit un tournoi, des matchs et les URLs des avatars,
-    puis retourne une image PNG stockée en mémoire.
+    Le moteur reçoit les données d'un tournoi et retourne
+    une image PNG stockée dans un objet BytesIO.
     """
 
-    BG = (10, 13, 22)
-    PANEL = (23, 28, 43)
-    PANEL_ALT = (30, 36, 55)
-
-    TEXT = (245, 247, 252)
-    MUTED = (157, 165, 184)
-
-    RED = (224, 67, 75)
-    BLUE = (76, 145, 255)
-    GOLD = (245, 196, 70)
-    GREEN = (73, 197, 126)
-
-    LINE = (87, 96, 120)
+    SUPPORTED_PLAYER_CAPACITIES = {
+        2,
+        4,
+        8,
+        16,
+        32,
+        64,
+        128,
+    }
 
     def __init__(
-    self,
-    db: Any,
-    theme: HamtaroBracketTheme | None = None,
-):
-    self.db = db
+        self,
+        db: Any,
+        theme: HamtaroBracketTheme | None = None,
+    ):
+        self.db = db
 
-    self.theme = (
-        theme
-        or HamtaroBracketTheme()
-    )
+        self.theme = (
+            theme
+            or HamtaroBracketTheme()
+        )
 
-    self._avatar_cache: dict[
-        str,
-        Image.Image,
-    ] = {}
+        self._avatar_cache: dict[
+            str,
+            Image.Image,
+        ] = {}
 
-    self._asset_cache: dict[
-        str,
-        Image.Image,
-    ] = {}
+        self._asset_cache: dict[
+            str,
+            Image.Image,
+        ] = {}
+
+    # ==========================================================
+    # RACCOURCIS VERS LE THÈME
+    # ==========================================================
+
+    @property
+    def BG(
+        self,
+    ) -> tuple[int, int, int]:
+        return self.theme.background
+
+    @property
+    def PANEL(
+        self,
+    ) -> tuple[int, int, int]:
+        return self.theme.panel
+
+    @property
+    def PANEL_ALT(
+        self,
+    ) -> tuple[int, int, int]:
+        return self.theme.panel_alternate
+
+    @property
+    def TEXT(
+        self,
+    ) -> tuple[int, int, int]:
+        return self.theme.text
+
+    @property
+    def MUTED(
+        self,
+    ) -> tuple[int, int, int]:
+        return self.theme.muted_text
+
+    @property
+    def RED(
+        self,
+    ) -> tuple[int, int, int]:
+        return self.theme.left_side
+
+    @property
+    def BLUE(
+        self,
+    ) -> tuple[int, int, int]:
+        return self.theme.right_side
+
+    @property
+    def GOLD(
+        self,
+    ) -> tuple[int, int, int]:
+        return self.theme.champion_gold
+
+    @property
+    def GREEN(
+        self,
+    ) -> tuple[int, int, int]:
+        return self.theme.winner_green
+
+    @property
+    def LINE(
+        self,
+    ) -> tuple[int, int, int]:
+        return self.theme.connector_line
+
     # ==========================================================
     # OUTILS GÉNÉRAUX
     # ==========================================================
@@ -78,12 +152,12 @@ class BracketImageService:
         status: Any,
     ) -> str:
         """
-        Retourne la valeur texte d'un statut.
+        Retourne la valeur textuelle d'un statut.
 
         Compatible avec :
-        - Enum ;
-        - chaîne de caractères ;
-        - valeur inconnue.
+        - un Enum ;
+        - une chaîne ;
+        - une autre valeur.
         """
 
         return getattr(
@@ -98,19 +172,21 @@ class BracketImageService:
         maximum: int = 20,
     ) -> str:
         """
-        Raccourcit un texte trop long afin qu'il reste lisible
-        dans les cases du bracket.
+        Raccourcit un texte trop long.
         """
 
-        value = (
+        cleaned = (
             value
             or "À déterminer"
         ).strip()
 
-        if len(value) <= maximum:
-            return value
+        if len(cleaned) <= maximum:
+            return cleaned
 
-        return value[: maximum - 1] + "…"
+        return (
+            cleaned[: maximum - 1]
+            + "…"
+        )
 
     @staticmethod
     def _score_for(
@@ -118,25 +194,24 @@ class BracketImageService:
         slot: int,
     ) -> str:
         """
-        Retourne le score à afficher pour un joueur.
+        Retourne le score du joueur occupant le slot demandé.
 
         slot :
-        - 1 pour le joueur 1 ;
-        - 2 pour le joueur 2.
+        - 1 : joueur 1 ;
+        - 2 : joueur 2.
         """
+
+        player_id = getattr(
+            match,
+            f"player{slot}_id",
+            None,
+        )
 
         if getattr(
             match,
             "is_bye",
             False,
         ):
-
-            player_id = getattr(
-                match,
-                f"player{slot}_id",
-                None,
-            )
-
             return (
                 "BYE"
                 if player_id
@@ -156,15 +231,14 @@ class BracketImageService:
             "validated",
             "reported",
         }:
-
-            value = getattr(
+            score = getattr(
                 match,
                 f"player{slot}_score",
                 None,
             )
 
-            if value is not None:
-                return str(value)
+            if score is not None:
+                return str(score)
 
         return "—"
 
@@ -173,17 +247,17 @@ class BracketImageService:
         round_number: int,
     ) -> str:
         """
-        Retourne le nom graphique d'un round.
+        Retourne le nom graphique du round.
         """
 
         names = {
             1: "FINALE",
-            2: "DEMI-FINALE",
+            2: "DEMI-FINALES",
             3: "QUARTS",
             4: "HUITIÈMES",
             5: "SEIZIÈMES",
-            6: "32ES",
-            7: "64ES",
+            6: "32ES DE FINALE",
+            7: "64ES DE FINALE",
         }
 
         return names.get(
@@ -195,177 +269,319 @@ class BracketImageService:
     def _font(
         size: int,
         bold: bool = False,
-    ) -> ImageFont.FreeTypeFont:
+    ) -> ImageFont.ImageFont:
         """
         Charge une police disponible sur Railway/Linux.
 
-        Le moteur essaie plusieurs polices afin d'éviter
-        une erreur si une police n'est pas installée.
+        Une police Pillow par défaut est utilisée si aucune
+        des polices prévues n'est disponible.
         """
 
-        candidates = (
-            (
+        if bold:
+            candidates = (
                 "/usr/share/fonts/truetype/dejavu/"
-                "DejaVuSans-Bold.ttf"
+                "DejaVuSans-Bold.ttf",
+
+                "/usr/share/fonts/truetype/liberation2/"
+                "LiberationSans-Bold.ttf",
+
+                "/usr/share/fonts/truetype/freefont/"
+                "FreeSansBold.ttf",
             )
-            if bold
-            else (
+
+        else:
+            candidates = (
                 "/usr/share/fonts/truetype/dejavu/"
-                "DejaVuSans.ttf"
-            ),
-            (
+                "DejaVuSans.ttf",
+
                 "/usr/share/fonts/truetype/liberation2/"
-                "LiberationSans-Bold.ttf"
+                "LiberationSans-Regular.ttf",
+
+                "/usr/share/fonts/truetype/freefont/"
+                "FreeSans.ttf",
             )
-            if bold
-            else (
-                "/usr/share/fonts/truetype/liberation2/"
-                "LiberationSans-Regular.ttf"
-            ),
-        )
 
         for path in candidates:
-
             try:
-
                 return ImageFont.truetype(
                     path,
                     size=size,
                 )
 
             except OSError:
-
                 continue
 
         return ImageFont.load_default()
+
+    @staticmethod
+    def _text_width(
+        draw: ImageDraw.ImageDraw,
+        text: str,
+        font: ImageFont.ImageFont,
+    ) -> int:
+        """
+        Calcule la largeur d'un texte.
+        """
+
+        bbox = draw.textbbox(
+            (0, 0),
+            text,
+            font=font,
+        )
+
+        return (
+            bbox[2]
+            - bbox[0]
+        )
+
+    # ==========================================================
+    # RESSOURCES GRAPHIQUES
+    # ==========================================================
+
+    def _load_asset(
+        self,
+        path: str | Path,
+    ) -> Image.Image | None:
+        """
+        Charge une ressource graphique facultative.
+
+        Le moteur continue à fonctionner si le fichier
+        n'existe pas.
+        """
+
+        asset_path = Path(
+            path
+        )
+
+        try:
+            cache_key = str(
+                asset_path.resolve()
+            )
+
+        except OSError:
+            cache_key = str(
+                asset_path
+            )
+
+        cached = self._asset_cache.get(
+            cache_key
+        )
+
+        if cached is not None:
+            return cached.copy()
+
+        if (
+            not asset_path.exists()
+            or not asset_path.is_file()
+        ):
+            return None
+
+        try:
+            with Image.open(
+                asset_path
+            ) as source:
+                image = source.convert(
+                    "RGBA"
+                )
+
+        except (
+            OSError,
+            ValueError,
+        ):
+            return None
+
+        self._asset_cache[
+            cache_key
+        ] = image.copy()
+
+        return image
+
+    @staticmethod
+    def _contain_image(
+        image: Image.Image,
+        maximum_width: int,
+        maximum_height: int,
+    ) -> Image.Image:
+        """
+        Redimensionne une image sans modifier ses proportions.
+        """
+
+        result = image.copy()
+
+        result.thumbnail(
+            (
+                maximum_width,
+                maximum_height,
+            ),
+            Image.Resampling.LANCZOS,
+        )
+
+        return result
+
+    def _draw_optional_background(
+        self,
+        canvas: Image.Image,
+    ) -> None:
+        """
+        Dessine le fond personnalisé lorsqu'il est disponible.
+        """
+
+        background = self._load_asset(
+            self.theme.background_path
+        )
+
+        if background is None:
+            return
+
+        resized = ImageOps.fit(
+            background,
+            canvas.size,
+            method=Image.Resampling.LANCZOS,
+        )
+
+        canvas.alpha_composite(
+            resized
+        )
+
+        overlay = Image.new(
+            "RGBA",
+            canvas.size,
+            (
+                self.BG[0],
+                self.BG[1],
+                self.BG[2],
+                195,
+            ),
+        )
+
+        canvas.alpha_composite(
+            overlay
+        )
+
+    def _draw_optional_logo(
+        self,
+        canvas: Image.Image,
+        x: int,
+        y: int,
+        maximum_width: int = 180,
+        maximum_height: int = 150,
+    ) -> bool:
+        """
+        Dessine le logo Hamtaro s'il est disponible.
+        """
+
+        logo = self._load_asset(
+            self.theme.logo_path
+        )
+
+        if logo is None:
+            return False
+
+        logo = self._contain_image(
+            logo,
+            maximum_width,
+            maximum_height,
+        )
+
+        canvas.alpha_composite(
+            logo,
+            (
+                x,
+                y,
+            ),
+        )
+
+        return True
+
+    def _draw_optional_trophy(
+        self,
+        canvas: Image.Image,
+        center_x: int,
+        y: int,
+        maximum_width: int = 90,
+        maximum_height: int = 90,
+    ) -> bool:
+        """
+        Dessine le trophée facultatif dans la carte du champion.
+        """
+
+        trophy = self._load_asset(
+            self.theme.trophy_path
+        )
+
+        if trophy is None:
+            return False
+
+        trophy = self._contain_image(
+            trophy,
+            maximum_width,
+            maximum_height,
+        )
+
+        x = (
+            center_x
+            - trophy.width // 2
+        )
+
+        canvas.alpha_composite(
+            trophy,
+            (
+                x,
+                y,
+            ),
+        )
+
+        return True
 
     # ==========================================================
     # AVATARS
     # ==========================================================
 
-    async def _download_avatar(
+    async def _download_avatar_with_session(
         self,
+        session: aiohttp.ClientSession,
         url: str | None,
         key: str,
     ) -> Image.Image:
         """
-        Télécharge un avatar Discord.
-
-        Si l'avatar n'est pas disponible, génère un avatar
-        de remplacement contenant l'initiale du joueur.
+        Télécharge un avatar avec une session HTTP existante.
         """
 
-        if key in self._avatar_cache:
+        cached = self._avatar_cache.get(
+            key
+        )
 
-            return self._avatar_cache[
-                key
-            ].copy()
+        if cached is not None:
+            return cached.copy()
 
         image: Image.Image | None = None
 
         if url:
-
             try:
+                async with session.get(
+                    url
+                ) as response:
+                    if response.status == 200:
+                        raw = await response.read()
 
-                timeout = aiohttp.ClientTimeout(
-                    total=8
-                )
+                        with Image.open(
+                            io.BytesIO(raw)
+                        ) as source:
+                            image = source.convert(
+                                "RGBA"
+                            )
 
-                async with aiohttp.ClientSession(
-                    timeout=timeout
-                ) as session:
-
-                    async with session.get(
-                        url
-                    ) as response:
-
-                        if response.status == 200:
-
-                            raw = await response.read()
-
-                            image = Image.open(
-                                io.BytesIO(raw)
-                            ).convert("RGBA")
-
-            except Exception:
-
+            except (
+                aiohttp.ClientError,
+                asyncio.TimeoutError,
+                OSError,
+                ValueError,
+            ):
                 image = None
 
         if image is None:
-
-            image = Image.new(
-                "RGBA",
-                (128, 128),
-                (54, 62, 86, 255),
-            )
-
-            draw = ImageDraw.Draw(
-                image
-            )
-
-            draw.ellipse(
-                (
-                    8,
-                    8,
-                    120,
-                    120,
-                ),
-                fill=(
-                    81,
-                    91,
-                    121,
-                    255,
-                ),
-            )
-
-            initial = (
-                key[:1]
-                or "?"
-            ).upper()
-
-            font = self._font(
-                56,
-                bold=True,
-            )
-
-            bbox = draw.textbbox(
-                (0, 0),
-                initial,
-                font=font,
-            )
-
-            text_width = (
-                bbox[2]
-                - bbox[0]
-            )
-
-            text_height = (
-                bbox[3]
-                - bbox[1]
-            )
-
-            draw.text(
-                (
-                    (
-                        128
-                        - text_width
-                    )
-                    / 2,
-                    (
-                        128
-                        - text_height
-                    )
-                    / 2
-                    - 6,
-                ),
-                initial,
-                font=font,
-                fill=(
-                    255,
-                    255,
-                    255,
-                    255,
-                ),
+            image = self._create_fallback_avatar(
+                key
             )
 
         image = ImageOps.fit(
@@ -377,6 +593,103 @@ class BracketImageService:
         self._avatar_cache[
             key
         ] = image.copy()
+
+        return image
+
+    def _create_fallback_avatar(
+        self,
+        key: str,
+    ) -> Image.Image:
+        """
+        Crée un avatar de remplacement avec une initiale.
+        """
+
+        image = Image.new(
+            "RGBA",
+            (128, 128),
+            (
+                54,
+                62,
+                86,
+                255,
+            ),
+        )
+
+        draw = ImageDraw.Draw(
+            image
+        )
+
+        draw.ellipse(
+            (
+                8,
+                8,
+                120,
+                120,
+            ),
+            fill=(
+                81,
+                91,
+                121,
+                255,
+            ),
+        )
+
+        cleaned_key = key
+
+        if cleaned_key.startswith(
+            "name:"
+        ):
+            cleaned_key = cleaned_key[5:]
+
+        initial = (
+            cleaned_key[:1]
+            or "?"
+        ).upper()
+
+        font = self._font(
+            56,
+            bold=True,
+        )
+
+        bbox = draw.textbbox(
+            (0, 0),
+            initial,
+            font=font,
+        )
+
+        text_width = (
+            bbox[2]
+            - bbox[0]
+        )
+
+        text_height = (
+            bbox[3]
+            - bbox[1]
+        )
+
+        draw.text(
+            (
+                (
+                    128
+                    - text_width
+                )
+                // 2,
+                (
+                    128
+                    - text_height
+                )
+                // 2
+                - 7,
+            ),
+            initial,
+            font=font,
+            fill=(
+                255,
+                255,
+                255,
+                255,
+            ),
+        )
 
         return image
 
@@ -401,9 +714,11 @@ class BracketImageService:
             0,
         )
 
-        ImageDraw.Draw(
+        mask_draw = ImageDraw.Draw(
             mask
-        ).ellipse(
+        )
+
+        mask_draw.ellipse(
             (
                 0,
                 0,
@@ -438,9 +753,10 @@ class BracketImageService:
         supplied: dict[str, str] | None,
     ) -> dict[str, Image.Image]:
         """
-        Prépare tous les avatars nécessaires au bracket.
+        Télécharge les avatars nécessaires au bracket.
 
         supplied :
+
             {
                 "discord_id": "avatar_url"
             }
@@ -454,12 +770,10 @@ class BracketImageService:
         ] = {}
 
         for match in matches:
-
             for slot in (
                 1,
                 2,
             ):
-
                 discord_id = getattr(
                     match,
                     f"player{slot}_id",
@@ -476,30 +790,47 @@ class BracketImageService:
                 )
 
                 if discord_id:
+                    key = str(
+                        discord_id
+                    )
 
-                    identities[
-                        str(discord_id)
-                    ] = supplied.get(
-                        str(discord_id)
+                    identities[key] = supplied.get(
+                        key
                     )
 
                 elif name:
-
                     identities[
                         f"name:{name}"
                     ] = None
 
-        tasks = [
-            self._download_avatar(
-                url,
-                key,
-            )
-            for key, url in identities.items()
-        ]
+        if not identities:
+            return {}
 
-        images = await asyncio.gather(
-            *tasks
+        timeout = aiohttp.ClientTimeout(
+            total=12,
+            connect=5,
         )
+
+        connector = aiohttp.TCPConnector(
+            limit=12,
+        )
+
+        async with aiohttp.ClientSession(
+            timeout=timeout,
+            connector=connector,
+        ) as session:
+            tasks = [
+                self._download_avatar_with_session(
+                    session,
+                    url,
+                    key,
+                )
+                for key, url in identities.items()
+            ]
+
+            images = await asyncio.gather(
+                *tasks
+            )
 
         return dict(
             zip(
@@ -509,7 +840,7 @@ class BracketImageService:
         )
 
     # ==========================================================
-    # DONNÉES VISUELLES D'UN MATCH
+    # DONNÉES VISUELLES DES JOUEURS
     # ==========================================================
 
     def _match_players(
@@ -521,8 +852,7 @@ class BracketImageService:
         PlayerVisual,
     ]:
         """
-        Transforme les deux joueurs d'un match en objets
-        directement utilisables par le moteur graphique.
+        Transforme les joueurs d'un match en données graphiques.
         """
 
         winner_id = getattr(
@@ -624,7 +954,7 @@ class BracketImageService:
         )
 
     # ==========================================================
-    # DESSIN D'UNE CASE DE MATCH
+    # DESSIN DES CASES DE MATCH
     # ==========================================================
 
     def _draw_match_box(
@@ -636,26 +966,20 @@ class BracketImageService:
         width: int,
         height: int,
         match: Any,
-        side_color: tuple[
-            int,
-            int,
-            int,
-        ],
-        avatars: dict[
-            str,
-            Image.Image,
-        ],
-        avatar_urls: dict[
-            str,
-            str,
-        ] | None,
+        side_color: tuple[int, int, int],
+        avatars: dict[str, Image.Image],
+        avatar_urls: dict[str, str] | None,
         compact: bool,
     ) -> None:
         """
-        Dessine une case contenant les deux joueurs du match.
+        Dessine une case contenant les deux participants.
         """
 
-        radius = 14
+        radius = (
+            12
+            if compact
+            else 16
+        )
 
         draw.rounded_rectangle(
             (
@@ -671,15 +995,14 @@ class BracketImageService:
         )
 
         row_height = (
-            height
-            // 2
+            height // 2
         )
 
         draw.line(
             (
-                x + 8,
+                x + 9,
                 y + row_height,
-                x + width - 8,
+                x + width - 9,
                 y + row_height,
             ),
             fill=self.LINE,
@@ -691,30 +1014,33 @@ class BracketImageService:
             avatar_urls,
         )
 
-        avatar_size = (
-            34
+        avatar_size = self.theme.avatar_size(
+            64
             if compact
-            else 42
+            else 32
         )
 
         name_font = self._font(
-            20
-            if compact
-            else 24,
+            (
+                self.theme.compact_name_font_size
+                if compact
+                else self.theme.normal_name_font_size
+            ),
             bold=True,
         )
 
         score_font = self._font(
-            22
-            if compact
-            else 28,
+            (
+                self.theme.compact_score_font_size
+                if compact
+                else self.theme.normal_score_font_size
+            ),
             bold=True,
         )
 
         for index, player in enumerate(
             players
         ):
-
             row_y = (
                 y
                 + index
@@ -731,46 +1057,53 @@ class BracketImageService:
             )
 
             if avatar is not None:
-
                 circle = self._circle_avatar(
                     avatar,
                     avatar_size,
                 )
 
+                avatar_x = (
+                    x + 12
+                )
+
+                avatar_y = (
+                    row_y
+                    + (
+                        row_height
+                        - avatar_size
+                    )
+                    // 2
+                )
+
                 canvas.alpha_composite(
                     circle,
                     (
-                        x + 12,
-                        row_y
-                        + (
-                            row_height
-                            - avatar_size
-                        )
-                        // 2,
+                        avatar_x,
+                        avatar_y,
                     ),
                 )
 
-            name_color = (
-                self.TEXT
-                if player.winner
-                else self.MUTED
+            player_is_unknown = (
+                player.name
+                == "À déterminer"
             )
 
-            if (
-                not player.discord_id
-                and player.name
-                == "À déterminer"
-            ):
+            if player.winner:
+                name_color = self.TEXT
 
-                name_color = (
-                    self.MUTED
-                )
+            elif player_is_unknown:
+                name_color = self.MUTED
+
+            else:
+                name_color = self.MUTED
 
             name = self._safe_text(
                 player.name,
-                15
-                if compact
-                else 20,
+                (
+                    15
+                    if compact
+                    else 20
+                ),
             )
 
             name_x = (
@@ -779,34 +1112,54 @@ class BracketImageService:
                 else x + 66
             )
 
+            name_y = (
+                row_y
+                + max(
+                    8,
+                    (
+                        row_height
+                        - (
+                            self.theme.compact_name_font_size
+                            if compact
+                            else self.theme.normal_name_font_size
+                        )
+                    )
+                    // 2
+                    - 4,
+                )
+            )
+
             draw.text(
                 (
                     name_x,
-                    row_y + 12,
+                    name_y,
                 ),
                 name,
                 font=name_font,
                 fill=name_color,
             )
 
-            score_bbox = draw.textbbox(
-                (0, 0),
+            score_width = self._text_width(
+                draw,
                 player.score,
-                font=score_font,
+                score_font,
             )
 
-            score_width = (
-                score_bbox[2]
-                - score_bbox[0]
+            score_x = (
+                x
+                + width
+                - 16
+                - score_width
+            )
+
+            score_y = (
+                row_y + 9
             )
 
             draw.text(
                 (
-                    x
-                    + width
-                    - 16
-                    - score_width,
-                    row_y + 10,
+                    score_x,
+                    score_y,
                 ),
                 player.score,
                 font=score_font,
@@ -818,29 +1171,26 @@ class BracketImageService:
             )
 
             if player.winner:
-
-                draw.rectangle(
+                draw.rounded_rectangle(
                     (
                         x + 2,
-                        row_y + 4,
-                        x + 7,
+                        row_y + 5,
+                        x + 8,
                         row_y
                         + row_height
-                        - 4,
+                        - 5,
                     ),
+                    radius=3,
                     fill=self.GREEN,
                 )
 
     # ==========================================================
-    # CALCUL DU PLACEMENT DES MATCHS
+    # PLACEMENT DES MATCHS
     # ==========================================================
 
     def _layout(
         self,
-        bracket: dict[
-            int,
-            list[Any],
-        ],
+        bracket: dict[int, list[Any]],
         width: int,
         header_height: int,
         footer_height: int,
@@ -851,87 +1201,104 @@ class BracketImageService:
         dict[
             int,
             list[
-                tuple[
-                    int,
-                    int,
-                    str,
-                ]
+                tuple[int, int, str]
             ],
         ],
         int,
     ]:
         """
-        Calcule la position de chaque match.
+        Calcule les positions des matchs.
 
-        Les premiers matchs sont répartis sur deux côtés :
+        Pour les grands tournois :
 
-        - moitié gauche ;
-        - moitié droite.
-
-        Les deux arbres convergent ensuite vers la finale centrale.
+        - la moitié des joueurs progresse depuis la gauche ;
+        - l'autre moitié progresse depuis la droite ;
+        - les deux arbres se rejoignent vers la finale.
         """
 
         total_rounds = max(
             bracket
         )
 
+        first_round_matches = bracket.get(
+            total_rounds,
+            [],
+        )
+
         first_round_count = len(
-            bracket[
-                total_rounds
-            ]
+            first_round_matches
         )
 
-        per_side = max(
+        if first_round_count < 1:
+            raise ValueError(
+                "Le premier tour du bracket est vide."
+            )
+
+        left_first_count = math.ceil(
+            first_round_count / 2
+        )
+
+        right_first_count = (
+            first_round_count
+            - left_first_count
+        )
+
+        matches_per_side = max(
+            left_first_count,
+            right_first_count,
             1,
-            math.ceil(
-                first_round_count
-                / 2
-            ),
         )
 
-        gap_y = max(
-            118,
-            box_height + 28,
+        vertical_gap = max(
+            box_height + 30,
+            124,
         )
 
         content_height = max(
-            900,
-            per_side
-            * gap_y
-            + 180,
+            950,
+            (
+                matches_per_side
+                * vertical_gap
+            )
+            + 220,
+        )
+
+        content_top = (
+            header_height + 80
         )
 
         center_y = (
             header_height
-            + content_height
-            // 2
+            + content_height // 2
         )
 
         positions: dict[
             int,
             list[
-                tuple[
-                    int,
-                    int,
-                    str,
-                ]
+                tuple[int, int, str]
             ],
         ] = {}
 
-        available_half = (
-            width
-            // 2
+        rounds_before_final = max(
+            1,
+            total_rounds - 1,
+        )
+
+        center_reserved_width = max(
+            700,
+            box_width + 360,
+        )
+
+        usable_half_width = (
+            width // 2
             - margin_x
-            - 230
+            - center_reserved_width // 2
         )
 
         column_gap = max(
-            box_width + 100,
-            available_half
-            // max(
-                1,
-                total_rounds - 1,
-            ),
+            box_width + 90,
+            usable_half_width
+            // rounds_before_final,
         )
 
         for round_number in range(
@@ -939,24 +1306,19 @@ class BracketImageService:
             1,
             -1,
         ):
-
             matches = bracket.get(
                 round_number,
                 [],
             )
 
             left_count = math.ceil(
-                len(matches)
-                / 2
+                len(matches) / 2
             )
 
-            left_matches = matches[
-                :left_count
-            ]
-
-            right_matches = matches[
-                left_count:
-            ]
+            right_count = (
+                len(matches)
+                - left_count
+            )
 
             depth = (
                 total_rounds
@@ -977,157 +1339,92 @@ class BracketImageService:
                 * column_gap
             )
 
-            if (
-                round_number
-                == total_rounds
-            ):
-
+            if round_number == total_rounds:
                 left_y_positions = [
-                    header_height
-                    + 90
+                    content_top
                     + index
-                    * gap_y
+                    * vertical_gap
                     for index in range(
-                        len(left_matches)
+                        left_count
                     )
                 ]
 
                 right_y_positions = [
-                    header_height
-                    + 90
+                    content_top
                     + index
-                    * gap_y
+                    * vertical_gap
                     for index in range(
-                        len(right_matches)
+                        right_count
                     )
                 ]
 
             else:
-
-                child_positions = positions[
-                    round_number + 1
-                ]
+                child_positions = positions.get(
+                    round_number + 1,
+                    [],
+                )
 
                 left_children = [
                     position
-                    for position
-                    in child_positions
-                    if position[2]
-                    == "left"
+                    for position in child_positions
+                    if position[2] == "left"
                 ]
 
                 right_children = [
                     position
-                    for position
-                    in child_positions
-                    if position[2]
-                    == "right"
+                    for position in child_positions
+                    if position[2] == "right"
                 ]
 
-                if (
-                    left_matches
-                    and left_children
-                ):
+                left_y_positions = (
+                    self._parent_y_positions(
+                        left_children,
+                        left_count,
+                    )
+                )
 
-                    left_y_positions = [
-                        int(
-                            (
-                                left_children[
-                                    index * 2
-                                ][1]
-                                + left_children[
-                                    min(
-                                        index
-                                        * 2
-                                        + 1,
-                                        len(
-                                            left_children
-                                        )
-                                        - 1,
-                                    )
-                                ][1]
-                            )
-                            / 2
-                        )
-                        for index in range(
-                            len(left_matches)
-                        )
-                    ]
-
-                else:
-
-                    left_y_positions = []
-
-                if (
-                    right_matches
-                    and right_children
-                ):
-
-                    right_y_positions = [
-                        int(
-                            (
-                                right_children[
-                                    index * 2
-                                ][1]
-                                + right_children[
-                                    min(
-                                        index
-                                        * 2
-                                        + 1,
-                                        len(
-                                            right_children
-                                        )
-                                        - 1,
-                                    )
-                                ][1]
-                            )
-                            / 2
-                        )
-                        for index in range(
-                            len(right_matches)
-                        )
-                    ]
-
-                else:
-
-                    right_y_positions = []
+                right_y_positions = (
+                    self._parent_y_positions(
+                        right_children,
+                        right_count,
+                    )
+                )
 
             positions[
                 round_number
-            ] = (
-                [
+            ] = [
+                *[
                     (
                         left_x,
                         y,
                         "left",
                     )
-                    for y
-                    in left_y_positions
-                ]
-                + [
+                    for y in left_y_positions
+                ],
+                *[
                     (
                         right_x,
                         y,
                         "right",
                     )
-                    for y
-                    in right_y_positions
-                ]
-            )
+                    for y in right_y_positions
+                ],
+            ]
 
         final_x = (
-            width
-            // 2
-            - box_width
-            // 2
+            width // 2
+            - box_width // 2
+        )
+
+        final_y = (
+            center_y
+            - box_height // 2
         )
 
         positions[1] = [
             (
                 final_x,
-                center_y
-                - box_height
-                // 2,
+                final_y,
                 "center",
             )
         ]
@@ -1143,6 +1440,62 @@ class BracketImageService:
             final_height,
         )
 
+    @staticmethod
+    def _parent_y_positions(
+        children: list[
+            tuple[int, int, str]
+        ],
+        parent_count: int,
+    ) -> list[int]:
+        """
+        Place chaque match parent entre ses deux matchs enfants.
+        """
+
+        if (
+            parent_count <= 0
+            or not children
+        ):
+            return []
+
+        positions: list[int] = []
+
+        for parent_index in range(
+            parent_count
+        ):
+            first_child_index = (
+                parent_index * 2
+            )
+
+            second_child_index = min(
+                first_child_index + 1,
+                len(children) - 1,
+            )
+
+            if first_child_index >= len(
+                children
+            ):
+                first_child_index = (
+                    len(children) - 1
+                )
+
+            first_y = children[
+                first_child_index
+            ][1]
+
+            second_y = children[
+                second_child_index
+            ][1]
+
+            positions.append(
+                (
+                    first_y
+                    + second_y
+                )
+                // 2
+            )
+
+        return positions
+
     # ==========================================================
     # LIGNES ENTRE LES MATCHS
     # ==========================================================
@@ -1150,25 +1503,18 @@ class BracketImageService:
     def _draw_connectors(
         self,
         draw: ImageDraw.ImageDraw,
-        bracket: dict[
-            int,
-            list[Any],
-        ],
+        bracket: dict[int, list[Any]],
         positions: dict[
             int,
             list[
-                tuple[
-                    int,
-                    int,
-                    str,
-                ]
+                tuple[int, int, str]
             ],
         ],
         box_width: int,
         box_height: int,
     ) -> None:
         """
-        Dessine les lignes reliant chaque match au tour suivant.
+        Dessine les lignes reliant les matchs.
         """
 
         total_rounds = max(
@@ -1180,7 +1526,6 @@ class BracketImageService:
             1,
             -1,
         ):
-
             current_positions = positions.get(
                 round_number,
                 [],
@@ -1191,80 +1536,68 @@ class BracketImageService:
                 [],
             )
 
-            for index, (
+            if not next_positions:
+                continue
+
+            side_indexes = {
+                "left": 0,
+                "right": 0,
+            }
+
+            for (
                 x,
                 y,
                 side,
-            ) in enumerate(
-                current_positions
-            ):
-
-                same_side_next = [
-                    position
-                    for position
-                    in next_positions
-                    if position[2]
-                    == side
-                ]
-
-                if (
-                    round_number - 1
-                    == 1
-                ):
-
-                    target = (
-                        next_positions[0]
-                    )
-
-                elif same_side_next:
-
-                    target = same_side_next[
-                        min(
-                            index
-                            // 2,
-                            len(
-                                same_side_next
-                            )
-                            - 1,
-                        )
-                    ]
+            ) in current_positions:
+                if round_number - 1 == 1:
+                    target = next_positions[0]
 
                 else:
+                    target_candidates = [
+                        position
+                        for position in next_positions
+                        if position[2] == side
+                    ]
 
-                    continue
+                    if not target_candidates:
+                        continue
+
+                    local_index = side_indexes[
+                        side
+                    ]
+
+                    target_index = min(
+                        local_index // 2,
+                        len(target_candidates) - 1,
+                    )
+
+                    target = target_candidates[
+                        target_index
+                    ]
+
+                    side_indexes[
+                        side
+                    ] += 1
 
                 target_x, target_y, _ = target
 
                 start_y = (
-                    y
-                    + box_height
-                    // 2
+                    y + box_height // 2
                 )
 
                 end_y = (
                     target_y
-                    + box_height
-                    // 2
+                    + box_height // 2
                 )
 
                 if side == "left":
-
                     start_x = (
-                        x
-                        + box_width
+                        x + box_width
                     )
 
-                    end_x = (
-                        target_x
-                    )
-
-                    middle_x = (
-                        start_x
-                        + end_x
-                    ) // 2
+                    end_x = target_x
 
                 else:
-
                     start_x = x
 
                     end_x = (
@@ -1272,10 +1605,30 @@ class BracketImageService:
                         + box_width
                     )
 
-                    middle_x = (
-                        start_x
-                        + end_x
-                    ) // 2
+                middle_x = (
+                    start_x
+                    + end_x
+                ) // 2
+
+                line_color = (
+                    self.RED
+                    if side == "left"
+                    else self.BLUE
+                )
+
+                muted_line = tuple(
+                    int(
+                        (
+                            color
+                            + neutral
+                        )
+                        / 2
+                    )
+                    for color, neutral in zip(
+                        line_color,
+                        self.LINE,
+                    )
+                )
 
                 draw.line(
                     (
@@ -1284,7 +1637,7 @@ class BracketImageService:
                         middle_x,
                         start_y,
                     ),
-                    fill=self.LINE,
+                    fill=muted_line,
                     width=4,
                 )
 
@@ -1295,7 +1648,7 @@ class BracketImageService:
                         middle_x,
                         end_y,
                     ),
-                    fill=self.LINE,
+                    fill=muted_line,
                     width=4,
                 )
 
@@ -1306,40 +1659,337 @@ class BracketImageService:
                         end_x,
                         end_y,
                     ),
-                    fill=self.LINE,
+                    fill=muted_line,
                     width=4,
                 )
 
     # ==========================================================
-    # GÉNÉRATION DE L'IMAGE COMPLÈTE
+    # FOND ET HALOS
+    # ==========================================================
+
+    def _draw_background_effects(
+        self,
+        image: Image.Image,
+        header_height: int,
+        footer_height: int,
+    ) -> None:
+        """
+        Ajoute les halos rouge et bleu de chaque côté.
+        """
+
+        width, height = image.size
+
+        effect_layer = Image.new(
+            "RGBA",
+            image.size,
+            (
+                0,
+                0,
+                0,
+                0,
+            ),
+        )
+
+        effect_draw = ImageDraw.Draw(
+            effect_layer
+        )
+
+        content_bottom = (
+            height - footer_height
+        )
+
+        halo_width = max(
+            500,
+            width // 5,
+        )
+
+        for step in range(
+            10,
+            0,
+            -1,
+        ):
+            alpha = (
+                5 + step * 2
+            )
+
+            expansion = (
+                step * 80
+            )
+
+            effect_draw.ellipse(
+                (
+                    -halo_width - expansion,
+                    header_height - expansion,
+                    halo_width + expansion,
+                    content_bottom + expansion,
+                ),
+                fill=(
+                    self.RED[0],
+                    self.RED[1],
+                    self.RED[2],
+                    alpha,
+                ),
+            )
+
+            effect_draw.ellipse(
+                (
+                    width
+                    - halo_width
+                    - expansion,
+                    header_height
+                    - expansion,
+                    width
+                    + halo_width
+                    + expansion,
+                    content_bottom
+                    + expansion,
+                ),
+                fill=(
+                    self.BLUE[0],
+                    self.BLUE[1],
+                    self.BLUE[2],
+                    alpha,
+                ),
+            )
+
+        image.alpha_composite(
+            effect_layer
+        )
+
+    # ==========================================================
+    # CARTE DU CHAMPION
+    # ==========================================================
+
+    def _draw_champion_card(
+        self,
+        image: Image.Image,
+        draw: ImageDraw.ImageDraw,
+        tournament: Any,
+        final_match: Any,
+        final_position: tuple[int, int, str],
+        box_height: int,
+        avatars: dict[str, Image.Image],
+    ) -> None:
+        """
+        Dessine la carte du champion sous la finale.
+        """
+
+        champion_name = getattr(
+            final_match,
+            "winner_name",
+            None,
+        )
+
+        champion_id = getattr(
+            final_match,
+            "winner_id",
+            None,
+        )
+
+        if not champion_name:
+            return
+
+        width = image.width
+
+        card_width = 650
+        card_height = 350
+
+        card_x = (
+            width // 2
+            - card_width // 2
+        )
+
+        final_y = final_position[1]
+
+        card_y = (
+            final_y
+            + box_height
+            + 52
+        )
+
+        draw.rounded_rectangle(
+            (
+                card_x,
+                card_y,
+                card_x + card_width,
+                card_y + card_height,
+            ),
+            radius=30,
+            fill=(
+                32,
+                29,
+                19,
+            ),
+            outline=self.GOLD,
+            width=5,
+        )
+
+        trophy_drawn = self._draw_optional_trophy(
+            image,
+            center_x=width // 2,
+            y=card_y + 68,
+            maximum_width=82,
+            maximum_height=82,
+        )
+
+        title_y = (
+            card_y + 30
+        )
+
+        draw.text(
+            (
+                width // 2,
+                title_y,
+            ),
+            (
+                "CHAMPION"
+                if trophy_drawn
+                else "🏆 CHAMPION"
+            ),
+            font=self._font(
+                self.theme.champion_title_font_size,
+                bold=True,
+            ),
+            fill=self.GOLD,
+            anchor="ma",
+        )
+
+        key = (
+            str(champion_id)
+            if champion_id
+            else f"name:{champion_name}"
+        )
+
+        avatar = avatars.get(
+            key
+        )
+
+        avatar_y = (
+            card_y + 170
+        )
+
+        if avatar is not None:
+            circle = self._circle_avatar(
+                avatar,
+                self.theme.champion_avatar_size,
+            )
+
+            image.alpha_composite(
+                circle,
+                (
+                    card_x + 48,
+                    avatar_y,
+                ),
+            )
+
+        name_x = (
+            card_x + 190
+        )
+
+        draw.text(
+            (
+                name_x,
+                card_y + 175,
+            ),
+            self._safe_text(
+                champion_name,
+                28,
+            ),
+            font=self._font(
+                self.theme.champion_name_font_size,
+                bold=True,
+            ),
+            fill=self.TEXT,
+        )
+
+        tournament_id = getattr(
+            tournament,
+            "id",
+            "?",
+        )
+
+        tournament_format = getattr(
+            tournament,
+            "format",
+            "Format inconnu",
+        )
+
+        draw.text(
+            (
+                name_x,
+                card_y + 238,
+            ),
+            (
+                f"Tournoi #{tournament_id}"
+                f" • {tournament_format}"
+            ),
+            font=self._font(
+                24
+            ),
+            fill=self.MUTED,
+        )
+
+        final_score = getattr(
+            final_match,
+            "score",
+            None,
+        )
+
+        if not final_score:
+            player1_score = getattr(
+                final_match,
+                "player1_score",
+                0,
+            )
+
+            player2_score = getattr(
+                final_match,
+                "player2_score",
+                0,
+            )
+
+            final_score = (
+                f"{player1_score}"
+                f"-"
+                f"{player2_score}"
+            )
+
+        draw.text(
+            (
+                name_x,
+                card_y + 280,
+            ),
+            f"Score de la finale : {final_score}",
+            font=self._font(
+                22,
+                bold=True,
+            ),
+            fill=self.GOLD,
+        )
+
+    # ==========================================================
+    # GÉNÉRATION DE L'IMAGE
     # ==========================================================
 
     async def render(
         self,
         tournament: Any,
-        bracket: dict[
-            int,
-            list[Any],
-        ],
+        bracket: dict[int, list[Any]],
         *,
-        avatar_urls: dict[
-            str,
-            str,
-        ] | None = None,
+        avatar_urls: dict[str, str] | None = None,
         final_mode: bool = False,
     ) -> io.BytesIO:
         """
-        Génère le PNG complet.
+        Génère une image PNG complète.
 
         final_mode=False :
-            bracket actif.
+            bracket du tournoi actif.
 
         final_mode=True :
-            bracket final avec carte du champion.
+            affiche finale avec champion.
         """
 
         if not bracket:
-
             raise ValueError(
                 "Aucun bracket n'a été généré pour ce tournoi."
             )
@@ -1349,45 +1999,55 @@ class BracketImageService:
         )
 
         first_round_matches = len(
-            bracket[
-                total_rounds
-            ]
+            bracket.get(
+                total_rounds,
+                [],
+            )
         )
+
+        if first_round_matches < 1:
+            raise ValueError(
+                "Le premier tour du tournoi est vide."
+            )
 
         player_capacity = (
-            first_round_matches
-            * 2
+            first_round_matches * 2
         )
 
-        if player_capacity > 128:
-
+        if (
+            player_capacity
+            not in self.SUPPORTED_PLAYER_CAPACITIES
+        ):
             raise ValueError(
-                "Le renderer prend en charge jusqu'à 128 joueurs."
+                "Le moteur graphique prend uniquement en charge "
+                "les brackets de 2, 4, 8, 16, 32, 64 "
+                "ou 128 joueurs."
             )
 
         width = self.theme.image_width(
-    player_capacity
-)
+            player_capacity
+        )
 
-header_height = (
-    self.theme.header_height
-)
+        header_height = (
+            self.theme.header_height
+        )
 
-footer_height = (
-    self.theme.footer_height
-)
+        footer_height = (
+            self.theme.footer_height
+        )
 
-box_width = self.theme.box_width(
-    player_capacity
-)
+        box_width = self.theme.box_width(
+            player_capacity
+        )
 
-box_height = self.theme.box_height(
-    player_capacity
-)
+        box_height = self.theme.box_height(
+            player_capacity
+        )
 
-margin_x = (
-    self.theme.horizontal_margin
-)
+        margin_x = (
+            self.theme.horizontal_margin
+        )
+
         positions, height = self._layout(
             bracket,
             width,
@@ -1406,15 +2066,23 @@ margin_x = (
             ),
             self.BG + (255,),
         )
+
         self._draw_optional_background(
             image
-)
+        )
+
+        self._draw_background_effects(
+            image,
+            header_height,
+            footer_height,
+        )
+
         draw = ImageDraw.Draw(
             image
         )
 
         # ------------------------------------------------------
-        # Fond graphique
+        # Lignes graphiques du fond
         # ------------------------------------------------------
 
         for y in range(
@@ -1422,16 +2090,12 @@ margin_x = (
             height - footer_height,
             90,
         ):
-
             alpha = (
-                18
+                14
                 if (
-                    y
-                    // 90
-                )
-                % 2
-                == 0
-                else 8
+                    y // 90
+                ) % 2 == 0
+                else 7
             )
 
             draw.rectangle(
@@ -1439,7 +2103,7 @@ margin_x = (
                     0,
                     y,
                     width,
-                    y + 45,
+                    y + 44,
                 ),
                 fill=(
                     255,
@@ -1449,22 +2113,26 @@ margin_x = (
                 ),
             )
 
+        # ------------------------------------------------------
+        # Polices
+        # ------------------------------------------------------
+
         title_font = self._font(
-            64,
+            self.theme.title_font_size,
             bold=True,
         )
 
         subtitle_font = self._font(
-            30,
+            self.theme.subtitle_font_size,
             bold=True,
         )
 
         small_font = self._font(
-            23
+            self.theme.information_font_size
         )
 
         phase_font = self._font(
-            24,
+            self.theme.round_font_size,
             bold=True,
         )
 
@@ -1483,7 +2151,7 @@ margin_x = (
         tournament_format = getattr(
             tournament,
             "format",
-            "Inconnu",
+            "Format inconnu",
         )
 
         status = self._status_value(
@@ -1512,40 +2180,41 @@ margin_x = (
                 header_height,
             ),
             fill=(
-                14,
-                17,
-                28,
+                self.theme.header_background[0],
+                self.theme.header_background[1],
+                self.theme.header_background[2],
                 255,
             ),
         )
 
         logo_drawn = self._draw_optional_logo(
-    image,
-    x=75,
-    y=55,
-    maximum_width=150,
-    maximum_height=125,
-)
+            image,
+            x=70,
+            y=54,
+            maximum_width=150,
+            maximum_height=125,
+        )
 
-brand_x = (
-    245
-    if logo_drawn
-    else 90
-)
+        brand_x = (
+            245
+            if logo_drawn
+            else 90
+        )
 
-draw.text(
-    (
-        brand_x,
-        52,
-    ),
-    "HAMTARO",
-    font=title_font,
-    fill=self.TEXT,
-)
         draw.text(
             (
-                90,
-                135,
+                brand_x,
+                52,
+            ),
+            "HAMTARO",
+            font=title_font,
+            fill=self.TEXT,
+        )
+
+        draw.text(
+            (
+                brand_x,
+                142,
             ),
             title,
             font=subtitle_font,
@@ -1570,7 +2239,7 @@ draw.text(
             anchor="ma",
         )
 
-        info = (
+        tournament_info = (
             f"Tournoi #{tournament_id}"
             f"  •  {tournament_format}"
             f"  •  Élimination directe"
@@ -1580,9 +2249,9 @@ draw.text(
         draw.text(
             (
                 width // 2,
-                155,
+                158,
             ),
-            info,
+            tournament_info,
             font=small_font,
             fill=self.MUTED,
             anchor="ma",
@@ -1590,7 +2259,7 @@ draw.text(
 
         draw.text(
             (
-                width - 100,
+                width - 95,
                 62,
             ),
             status.upper(),
@@ -1611,20 +2280,19 @@ draw.text(
             round_number,
             round_positions,
         ) in positions.items():
+            if not round_positions:
+                continue
 
             if round_number == 1:
-
-                x, _, _ = (
+                final_x, _, _ = (
                     round_positions[0]
                 )
 
                 draw.text(
                     (
-                        x
-                        + box_width
-                        // 2,
-                        header_height
-                        + 18,
+                        final_x
+                        + box_width // 2,
+                        header_height + 18,
                     ),
                     self._round_title(
                         round_number
@@ -1636,28 +2304,24 @@ draw.text(
 
                 continue
 
-            seen: set[str] = set()
+            displayed_sides: set[str] = set()
 
             for (
                 x,
                 _,
                 side,
             ) in round_positions:
-
-                if side in seen:
+                if side in displayed_sides:
                     continue
 
-                seen.add(
+                displayed_sides.add(
                     side
                 )
 
                 draw.text(
                     (
-                        x
-                        + box_width
-                        // 2,
-                        header_height
-                        + 18,
+                        x + box_width // 2,
+                        header_height + 18,
                     ),
                     self._round_title(
                         round_number
@@ -1672,7 +2336,7 @@ draw.text(
                 )
 
         # ------------------------------------------------------
-        # Traits du bracket
+        # Lignes du bracket
         # ------------------------------------------------------
 
         self._draw_connectors(
@@ -1689,10 +2353,8 @@ draw.text(
 
         all_matches = [
             match
-            for matches
-            in bracket.values()
-            for match
-            in matches
+            for matches in bracket.values()
+            for match in matches
         ]
 
         avatars = await self._resolve_avatar_map(
@@ -1701,44 +2363,35 @@ draw.text(
         )
 
         # ------------------------------------------------------
-        # Dessin de chaque match
+        # Cases de matchs
         # ------------------------------------------------------
 
         for (
             round_number,
             matches,
         ) in bracket.items():
+            round_positions = positions.get(
+                round_number,
+                [],
+            )
 
-            round_positions = positions[
-                round_number
-            ]
-
-            for match, (
-                x,
-                y,
-                side,
+            for (
+                match,
+                position,
             ) in zip(
                 matches,
                 round_positions,
             ):
+                x, y, side = position
 
                 if side == "center":
-
-                    side_color = (
-                        self.GOLD
-                    )
+                    side_color = self.GOLD
 
                 elif side == "left":
-
-                    side_color = (
-                        self.RED
-                    )
+                    side_color = self.RED
 
                 else:
-
-                    side_color = (
-                        self.BLUE
-                    )
+                    side_color = self.BLUE
 
                 self._draw_match_box(
                     image,
@@ -1752,13 +2405,12 @@ draw.text(
                     avatars,
                     avatar_urls,
                     compact=(
-                        player_capacity
-                        >= 64
+                        player_capacity >= 64
                     ),
                 )
 
         # ------------------------------------------------------
-        # Carte du champion
+        # Champion
         # ------------------------------------------------------
 
         final_matches = bracket.get(
@@ -1772,143 +2424,19 @@ draw.text(
             else None
         )
 
-        champion_name = (
-            getattr(
-                final_match,
-                "winner_name",
-                None,
-            )
-            if final_match
-            else None
-        )
-
-        champion_id = (
-            getattr(
-                final_match,
-                "winner_id",
-                None,
-            )
-            if final_match
-            else None
-        )
-
         if (
             final_mode
-            and champion_name
+            and final_match is not None
+            and positions.get(1)
         ):
-
-            card_width = 620
-            card_height = 260
-
-            card_x = (
-                width
-                // 2
-                - card_width
-                // 2
-            )
-
-            final_y = (
-                positions[1][0][1]
-            )
-
-            card_y = (
-                final_y
-                + box_height
-                + 52
-            )
-
-            draw.rounded_rectangle(
-                (
-                    card_x,
-                    card_y,
-                    card_x
-                    + card_width,
-                    card_y
-                    + card_height,
-                ),
-                radius=28,
-                fill=(
-                    32,
-                    29,
-                    19,
-                ),
-                outline=self.GOLD,
-                width=5,
-            )
-
-            draw.text(
-                (
-                    width // 2,
-                    card_y + 34,
-                ),
-                "🏆 CHAMPION",
-                font=self._font(
-                    38,
-                    bold=True,
-                ),
-                fill=self.GOLD,
-                anchor="ma",
-            )
-
-            key = (
-                str(champion_id)
-                if champion_id
-                else (
-                    f"name:"
-                    f"{champion_name}"
-                )
-            )
-
-            avatar = avatars.get(
-                key
-            )
-
-            if avatar is not None:
-
-                circle = self._circle_avatar(
-                    avatar,
-                    110,
-                )
-
-                image.alpha_composite(
-                    circle,
-                    (
-                        card_x + 52,
-                        card_y + 90,
-                    ),
-                )
-
-            draw.text(
-                (
-                    card_x + 190,
-                    card_y + 104,
-                ),
-                self._safe_text(
-                    champion_name,
-                    28,
-                ),
-                font=self._font(
-                    40,
-                    bold=True,
-                ),
-                fill=self.TEXT,
-            )
-
-            draw.text(
-                (
-                    card_x + 190,
-                    card_y + 164,
-                ),
-                (
-                    f"Tournoi "
-                    f"#{tournament_id}"
-                    f" • "
-                    f"{tournament_format}"
-                ),
-                font=self._font(
-                    24
-                ),
-                fill=self.MUTED,
+            self._draw_champion_card(
+                image,
+                draw,
+                tournament,
+                final_match,
+                positions[1][0],
+                box_height,
+                avatars,
             )
 
         # ------------------------------------------------------
@@ -1916,8 +2444,7 @@ draw.text(
         # ------------------------------------------------------
 
         footer_y = (
-            height
-            - footer_height
+            height - footer_height
         )
 
         draw.rectangle(
@@ -1928,9 +2455,9 @@ draw.text(
                 height,
             ),
             fill=(
-                14,
-                17,
-                28,
+                self.theme.footer_background[0],
+                self.theme.footer_background[1],
+                self.theme.footer_background[2],
                 255,
             ),
         )
@@ -1940,10 +2467,7 @@ draw.text(
                 90,
                 footer_y + 56,
             ),
-            (
-                "Organisé avec "
-                "Hamtaro Tournament Bot"
-            ),
+            "Organisé avec Hamtaro Tournament Bot",
             font=self._font(
                 30,
                 bold=True,
@@ -1956,10 +2480,7 @@ draw.text(
                 90,
                 footer_y + 112,
             ),
-            (
-                f"ID tournoi "
-                f"#{tournament_id}"
-            ),
+            f"ID tournoi #{tournament_id}",
             font=self._font(
                 23
             ),
@@ -2007,199 +2528,7 @@ draw.text(
             optimize=True,
             compress_level=7,
         )
-    # ==========================================================
-    # RESSOURCES GRAPHIQUES
-    # ==========================================================
 
-    def _load_asset(
-        self,
-        path: str | Path,
-    ) -> Image.Image | None:
-        """
-        Charge une ressource graphique si elle existe.
-
-        Si le fichier est absent ou invalide, retourne None.
-        Le renderer continue donc à fonctionner sans asset.
-        """
-
-        asset_path = Path(
-            path
-        )
-
-        cache_key = str(
-            asset_path.resolve()
-        )
-
-        if cache_key in self._asset_cache:
-            return self._asset_cache[
-                cache_key
-            ].copy()
-
-        if not asset_path.exists():
-            return None
-
-        if not asset_path.is_file():
-            return None
-
-        try:
-            image = Image.open(
-                asset_path
-            ).convert("RGBA")
-
-        except (
-            OSError,
-            ValueError,
-        ):
-            return None
-
-        self._asset_cache[
-            cache_key
-        ] = image.copy()
-
-        return image
-
-    @staticmethod
-    def _contain_image(
-        image: Image.Image,
-        maximum_width: int,
-        maximum_height: int,
-    ) -> Image.Image:
-        """
-        Redimensionne une image en conservant ses proportions.
-        """
-
-        result = image.copy()
-
-        result.thumbnail(
-            (
-                maximum_width,
-                maximum_height,
-            ),
-            Image.Resampling.LANCZOS,
-        )
-
-        return result
-
-    def _draw_optional_background(
-        self,
-        canvas: Image.Image,
-    ) -> None:
-        """
-        Ajoute le fond personnalisé s’il est disponible.
-
-        Le fond est étiré puis légèrement atténué afin de ne pas
-        nuire à la lisibilité des matchs.
-        """
-
-        background = self._load_asset(
-            self.theme.background_path
-        )
-
-        if background is None:
-            return
-
-        background = ImageOps.fit(
-            background,
-            canvas.size,
-            method=Image.Resampling.LANCZOS,
-        )
-
-        overlay = Image.new(
-            "RGBA",
-            canvas.size,
-            (
-                self.theme.background[0],
-                self.theme.background[1],
-                self.theme.background[2],
-                185,
-            ),
-        )
-
-        canvas.alpha_composite(
-            background
-        )
-
-        canvas.alpha_composite(
-            overlay
-        )
-
-    def _draw_optional_logo(
-        self,
-        canvas: Image.Image,
-        x: int,
-        y: int,
-        maximum_width: int = 180,
-        maximum_height: int = 150,
-    ) -> bool:
-        """
-        Dessine le logo Hamtaro s’il est présent.
-
-        Retourne True si le logo a été dessiné.
-        """
-
-        logo = self._load_asset(
-            self.theme.logo_path
-        )
-
-        if logo is None:
-            return False
-
-        logo = self._contain_image(
-            logo,
-            maximum_width,
-            maximum_height,
-        )
-
-        canvas.alpha_composite(
-            logo,
-            (
-                x,
-                y,
-            ),
-        )
-
-        return True
-
-    def _draw_optional_trophy(
-        self,
-        canvas: Image.Image,
-        center_x: int,
-        y: int,
-        maximum_width: int = 115,
-        maximum_height: int = 115,
-    ) -> bool:
-        """
-        Dessine le trophée au centre de la carte du champion.
-        """
-
-        trophy = self._load_asset(
-            self.theme.trophy_path
-        )
-
-        if trophy is None:
-            return False
-
-        trophy = self._contain_image(
-            trophy,
-            maximum_width,
-            maximum_height,
-        )
-
-        x = (
-            center_x
-            - trophy.width
-            // 2
-        )
-
-        canvas.alpha_composite(
-            trophy,
-            (
-                x,
-                y,
-            ),
-        )
-
-        return True
         output.seek(0)
 
         return output
