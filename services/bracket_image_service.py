@@ -1519,16 +1519,29 @@ margin_x = (
             ),
         )
 
-        draw.text(
-            (
-                90,
-                52,
-            ),
-            "🐹 HAMTARO",
-            font=title_font,
-            fill=self.TEXT,
-        )
+        logo_drawn = self._draw_optional_logo(
+    image,
+    x=75,
+    y=55,
+    maximum_width=150,
+    maximum_height=125,
+)
 
+brand_x = (
+    245
+    if logo_drawn
+    else 90
+)
+
+draw.text(
+    (
+        brand_x,
+        52,
+    ),
+    "HAMTARO",
+    font=title_font,
+    fill=self.TEXT,
+)
         draw.text(
             (
                 90,
