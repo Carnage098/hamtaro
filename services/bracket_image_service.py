@@ -9,6 +9,7 @@ from typing import Any
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from graphics.theme import HamtaroBracketTheme
+from pathlib import Path
 
 @dataclass(slots=True)
 class PlayerVisual:
