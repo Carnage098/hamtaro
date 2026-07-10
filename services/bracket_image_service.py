@@ -2006,7 +2006,199 @@ class BracketImageService:
             optimize=True,
             compress_level=7,
         )
+    # ==========================================================
+    # RESSOURCES GRAPHIQUES
+    # ==========================================================
 
+    def _load_asset(
+        self,
+        path: str | Path,
+    ) -> Image.Image | None:
+        """
+        Charge une ressource graphique si elle existe.
+
+        Si le fichier est absent ou invalide, retourne None.
+        Le renderer continue donc à fonctionner sans asset.
+        """
+
+        asset_path = Path(
+            path
+        )
+
+        cache_key = str(
+            asset_path.resolve()
+        )
+
+        if cache_key in self._asset_cache:
+            return self._asset_cache[
+                cache_key
+            ].copy()
+
+        if not asset_path.exists():
+            return None
+
+        if not asset_path.is_file():
+            return None
+
+        try:
+            image = Image.open(
+                asset_path
+            ).convert("RGBA")
+
+        except (
+            OSError,
+            ValueError,
+        ):
+            return None
+
+        self._asset_cache[
+            cache_key
+        ] = image.copy()
+
+        return image
+
+    @staticmethod
+    def _contain_image(
+        image: Image.Image,
+        maximum_width: int,
+        maximum_height: int,
+    ) -> Image.Image:
+        """
+        Redimensionne une image en conservant ses proportions.
+        """
+
+        result = image.copy()
+
+        result.thumbnail(
+            (
+                maximum_width,
+                maximum_height,
+            ),
+            Image.Resampling.LANCZOS,
+        )
+
+        return result
+
+    def _draw_optional_background(
+        self,
+        canvas: Image.Image,
+    ) -> None:
+        """
+        Ajoute le fond personnalisé s’il est disponible.
+
+        Le fond est étiré puis légèrement atténué afin de ne pas
+        nuire à la lisibilité des matchs.
+        """
+
+        background = self._load_asset(
+            self.theme.background_path
+        )
+
+        if background is None:
+            return
+
+        background = ImageOps.fit(
+            background,
+            canvas.size,
+            method=Image.Resampling.LANCZOS,
+        )
+
+        overlay = Image.new(
+            "RGBA",
+            canvas.size,
+            (
+                self.theme.background[0],
+                self.theme.background[1],
+                self.theme.background[2],
+                185,
+            ),
+        )
+
+        canvas.alpha_composite(
+            background
+        )
+
+        canvas.alpha_composite(
+            overlay
+        )
+
+    def _draw_optional_logo(
+        self,
+        canvas: Image.Image,
+        x: int,
+        y: int,
+        maximum_width: int = 180,
+        maximum_height: int = 150,
+    ) -> bool:
+        """
+        Dessine le logo Hamtaro s’il est présent.
+
+        Retourne True si le logo a été dessiné.
+        """
+
+        logo = self._load_asset(
+            self.theme.logo_path
+        )
+
+        if logo is None:
+            return False
+
+        logo = self._contain_image(
+            logo,
+            maximum_width,
+            maximum_height,
+        )
+
+        canvas.alpha_composite(
+            logo,
+            (
+                x,
+                y,
+            ),
+        )
+
+        return True
+
+    def _draw_optional_trophy(
+        self,
+        canvas: Image.Image,
+        center_x: int,
+        y: int,
+        maximum_width: int = 115,
+        maximum_height: int = 115,
+    ) -> bool:
+        """
+        Dessine le trophée au centre de la carte du champion.
+        """
+
+        trophy = self._load_asset(
+            self.theme.trophy_path
+        )
+
+        if trophy is None:
+            return False
+
+        trophy = self._contain_image(
+            trophy,
+            maximum_width,
+            maximum_height,
+        )
+
+        x = (
+            center_x
+            - trophy.width
+            // 2
+        )
+
+        canvas.alpha_composite(
+            trophy,
+            (
+                x,
+                y,
+            ),
+        )
+
+        return True
         output.seek(0)
 
         return output
