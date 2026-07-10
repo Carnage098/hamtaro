@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import asyncio
@@ -57,15 +58,16 @@ class BracketImageService:
     - /final_bracket ;
     - /preview_bracket.
 
-    Le renderer produit une affiche esport symétrique :
+    Le renderer produit une affiche esport symétrique avec :
 
-    - branche gauche rouge ;
-    - branche droite bleue ;
-    - vrais avatars Discord ;
-    - finale centrale renforcée ;
-    - illustration Hamtaro dans le header et le bloc champion ;
-    - connecteurs lumineux ;
-    - statistiques et footer proches de la maquette Hamtaro Cup.
+    - une branche rouge à gauche ;
+    - une branche bleue à droite ;
+    - les avatars Discord ;
+    - une finale centrale ;
+    - des illustrations Hamtaro ;
+    - des connecteurs lumineux ;
+    - un bloc champion ;
+    - les statistiques du tournoi.
 
     Les assets restent facultatifs. Lorsqu'un fichier est absent,
     le renderer dessine automatiquement une version de secours.
@@ -157,7 +159,7 @@ class BracketImageService:
         value: str | None,
         maximum: int = 20,
     ) -> str:
-        """Raccourcit un texte trop long sans produire une chaîne vide."""
+        """Raccourcit un texte trop long."""
 
         cleaned = (
             value
@@ -213,6 +215,8 @@ class BracketImageService:
         color: Color,
         alpha: int,
     ) -> tuple[int, int, int, int]:
+        """Ajoute une composante alpha à une couleur RGB."""
+
         return (
             *color,
             max(
@@ -293,7 +297,7 @@ class BracketImageService:
     def _round_title(
         round_number: int,
     ) -> str:
-        """Retourne l'intitulé court affiché au-dessus d'une ronde."""
+        """Retourne l'intitulé affiché au-dessus d'une ronde."""
 
         names = {
             1: "FINALE",
@@ -405,6 +409,8 @@ class BracketImageService:
         text: str,
         font: ImageFont.ImageFont,
     ) -> int:
+        """Retourne la largeur réelle d'un texte."""
+
         bbox = draw.textbbox(
             (
                 0,
@@ -425,6 +431,8 @@ class BracketImageService:
         text: str,
         font: ImageFont.ImageFont,
     ) -> int:
+        """Retourne la hauteur réelle d'un texte."""
+
         bbox = draw.textbbox(
             (
                 0,
@@ -505,7 +513,12 @@ class BracketImageService:
         property_name: str,
         filename: str,
     ) -> Path:
-        """Retourne un chemin d'asset même avec un ancien theme.py."""
+        """
+        Retourne un chemin d'asset.
+
+        La méthode reste compatible avec une ancienne version
+        de theme.py ne possédant pas encore toutes les propriétés.
+        """
 
         value = getattr(
             self.theme,
@@ -547,7 +560,9 @@ class BracketImageService:
             )
 
         except OSError:
-            cache_key = str(asset_path)
+            cache_key = str(
+                asset_path
+            )
 
         cached = self._asset_cache.get(
             cache_key
@@ -658,6 +673,8 @@ class BracketImageService:
         maximum_width: int,
         maximum_height: int,
     ) -> Image.Image | None:
+        """Charge et place un asset horizontalement au centre."""
+
         asset = self._load_asset(
             path
         )
@@ -693,7 +710,12 @@ class BracketImageService:
         key: str,
         display_name: str,
     ) -> Image.Image:
-        """Télécharge un avatar ou crée un fallback avec l'initiale du nom."""
+        """
+        Télécharge un avatar Discord.
+
+        Un avatar de remplacement est créé lorsque le téléchargement
+        échoue ou qu'aucune URL n'est disponible.
+        """
 
         cached = self._avatar_cache.get(
             key
@@ -713,7 +735,9 @@ class BracketImageService:
                         raw = await response.read()
 
                         with Image.open(
-                            io.BytesIO(raw)
+                            io.BytesIO(
+                                raw
+                            )
                         ) as source:
                             image = source.convert(
                                 "RGBA"
@@ -751,7 +775,12 @@ class BracketImageService:
         self,
         display_name: str,
     ) -> Image.Image:
-        """Crée un avatar de remplacement lisible et non numérique."""
+        """
+        Crée un avatar de remplacement.
+
+        L'avatar contient l'initiale du joueur plutôt qu'un simple
+        cercle gris ou un nombre.
+        """
 
         image = Image.new(
             "RGBA",
@@ -772,7 +801,9 @@ class BracketImageService:
         )
 
         seed = sum(
-            ord(character)
+            ord(
+                character
+            )
             for character in display_name
         )
 
@@ -855,12 +886,19 @@ class BracketImageService:
         )
 
         return image
-        @staticmethod
-        def _circle_avatar(
+
+    @staticmethod
+    def _circle_avatar(
         image: Image.Image,
         size: int,
     ) -> Image.Image:
-        """Transforme un avatar carré en avatar rond."""
+        """
+        Transforme un avatar carré en avatar circulaire.
+
+        Cette méthode doit être alignée avec les autres méthodes
+        de BracketImageService et non placée dans
+        _create_fallback_avatar().
+        """
 
         avatar = ImageOps.fit(
             image,
@@ -929,9 +967,7 @@ class BracketImageService:
         border_color: Color,
         border_width: int,
     ) -> None:
-        """
-        Colle un avatar rond avec un véritable contour visible.
-        """
+        """Colle un avatar rond avec un véritable contour visible."""
 
         border_width = max(
             1,
@@ -996,6 +1032,10 @@ class BracketImageService:
             ),
         )
 
+    # ==========================================================
+    # LA SUITE REPREND ICI
+    # ==========================================================
+            
     async def _resolve_avatar_map(
         self,
         matches: list[Any],
