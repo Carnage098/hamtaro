@@ -159,9 +159,9 @@ class HelpCog(commands.Cog):
             name="📌 Règles importantes",
             value=(
                 "• Si tu t'inscris, tu es considéré comme disponible.\n"
-                "• Le check-in n'est pas obligatoire.\n"
-                "• En élimination directe, il faut forcément un gagnant.\n"
-                "• En rondes suisses, un **double loss** peut être donné si le match n'est pas terminé dans le temps prévu."
+                "• Le check-in n'est plus obligatoire.\n"
+                "• En tournoi à élimination directe, il faut forcément un gagnant, ça ne fonctionne pas comme les rondes suisses.\n"
+                "• En rondes suisses, un **double loss** peut être donné si le match n'est pas terminé dans le temps prévu (50 minutes, règles officielles de Konami)."
             ),
             inline=False,
         )
@@ -170,7 +170,7 @@ class HelpCog(commands.Cog):
             name="⏱️ Double loss",
             value=(
                 "Le double loss est réservé aux **rondes suisses**.\n"
-                "Il donne **0 point aux deux joueurs** et compte comme une pénalité dans le classement."
+                "Il donne **0 point aux deux joueurs** et compte comme une pénalité plus importante qu'une simple défaite dans le classement."
             ),
             inline=False,
         )
@@ -193,8 +193,8 @@ class HelpCog(commands.Cog):
             value=(
                 "`/result` — Enregistrer ou signaler un résultat de match.\n"
                 "`/swiss_result` — Valider le résultat d'une table suisse.\n"
-                "`/swiss_result table:1 resultat:Double loss` — Mettre un double loss en ronde suisse.\n"
-                "`/repair_tournament` — Réparer un tournoi bloqué, si la commande existe."
+                "`/swiss_result table:1 resultat:Double loss` — Mettre une double loss en ronde suisse.\n"
+                "`/repair_tournament` — Réparer un tournoi bloqué."
             ),
             inline=False,
         )
@@ -225,9 +225,8 @@ class HelpCog(commands.Cog):
             name="⚠️ Rappel staff",
             value=(
                 "• Ne génère pas la ronde suivante si tous les résultats ne sont pas validés.\n"
-                "• Ne mets pas de double loss en élimination directe.\n"
                 "• Le double loss existe uniquement en rondes suisses.\n"
-                "• En cas de bug, note la commande utilisée, la table, la ronde et fais une capture."
+                "• En cas de bug, note la commande utilisée, la table, la ronde et fais une capture pour l'envoyer au développeur."
             ),
             inline=False,
         )
@@ -250,7 +249,7 @@ class HelpCog(commands.Cog):
             value=(
                 "`/create_tournament` — Créer un nouveau tournoi.\n"
                 "`/start_tournament` — Lancer un tournoi à élimination directe.\n"
-                "`/end_tournament` — Terminer le tournoi actif.\n"
+                "`/end_tournament` — Terminer le tournoi actif, une fois avoir trouvé le grand vainqueur.\n"
                 "`/tournament_status` — Voir le statut du tournoi actif."
             ),
             inline=False,
@@ -279,25 +278,6 @@ class HelpCog(commands.Cog):
             inline=False,
         )
 
-        embed.add_field(
-            name="🔐 Sécurité",
-            value=(
-                "• Ne partage jamais le token Discord du bot.\n"
-                "• Ne partage jamais le fichier `.env`.\n"
-                "• Ne donne pas les accès Railway à n'importe qui.\n"
-                "• Les commandes sensibles doivent rester réservées au staff et aux admins."
-            ),
-            inline=False,
-        )
-
-        embed.add_field(
-            name="📌 Règle importante",
-            value=(
-                "Le **double loss** est réservé aux rondes suisses.\n"
-                "En élimination directe, il faut obligatoirement un gagnant pour faire avancer le bracket."
-            ),
-            inline=False,
-        )
 
         return embed
 
@@ -308,7 +288,7 @@ class HelpCog(commands.Cog):
         embed = self._base_embed(
             title="🐹 Aide Hamtaro — Général",
             description=(
-                "Choisis une catégorie pour afficher l'aide adaptée."
+                "Choisis une catégorie pour afficher l'aide adaptée à toi si t'es un joueur, un membre du staff ou un admin."
             ),
         )
 
