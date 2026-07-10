@@ -5,3 +5,5 @@ matplotlib
 networkx
 pandas
 matplotlib
+Pillow>=10.4.0
+aiohttp>=3.10.0
