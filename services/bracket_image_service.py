@@ -855,7 +855,7 @@ class BracketImageService:
         )
 
         return image
-            @staticmethod
+        @staticmethod
     def _circle_avatar(
         image: Image.Image,
         size: int,
