@@ -173,38 +173,40 @@ class HamtaroBracketTheme:
 
     left_side: Color = (
         255,
-        67,
-        46,
+        72,
+        52,
     )
 
     left_side_light: Color = (
         255,
-        118,
-        89,
+        128,
+        101,
     )
 
     left_side_dark: Color = (
-        105,
-        18,
-        17,
+        116,
+        24,
+        21,
     )
 
     left_side_deep: Color = (
-        61,
-        9,
-        10,
+        67,
+        12,
+        13,
     )
 
+    # Le rouge est volontairement un peu moins noir afin
+    # d'équilibrer visuellement la moitié bleue.
     left_background: Color = (
-        24,
-        7,
-        10,
+        31,
+        9,
+        12,
     )
 
     left_background_glow: Color = (
-        86,
+        100,
+        18,
         12,
-        8,
     )
 
     # ==========================================================
@@ -212,8 +214,8 @@ class HamtaroBracketTheme:
     # ==========================================================
 
     right_side: Color = (
-        42,
-        145,
+        39,
+        142,
         255,
     )
 
@@ -299,41 +301,42 @@ class HamtaroBracketTheme:
         48,
     )
 
-    # Le score n'utilise plus du blanc pur.
+    # Les scores utilisent des tons ivoire et gris chaud plutôt
+    # qu'un blanc pur, afin de rester lisibles sans dominer la carte.
     score_background: Color = (
-        220,
-        224,
-        232,
+        218,
+        221,
+        228,
     )
 
     score_winner_background: Color = (
-        242,
-        230,
-        207,
+        239,
+        224,
+        178,
     )
 
     score_loser_background: Color = (
-        183,
-        190,
-        204,
+        194,
+        199,
+        210,
     )
 
     score_text: Color = (
-        15,
         18,
-        26,
+        21,
+        29,
     )
 
     score_winner_text: Color = (
-        77,
-        39,
-        4,
+        72,
+        43,
+        8,
     )
 
     score_loser_text: Color = (
-        47,
-        52,
-        64,
+        69,
+        74,
+        88,
     )
 
     # ==========================================================
@@ -424,7 +427,7 @@ class HamtaroBracketTheme:
     # ==========================================================
 
     normal_box_radius: int = 5
-    compact_box_radius: int = 3
+    compact_box_radius: int = 4
     final_box_radius: int = 7
 
     normal_box_border_width: int = 2
@@ -435,10 +438,12 @@ class HamtaroBracketTheme:
     winner_indicator_width: int = 3
 
     seed_column_minimum_width: int = 22
-    score_column_minimum_width: int = 28
+    score_column_minimum_width: int = 30
 
-    match_inner_padding: int = 4
-    avatar_left_padding: int = 4
+    # Des marges légèrement resserrées libèrent davantage de place
+    # pour les pseudos tout en permettant d'agrandir les avatars.
+    match_inner_padding: int = 3
+    avatar_left_padding: int = 3
     name_left_padding: int = 5
 
     match_shadow_offset_x: int = 3
@@ -474,6 +479,10 @@ class HamtaroBracketTheme:
     round_title_background_enabled: bool = False
     round_title_background_radius: int = 3
 
+    # Permet au renderer d'utiliser 32EMES, 16EMES et 8EMES
+    # lorsque la police choisie gère mal les caractères accentués.
+    use_ascii_round_labels: bool = True
+
     # ==========================================================
     # FINALE
     # ==========================================================
@@ -486,7 +495,7 @@ class HamtaroBracketTheme:
     final_title_width: int = 136
     final_vertical_offset: int = 14
 
-    final_avatar_size: int = 40
+    final_avatar_size: int = 44
 
     final_title_background: Color = (
         91,
@@ -510,37 +519,40 @@ class HamtaroBracketTheme:
     # ==========================================================
 
     champion_title_font_size: int = 28
-    champion_name_font_size: int = 26
-    champion_information_font_size: int = 15
+    champion_name_font_size: int = 25
+    champion_information_font_size: int = 14
 
     champion_avatar_size: int = 112
 
-    champion_card_width: int = 280
-    champion_card_height: int = 320
+    # La carte centrale est légèrement plus large et mieux aérée.
+    champion_card_width: int = 300
+    champion_card_height: int = 330
     champion_card_radius: int = 8
     champion_card_border_width: int = 2
 
     champion_card_background: Color = (
-        5,
-        10,
-        20,
+        6,
+        11,
+        22,
     )
 
-    champion_trophy_width: int = 70
-    champion_trophy_height: int = 70
+    champion_trophy_width: int = 64
+    champion_trophy_height: int = 64
 
-    champion_image_width: int = 128
-    champion_image_height: int = 128
+    # L'illustration Hamtaro gagne en présence, mais reste séparée
+    # du trophée et de la plaque du champion.
+    champion_image_width: int = 138
+    champion_image_height: int = 138
 
-    champion_laurel_width: int = 186
-    champion_laurel_height: int = 142
+    champion_laurel_width: int = 190
+    champion_laurel_height: int = 148
 
-    champion_name_plate_width: int = 178
-    champion_name_plate_height: int = 37
+    champion_name_plate_width: int = 190
+    champion_name_plate_height: int = 38
     champion_name_plate_radius: int = 4
 
-    champion_glow_radius: int = 18
-    champion_glow_alpha: int = 105
+    champion_glow_radius: int = 15
+    champion_glow_alpha: int = 82
 
     champion_particle_count: int = 26
     champion_particle_radius: int = 2
@@ -579,20 +591,28 @@ class HamtaroBracketTheme:
     # EFFETS
     # ==========================================================
 
-    side_background_alpha: int = 120
-    side_glow_alpha: int = 82
+    # Valeur conservée pour les anciennes versions du renderer.
+    side_background_alpha: int = 106
 
-    connector_glow_alpha: int = 90
-    connector_secondary_alpha: int = 150
+    # Valeurs séparées exploitables par la prochaine version du
+    # renderer afin d'alléger davantage la moitié rouge.
+    left_background_alpha: int = 98
+    right_background_alpha: int = 112
 
-    connector_blur_radius: int = 5
+    side_glow_alpha: int = 78
+
+    # Connecteurs plus fins et plus précis, avec une lueur contenue.
+    connector_glow_alpha: int = 74
+    connector_secondary_alpha: int = 135
+
+    connector_blur_radius: int = 4
     connector_joint_radius: int = 2
 
-    panel_shadow_alpha: int = 115
+    panel_shadow_alpha: int = 82
     panel_shadow_offset: int = 3
 
-    particle_alpha: int = 48
-    particle_count: int = 90
+    particle_alpha: int = 45
+    particle_count: int = 78
 
     particle_minimum_radius: int = 1
     particle_maximum_radius: int = 2
@@ -721,6 +741,9 @@ class HamtaroBracketTheme:
     ) -> tuple[int, int]:
         """
         Retourne les dimensions 16:9 du rendu.
+
+        Les grands brackets disposent de davantage de largeur afin
+        d'élargir les cartes et de conserver des connecteurs nets.
         """
 
         capacity = self.normalized_capacity(
@@ -741,20 +764,20 @@ class HamtaroBracketTheme:
                 900,
             ),
             16: (
-                1600,
-                900,
+                1728,
+                972,
             ),
             32: (
-                1800,
-                1012,
-            ),
-            64: (
                 1920,
                 1080,
             ),
+            64: (
+                2048,
+                1152,
+            ),
             128: (
-                2560,
-                1440,
+                2880,
+                1620,
             ),
         }
 
@@ -797,7 +820,10 @@ class HamtaroBracketTheme:
         player_capacity: int,
     ) -> int:
         """
-        Largeur des matchs ordinaires.
+        Largeur de base des matchs ordinaires.
+
+        Les premiers tours gagnent quelques pixels afin de laisser
+        davantage de place aux avatars et aux pseudos.
         """
 
         capacity = self.normalized_capacity(
@@ -805,13 +831,13 @@ class HamtaroBracketTheme:
         )
 
         widths = {
-            2: 300,
-            4: 260,
-            8: 220,
-            16: 180,
-            32: 165,
-            64: 148,
-            128: 145,
+            2: 310,
+            4: 275,
+            8: 235,
+            16: 200,
+            32: 175,
+            64: 154,
+            128: 148,
         }
 
         return widths[capacity]
@@ -823,10 +849,9 @@ class HamtaroBracketTheme:
         total_rounds: int,
     ) -> int:
         """
-        Augmente légèrement la largeur des cartes lorsque les
-        joueurs approchent de la finale.
+        Élargit progressivement les cartes en approchant du centre.
 
-        round_index commence à zéro.
+        round_index commence à zéro pour la colonne extérieure.
         """
 
         base_width = self.box_width(
@@ -850,12 +875,12 @@ class HamtaroBracketTheme:
 
         maximum_bonus = {
             2: 0,
-            4: 12,
-            8: 18,
-            16: 22,
-            32: 26,
-            64: 30,
-            128: 32,
+            4: 10,
+            8: 16,
+            16: 20,
+            32: 22,
+            64: 26,
+            128: 28,
         }[
             self.normalized_capacity(
                 player_capacity
@@ -883,13 +908,13 @@ class HamtaroBracketTheme:
         )
 
         heights = {
-            2: 96,
-            4: 88,
-            8: 78,
-            16: 68,
-            32: 58,
-            64: 46,
-            128: 42,
+            2: 98,
+            4: 90,
+            8: 80,
+            16: 70,
+            32: 60,
+            64: 50,
+            128: 44,
         }
 
         return heights[capacity]
@@ -901,8 +926,8 @@ class HamtaroBracketTheme:
         total_rounds: int,
     ) -> int:
         """
-        Augmente légèrement la hauteur des cartes des derniers
-        tours sans modifier la hauteur du premier tour.
+        Augmente légèrement la hauteur des cartes en approchant de
+        la finale afin d'améliorer la lisibilité des derniers tours.
         """
 
         base_height = self.box_height(
@@ -930,7 +955,7 @@ class HamtaroBracketTheme:
             8: 6,
             16: 8,
             32: 10,
-            64: 12,
+            64: 10,
             128: 12,
         }[
             self.normalized_capacity(
@@ -959,13 +984,13 @@ class HamtaroBracketTheme:
         )
 
         widths = {
-            2: 380,
-            4: 350,
-            8: 330,
-            16: 300,
-            32: 280,
-            64: 220,
-            128: 260,
+            2: 390,
+            4: 365,
+            8: 345,
+            16: 320,
+            32: 285,
+            64: 235,
+            128: 280,
         }
 
         return widths[capacity]
@@ -983,20 +1008,16 @@ class HamtaroBracketTheme:
         )
 
         heights = {
-            2: 132,
-            4: 126,
-            8: 120,
-            16: 112,
-            32: 106,
-            64: 96,
-            128: 96,
+            2: 134,
+            4: 128,
+            8: 122,
+            16: 116,
+            32: 108,
+            64: 100,
+            128: 100,
         }
 
         return heights[capacity]
-
-    # ==========================================================
-    # COLONNES INTERNES DES MATCHS
-    # ==========================================================
 
     def seed_column_width(
         self,
@@ -1025,18 +1046,25 @@ class HamtaroBracketTheme:
         self,
         player_capacity: int,
     ) -> int:
+        """
+        Largeur de la colonne de score.
+
+        Une largeur légèrement supérieure évite que le score paraisse
+        collé au bord et permet un fond plus doux.
+        """
+
         capacity = self.normalized_capacity(
             player_capacity
         )
 
         widths = {
-            2: 44,
-            4: 42,
-            8: 40,
-            16: 36,
-            32: 32,
-            64: 28,
-            128: 28,
+            2: 46,
+            4: 44,
+            8: 42,
+            16: 38,
+            32: 34,
+            64: 31,
+            128: 30,
         }
 
         return widths.get(
@@ -1044,26 +1072,26 @@ class HamtaroBracketTheme:
             self.score_column_minimum_width,
         )
 
-    # ==========================================================
-    # AVATARS
-    # ==========================================================
-
     def player_avatar_size(
         self,
         player_capacity: int,
     ) -> int:
+        """
+        Taille de base des avatars dans les cartes.
+        """
+
         capacity = self.normalized_capacity(
             player_capacity
         )
 
         sizes = {
-            2: 42,
-            4: 40,
-            8: 36,
-            16: 31,
-            32: 27,
-            64: 20,
-            128: 18,
+            2: 44,
+            4: 42,
+            8: 38,
+            16: 33,
+            32: 28,
+            64: 22,
+            128: 20,
         }
 
         return sizes[capacity]
@@ -1102,10 +1130,10 @@ class HamtaroBracketTheme:
             2: 0,
             4: 4,
             8: 6,
-            16: 8,
-            32: 10,
-            64: 11,
-            128: 10,
+            16: 7,
+            32: 8,
+            64: 9,
+            128: 8,
         }[
             self.normalized_capacity(
                 player_capacity
@@ -1133,16 +1161,12 @@ class HamtaroBracketTheme:
         """
 
         if density_hint >= 128:
-            return 18
-
-        if density_hint >= 64:
             return 20
 
-        return 28
+        if density_hint >= 64:
+            return 22
 
-    # ==========================================================
-    # ESPACEMENT HORIZONTAL
-    # ==========================================================
+        return 30
 
     def column_gap(
         self,
@@ -1160,10 +1184,10 @@ class HamtaroBracketTheme:
             2: 90,
             4: 72,
             8: 54,
-            16: 40,
-            32: 28,
-            64: 18,
-            128: 18,
+            16: 38,
+            32: 25,
+            64: 16,
+            128: 16,
         }
 
         return gaps[capacity]
@@ -1182,20 +1206,16 @@ class HamtaroBracketTheme:
         )
 
         widths = {
-            2: 480,
-            4: 440,
-            8: 390,
-            16: 340,
-            32: 310,
-            64: 310,
-            128: 370,
+            2: 500,
+            4: 460,
+            8: 410,
+            16: 360,
+            32: 330,
+            64: 320,
+            128: 390,
         }
 
         return widths[capacity]
-
-    # ==========================================================
-    # ESPACEMENT VERTICAL
-    # ==========================================================
 
     def bracket_content_top(
         self,
@@ -1239,18 +1259,17 @@ class HamtaroBracketTheme:
         )
 
         gaps = {
-            2: 120,
-            4: 110,
-            8: 96,
-            16: 83,
-            32: 75,
-            64: 53,
-            128: 46,
+            2: 122,
+            4: 112,
+            8: 98,
+            16: 86,
+            32: 77,
+            64: 56,
+            128: 49,
         }
 
         return gaps[capacity]
 
-    # Ancien nom conservé pour compatibilité.
     def vertical_gap(
         self,
         player_capacity: int,
@@ -1319,7 +1338,7 @@ class HamtaroBracketTheme:
             8: 2,
             16: 3,
             32: 3,
-            64: 4,
+            64: 3,
             128: 3,
         }[
             self.normalized_capacity(
@@ -1380,10 +1399,24 @@ class HamtaroBracketTheme:
             ),
         )
 
+        maximum_bonus = {
+            2: 0,
+            4: 1,
+            8: 2,
+            16: 3,
+            32: 3,
+            64: 3,
+            128: 3,
+        }[
+            self.normalized_capacity(
+                player_capacity
+            )
+        ]
+
         return (
             base_size
             + round(
-                4
+                maximum_bonus
                 * progress
             )
         )
@@ -1428,6 +1461,57 @@ class HamtaroBracketTheme:
 
         return sizes[capacity]
 
+    def round_label_for_match_count(
+        self,
+        match_count: int,
+    ) -> str:
+        """
+        Retourne un titre de ronde sans accent lorsque cette option
+        est activée.
+
+        Exemples :
+        - 32 matchs : 32EMES ;
+        - 16 matchs : 16EMES ;
+        - 8 matchs : 8EMES ;
+        - 4 matchs : QUARTS ;
+        - 2 matchs : DEMI-FINALES ;
+        - 1 match : FINALE.
+        """
+
+        ascii_labels = {
+            64: "64EMES",
+            32: "32EMES",
+            16: "16EMES",
+            8: "8EMES",
+            4: "QUARTS",
+            2: "DEMI-FINALES",
+            1: "FINALE",
+        }
+
+        accented_labels = {
+            64: "64ÈMES",
+            32: "32ÈMES",
+            16: "16ÈMES",
+            8: "8ÈMES",
+            4: "QUARTS",
+            2: "DEMI-FINALES",
+            1: "FINALE",
+        }
+
+        labels = (
+            ascii_labels
+            if self.use_ascii_round_labels
+            else accented_labels
+        )
+
+        return labels.get(
+            max(
+                1,
+                int(match_count),
+            ),
+            f"TOP {max(2, int(match_count) * 2)}",
+        )
+
     # ==========================================================
     # ÉPAISSEUR ET LUEUR DES CONNEXIONS
     # ==========================================================
@@ -1439,6 +1523,9 @@ class HamtaroBracketTheme:
         capacity = self.normalized_capacity(
             player_capacity
         )
+
+        if capacity >= 64:
+            return 2
 
         if capacity >= 32:
             return 2
@@ -1453,7 +1540,7 @@ class HamtaroBracketTheme:
             self.connector_width(
                 player_capacity
             )
-            + 2
+            + 1
         )
 
     def connector_glow_width(
@@ -1464,12 +1551,8 @@ class HamtaroBracketTheme:
             self.connector_width(
                 player_capacity
             )
-            + 6
+            + 3
         )
-
-    # ==========================================================
-    # OPACITÉ SELON LA RONDE
-    # ==========================================================
 
     def round_card_opacity(
         self,
@@ -1510,7 +1593,8 @@ class HamtaroBracketTheme:
         total_rounds: int,
     ) -> int:
         """
-        Renforce la lueur des connecteurs à proximité de la finale.
+        Renforce progressivement la lueur des connecteurs près de
+        la finale sans produire un halo trop épais.
         """
 
         if total_rounds <= 1:
@@ -1529,16 +1613,12 @@ class HamtaroBracketTheme:
         )
 
         return round(
-            55
+            48
             + (
-                55
+                34
                 * progress
             )
         )
-
-    # ==========================================================
-    # VALIDATION
-    # ==========================================================
 
     @staticmethod
     def validate_player_capacity(
