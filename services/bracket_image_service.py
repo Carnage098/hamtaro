@@ -4,17 +4,15 @@ import asyncio
 import io
 import math
 import random
-
 from dataclasses import dataclass
-from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 import aiohttp
-
 from PIL import (
     Image,
     ImageDraw,
+    ImageFilter,
     ImageFont,
     ImageOps,
 )
@@ -22,36 +20,55 @@ from PIL import (
 from graphics.theme import HamtaroBracketTheme
 
 
+Color = tuple[int, int, int]
+Position = tuple[int, int, str]
+
+
 @dataclass(slots=True)
 class PlayerVisual:
-    """
-    Données visuelles d'un joueur dans une case de match.
-    """
+    """Données graphiques représentant un joueur dans une case."""
 
     discord_id: str | None
     name: str
     score: str
     avatar_url: str | None
-
     winner: bool = False
     seed: int | None = None
     deck: str | None = None
 
 
+@dataclass(slots=True, frozen=True)
+class RoundGeometry:
+    """Dimensions calculées pour une ronde du bracket."""
+
+    width: int
+    height: int
+    avatar_size: int
+    name_font_size: int
+    score_font_size: int
+    seed_font_size: int
+
+
 class BracketImageService:
     """
-    Génère les images PNG de Hamtaro.
+    Génère les images PNG HD utilisées par :
 
-    Le rendu est conçu pour se rapprocher de l'affiche
-    Hamtaro Cup :
+    - /bracket ;
+    - /final_bracket ;
+    - /preview_bracket.
 
-    - format 16:9 ;
-    - arbre rouge à gauche ;
-    - arbre bleu à droite ;
-    - finale centrale ;
-    - seed, avatar, pseudo et score séparés ;
-    - carte du champion en mode final ;
-    - statistiques du tournoi.
+    Le renderer produit une affiche esport symétrique :
+
+    - branche gauche rouge ;
+    - branche droite bleue ;
+    - vrais avatars Discord ;
+    - finale centrale renforcée ;
+    - illustration Hamtaro dans le header et le bloc champion ;
+    - connecteurs lumineux ;
+    - statistiques et footer proches de la maquette Hamtaro Cup.
+
+    Les assets restent facultatifs. Lorsqu'un fichier est absent,
+    le renderer dessine automatiquement une version de secours.
     """
 
     SUPPORTED_PLAYER_CAPACITIES = {
@@ -64,94 +81,59 @@ class BracketImageService:
         128,
     }
 
-    COMPLETED_STATUSES = {
-        "approved",
-        "completed",
-        "finished",
-        "reported",
-        "validated",
-    }
-
     def __init__(
         self,
         db: Any,
         theme: HamtaroBracketTheme | None = None,
-    ):
+    ) -> None:
         self.db = db
         self.theme = theme or HamtaroBracketTheme()
 
-        self._avatar_cache: dict[
-            str,
-            Image.Image,
-        ] = {}
-
-        self._asset_cache: dict[
-            str,
-            Image.Image,
-        ] = {}
+        self._avatar_cache: dict[str, Image.Image] = {}
+        self._asset_cache: dict[str, Image.Image] = {}
 
     # ==========================================================
     # RACCOURCIS VERS LE THÈME
     # ==========================================================
 
     @property
-    def BG(
-        self,
-    ) -> tuple[int, int, int]:
+    def BG(self) -> Color:
         return self.theme.background
 
     @property
-    def PANEL(
-        self,
-    ) -> tuple[int, int, int]:
+    def PANEL(self) -> Color:
         return self.theme.panel
 
     @property
-    def PANEL_ALT(
-        self,
-    ) -> tuple[int, int, int]:
+    def PANEL_ALT(self) -> Color:
         return self.theme.panel_alternate
 
     @property
-    def TEXT(
-        self,
-    ) -> tuple[int, int, int]:
+    def TEXT(self) -> Color:
         return self.theme.text
 
     @property
-    def MUTED(
-        self,
-    ) -> tuple[int, int, int]:
+    def MUTED(self) -> Color:
         return self.theme.muted_text
 
     @property
-    def RED(
-        self,
-    ) -> tuple[int, int, int]:
+    def RED(self) -> Color:
         return self.theme.left_side
 
     @property
-    def BLUE(
-        self,
-    ) -> tuple[int, int, int]:
+    def BLUE(self) -> Color:
         return self.theme.right_side
 
     @property
-    def GOLD(
-        self,
-    ) -> tuple[int, int, int]:
+    def GOLD(self) -> Color:
         return self.theme.champion_gold
 
     @property
-    def GREEN(
-        self,
-    ) -> tuple[int, int, int]:
+    def GREEN(self) -> Color:
         return self.theme.winner_green
 
     @property
-    def LINE(
-        self,
-    ) -> tuple[int, int, int]:
+    def LINE(self) -> Color:
         return self.theme.connector_line
 
     # ==========================================================
@@ -162,57 +144,247 @@ class BracketImageService:
     def _status_value(
         status: Any,
     ) -> str:
+        """Retourne la valeur textuelle normalisée d'un statut."""
+
         return getattr(
             status,
             "value",
             str(status),
-        ).lower()
+        ).lower().strip()
 
     @staticmethod
     def _safe_text(
         value: str | None,
         maximum: int = 20,
     ) -> str:
+        """Raccourcit un texte trop long sans produire une chaîne vide."""
+
         cleaned = (
             value
             or "À déterminer"
-        ).strip()
+        ).strip() or "À déterminer"
 
         if len(cleaned) <= maximum:
             return cleaned
 
         return (
-            cleaned[: maximum - 1]
+            cleaned[
+                : max(
+                    1,
+                    maximum - 1,
+                )
+            ]
             + "…"
+        )
+
+    @staticmethod
+    def _blend_color(
+        first: Color,
+        second: Color,
+        ratio: float,
+    ) -> Color:
+        """Mélange deux couleurs RGB."""
+
+        ratio = max(
+            0.0,
+            min(
+                1.0,
+                ratio,
+            ),
+        )
+
+        return tuple(
+            int(
+                first_value
+                + (
+                    second_value
+                    - first_value
+                )
+                * ratio
+            )
+            for first_value, second_value in zip(
+                first,
+                second,
+            )
+        )
+
+    @staticmethod
+    def _with_alpha(
+        color: Color,
+        alpha: int,
+    ) -> tuple[int, int, int, int]:
+        return (
+            *color,
+            max(
+                0,
+                min(
+                    255,
+                    alpha,
+                ),
+            ),
+        )
+
+    @staticmethod
+    def _player_key(
+        discord_id: Any,
+        name: str | None,
+    ) -> str:
+        """Construit la clé utilisée pour l'avatar et le seed."""
+
+        if discord_id not in (
+            None,
+            "",
+        ):
+            return str(discord_id)
+
+        return f"name:{name or '?'}"
+
+    @staticmethod
+    def _score_for(
+        match: Any,
+        slot: int,
+    ) -> str:
+        """Retourne le score du joueur occupant le slot demandé."""
+
+        player_id = getattr(
+            match,
+            f"player{slot}_id",
+            None,
+        )
+
+        if getattr(
+            match,
+            "is_bye",
+            False,
+        ):
+            return (
+                "BYE"
+                if player_id
+                else "—"
+            )
+
+        status = BracketImageService._status_value(
+            getattr(
+                match,
+                "status",
+                "",
+            )
+        )
+
+        if status in {
+            "completed",
+            "finished",
+            "validated",
+            "approved",
+            "reported",
+        }:
+            score = getattr(
+                match,
+                f"player{slot}_score",
+                None,
+            )
+
+            if score is not None:
+                return str(score)
+
+        return "—"
+
+    @staticmethod
+    def _round_title(
+        round_number: int,
+    ) -> str:
+        """Retourne l'intitulé court affiché au-dessus d'une ronde."""
+
+        names = {
+            1: "FINALE",
+            2: "DEMI-FINALES",
+            3: "QUARTS",
+            4: "8ÈMES",
+            5: "16ÈMES",
+            6: "32ÈMES",
+            7: "64ÈMES",
+        }
+
+        return names.get(
+            round_number,
+            f"ROUND {round_number}",
         )
 
     @staticmethod
     def _font(
         size: int,
         bold: bool = False,
+        italic: bool = False,
     ) -> ImageFont.ImageFont:
-        if bold:
+        """Charge une police disponible sur Railway/Linux."""
+
+        size = max(
+            8,
+            int(size),
+        )
+
+        if bold and italic:
             candidates = (
-                "/usr/share/fonts/truetype/dejavu/"
-                "DejaVuSans-Bold.ttf",
+                (
+                    "/usr/share/fonts/truetype/"
+                    "dejavu/DejaVuSans-BoldOblique.ttf"
+                ),
+                (
+                    "/usr/share/fonts/truetype/liberation2/"
+                    "LiberationSans-BoldItalic.ttf"
+                ),
+                (
+                    "/usr/share/fonts/truetype/freefont/"
+                    "FreeSansBoldOblique.ttf"
+                ),
+            )
 
-                "/usr/share/fonts/truetype/liberation2/"
-                "LiberationSans-Bold.ttf",
+        elif bold:
+            candidates = (
+                (
+                    "/usr/share/fonts/truetype/"
+                    "dejavu/DejaVuSans-Bold.ttf"
+                ),
+                (
+                    "/usr/share/fonts/truetype/liberation2/"
+                    "LiberationSans-Bold.ttf"
+                ),
+                (
+                    "/usr/share/fonts/truetype/freefont/"
+                    "FreeSansBold.ttf"
+                ),
+            )
 
-                "/usr/share/fonts/truetype/freefont/"
-                "FreeSansBold.ttf",
+        elif italic:
+            candidates = (
+                (
+                    "/usr/share/fonts/truetype/"
+                    "dejavu/DejaVuSans-Oblique.ttf"
+                ),
+                (
+                    "/usr/share/fonts/truetype/liberation2/"
+                    "LiberationSans-Italic.ttf"
+                ),
+                (
+                    "/usr/share/fonts/truetype/freefont/"
+                    "FreeSansOblique.ttf"
+                ),
             )
 
         else:
             candidates = (
-                "/usr/share/fonts/truetype/dejavu/"
-                "DejaVuSans.ttf",
-
-                "/usr/share/fonts/truetype/liberation2/"
-                "LiberationSans-Regular.ttf",
-
-                "/usr/share/fonts/truetype/freefont/"
-                "FreeSans.ttf",
+                (
+                    "/usr/share/fonts/truetype/"
+                    "dejavu/DejaVuSans.ttf"
+                ),
+                (
+                    "/usr/share/fonts/truetype/liberation2/"
+                    "LiberationSans-Regular.ttf"
+                ),
+                (
+                    "/usr/share/fonts/truetype/freefont/"
+                    "FreeSans.ttf"
+                ),
             )
 
         for path in candidates:
@@ -234,7 +406,10 @@ class BracketImageService:
         font: ImageFont.ImageFont,
     ) -> int:
         bbox = draw.textbbox(
-            (0, 0),
+            (
+                0,
+                0,
+            ),
             text,
             font=font,
         )
@@ -245,238 +420,126 @@ class BracketImageService:
         )
 
     @staticmethod
-    def _format_date(
-        value: Any,
-    ) -> str:
-        """
-        Retourne une date lisible en français.
-        """
-
-        french_months = {
-            1: "JANVIER",
-            2: "FÉVRIER",
-            3: "MARS",
-            4: "AVRIL",
-            5: "MAI",
-            6: "JUIN",
-            7: "JUILLET",
-            8: "AOÛT",
-            9: "SEPTEMBRE",
-            10: "OCTOBRE",
-            11: "NOVEMBRE",
-            12: "DÉCEMBRE",
-        }
-
-        parsed: datetime | date | None = None
-
-        if value is None:
-            parsed = datetime.now()
-
-        elif isinstance(
-            value,
+    def _text_height(
+        draw: ImageDraw.ImageDraw,
+        text: str,
+        font: ImageFont.ImageFont,
+    ) -> int:
+        bbox = draw.textbbox(
             (
-                datetime,
-                date,
+                0,
+                0,
             ),
-        ):
-            parsed = value
-
-        else:
-            raw = str(
-                value
-            ).strip()
-
-            if not raw:
-                parsed = datetime.now()
-
-            else:
-                parsers = (
-                    lambda text: datetime.fromisoformat(
-                        text.replace(
-                            "Z",
-                            "+00:00",
-                        )
-                    ),
-                    lambda text: datetime.strptime(
-                        text,
-                        "%Y-%m-%d",
-                    ),
-                    lambda text: datetime.strptime(
-                        text,
-                        "%d/%m/%Y",
-                    ),
-                )
-
-                for parser in parsers:
-                    try:
-                        parsed = parser(
-                            raw
-                        )
-                        break
-
-                    except (
-                        ValueError,
-                        TypeError,
-                    ):
-                        continue
-
-                if parsed is None:
-                    return raw.upper()
-
-        month = french_months.get(
-            parsed.month,
-            str(parsed.month),
+            text,
+            font=font,
         )
 
         return (
-            f"{parsed.day} "
-            f"{month} "
-            f"{parsed.year}"
-        )
-
-    @staticmethod
-    def _round_title(
-        round_number: int,
-    ) -> str:
-        names = {
-            1: "FINALE",
-            2: "DEMI-FINALES",
-            3: "QUARTS",
-            4: "8ÈMES",
-            5: "16ÈMES",
-            6: "32ÈMES",
-            7: "64ÈMES",
-        }
-
-        return names.get(
-            round_number,
-            f"ROUND {round_number}",
+            bbox[3]
+            - bbox[1]
         )
 
     @classmethod
-    def _score_for(
+    def _fit_text(
         cls,
-        match: Any,
-        slot: int,
+        draw: ImageDraw.ImageDraw,
+        text: str,
+        font: ImageFont.ImageFont,
+        maximum_width: int,
     ) -> str:
-        player_id = getattr(
-            match,
-            f"player{slot}_id",
-            None,
-        )
+        """Coupe un texte jusqu'à ce qu'il entre dans la largeur donnée."""
 
-        if getattr(
-            match,
-            "is_bye",
-            False,
+        cleaned = (
+            text
+            or "À déterminer"
+        ).strip() or "À déterminer"
+
+        if (
+            cls._text_width(
+                draw,
+                cleaned,
+                font,
+            )
+            <= maximum_width
         ):
-            return (
-                "BYE"
-                if player_id
-                else "—"
+            return cleaned
+
+        suffix = "…"
+        low = 1
+        high = len(cleaned)
+        best = suffix
+
+        while low <= high:
+            middle = (
+                low
+                + high
+            ) // 2
+
+            candidate = (
+                cleaned[:middle].rstrip()
+                + suffix
             )
 
-        status = cls._status_value(
-            getattr(
-                match,
-                "status",
-                "",
-            )
-        )
-
-        if status in cls.COMPLETED_STATUSES:
-            score = getattr(
-                match,
-                f"player{slot}_score",
-                None,
-            )
-
-            if score is not None:
-                return str(
-                    score
+            if (
+                cls._text_width(
+                    draw,
+                    candidate,
+                    font,
                 )
+                <= maximum_width
+            ):
+                best = candidate
+                low = middle + 1
 
-        return "—"
+            else:
+                high = middle - 1
 
-    @staticmethod
-    def _first_existing_attribute(
-        source: Any,
-        names: tuple[str, ...],
-        default: Any = None,
-    ) -> Any:
-        for name in names:
-            value = getattr(
-                source,
-                name,
-                None,
-            )
-
-            if value is not None:
-                return value
-
-        return default
-
-    def _seed_for(
-        self,
-        match: Any,
-        slot: int,
-    ) -> int | None:
-        value = self._first_existing_attribute(
-            match,
-            (
-                f"player{slot}_seed",
-                f"seed{slot}",
-                f"seed_player{slot}",
-                f"player_{slot}_seed",
-            ),
-        )
-
-        if value is None:
-            return None
-
-        try:
-            return int(
-                value
-            )
-
-        except (
-            TypeError,
-            ValueError,
-        ):
-            return None
-
-    def _deck_for(
-        self,
-        match: Any,
-        slot: int,
-    ) -> str | None:
-        value = self._first_existing_attribute(
-            match,
-            (
-                f"player{slot}_deck",
-                f"deck{slot}",
-                f"deck_player{slot}",
-                f"player_{slot}_deck",
-            ),
-        )
-
-        return (
-            str(value).strip()
-            if value
-            else None
-        )
+        return best
 
     # ==========================================================
     # RESSOURCES GRAPHIQUES
     # ==========================================================
 
+    def _theme_path(
+        self,
+        property_name: str,
+        filename: str,
+    ) -> Path:
+        """Retourne un chemin d'asset même avec un ancien theme.py."""
+
+        value = getattr(
+            self.theme,
+            property_name,
+            None,
+        )
+
+        if value is not None:
+            return Path(value)
+
+        assets_directory = Path(
+            getattr(
+                self.theme,
+                "assets_directory",
+                (
+                    Path(__file__).resolve().parent.parent
+                    / "graphics"
+                    / "assets"
+                ),
+            )
+        )
+
+        return (
+            assets_directory
+            / filename
+        )
+
     def _load_asset(
         self,
         path: str | Path,
     ) -> Image.Image | None:
-        asset_path = Path(
-            path
-        )
+        """Charge une ressource graphique facultative avec cache."""
+
+        asset_path = Path(path)
 
         try:
             cache_key = str(
@@ -484,9 +547,7 @@ class BracketImageService:
             )
 
         except OSError:
-            cache_key = str(
-                asset_path
-            )
+            cache_key = str(asset_path)
 
         cached = self._asset_cache.get(
             cache_key
@@ -527,12 +588,20 @@ class BracketImageService:
         maximum_width: int,
         maximum_height: int,
     ) -> Image.Image:
+        """Redimensionne une image sans modifier ses proportions."""
+
         result = image.copy()
 
         result.thumbnail(
             (
-                maximum_width,
-                maximum_height,
+                max(
+                    1,
+                    maximum_width,
+                ),
+                max(
+                    1,
+                    maximum_height,
+                ),
             ),
             Image.Resampling.LANCZOS,
         )
@@ -543,8 +612,15 @@ class BracketImageService:
         self,
         canvas: Image.Image,
     ) -> None:
+        """Dessine le fond personnalisé lorsqu'il est disponible."""
+
+        path = self._theme_path(
+            "background_path",
+            "bracket_background.png",
+        )
+
         background = self._load_asset(
-            self.theme.background_path
+            path
         )
 
         if background is None:
@@ -563,154 +639,48 @@ class BracketImageService:
         overlay = Image.new(
             "RGBA",
             canvas.size,
-            self.BG + (188,),
+            (
+                *self.BG,
+                190,
+            ),
         )
 
         canvas.alpha_composite(
             overlay
         )
 
-    def _draw_optional_logo(
+    def _draw_asset_centered(
         self,
         canvas: Image.Image,
+        path: Path,
         center_x: int,
         y: int,
         maximum_width: int,
         maximum_height: int,
-    ) -> bool:
-        logo = self._load_asset(
-            self.theme.logo_path
+    ) -> Image.Image | None:
+        asset = self._load_asset(
+            path
         )
 
-        if logo is None:
-            return False
+        if asset is None:
+            return None
 
-        logo = self._contain_image(
-            logo,
+        asset = self._contain_image(
+            asset,
             maximum_width,
             maximum_height,
         )
 
-        x = (
-            center_x
-            - logo.width // 2
-        )
-
         canvas.alpha_composite(
-            logo,
+            asset,
             (
-                x,
+                center_x
+                - asset.width // 2,
                 y,
             ),
         )
 
-        return True
-
-    def _draw_optional_trophy(
-        self,
-        canvas: Image.Image,
-        center_x: int,
-        y: int,
-        maximum_width: int,
-        maximum_height: int,
-    ) -> bool:
-        trophy = self._load_asset(
-            self.theme.trophy_path
-        )
-
-        if trophy is None:
-            return False
-
-        trophy = self._contain_image(
-            trophy,
-            maximum_width,
-            maximum_height,
-        )
-
-        x = (
-            center_x
-            - trophy.width // 2
-        )
-
-        canvas.alpha_composite(
-            trophy,
-            (
-                x,
-                y,
-            ),
-        )
-
-        return True
-
-    def _draw_optional_champion_image(
-        self,
-        canvas: Image.Image,
-        center_x: int,
-        y: int,
-        maximum_width: int,
-        maximum_height: int,
-    ) -> bool:
-        champion = self._load_asset(
-            self.theme.champion_path
-        )
-
-        if champion is None:
-            return False
-
-        champion = self._contain_image(
-            champion,
-            maximum_width,
-            maximum_height,
-        )
-
-        x = (
-            center_x
-            - champion.width // 2
-        )
-
-        canvas.alpha_composite(
-            champion,
-            (
-                x,
-                y,
-            ),
-        )
-
-        return True
-
-    def _draw_optional_footer_icon(
-        self,
-        canvas: Image.Image,
-        x: int,
-        center_y: int,
-    ) -> bool:
-        icon = self._load_asset(
-            self.theme.footer_icon_path
-        )
-
-        if icon is None:
-            return False
-
-        icon = self._contain_image(
-            icon,
-            self.theme.footer_icon_size,
-            self.theme.footer_icon_size,
-        )
-
-        y = (
-            center_y
-            - icon.height // 2
-        )
-
-        canvas.alpha_composite(
-            icon,
-            (
-                x,
-                y,
-            ),
-        )
-
-        return True
+        return asset
 
     # ==========================================================
     # AVATARS
@@ -721,7 +691,10 @@ class BracketImageService:
         session: aiohttp.ClientSession,
         url: str | None,
         key: str,
+        display_name: str,
     ) -> Image.Image:
+        """Télécharge un avatar ou crée un fallback avec l'initiale du nom."""
+
         cached = self._avatar_cache.get(
             key
         )
@@ -756,7 +729,7 @@ class BracketImageService:
 
         if image is None:
             image = self._create_fallback_avatar(
-                key
+                display_name
             )
 
         image = ImageOps.fit(
@@ -776,8 +749,10 @@ class BracketImageService:
 
     def _create_fallback_avatar(
         self,
-        key: str,
+        display_name: str,
     ) -> Image.Image:
+        """Crée un avatar de remplacement lisible et non numérique."""
+
         image = Image.new(
             "RGBA",
             (
@@ -785,9 +760,9 @@ class BracketImageService:
                 128,
             ),
             (
-                36,
-                47,
-                70,
+                24,
+                31,
+                48,
                 255,
             ),
         )
@@ -796,31 +771,65 @@ class BracketImageService:
             image
         )
 
+        seed = sum(
+            ord(character)
+            for character in display_name
+        )
+
+        accent = (
+            72
+            + seed % 70,
+            84
+            + (
+                seed
+                * 3
+            )
+            % 70,
+            118
+            + (
+                seed
+                * 5
+            )
+            % 70,
+        )
+
         draw.ellipse(
             (
-                8,
-                8,
-                120,
-                120,
+                5,
+                5,
+                123,
+                123,
             ),
             fill=(
-                70,
-                84,
-                116,
+                *accent,
                 255,
             ),
         )
 
-        cleaned_key = (
-            key[5:]
-            if key.startswith(
-                "name:"
-            )
-            else key
+        draw.ellipse(
+            (
+                13,
+                13,
+                115,
+                115,
+            ),
+            fill=(
+                33,
+                42,
+                64,
+                255,
+            ),
+            outline=(
+                255,
+                255,
+                255,
+                75,
+            ),
+            width=2,
         )
 
         initial = (
-            cleaned_key[:1]
+            display_name.strip()[:1]
             or "?"
         ).upper()
 
@@ -829,38 +838,10 @@ class BracketImageService:
             bold=True,
         )
 
-        bbox = draw.textbbox(
-            (
-                0,
-                0,
-            ),
-            initial,
-            font=font,
-        )
-
-        text_width = (
-            bbox[2]
-            - bbox[0]
-        )
-
-        text_height = (
-            bbox[3]
-            - bbox[1]
-        )
-
         draw.text(
             (
-                (
-                    128
-                    - text_width
-                )
-                // 2,
-                (
-                    128
-                    - text_height
-                )
-                // 2
-                - 7,
+                64,
+                63,
             ),
             initial,
             font=font,
@@ -870,15 +851,17 @@ class BracketImageService:
                 255,
                 255,
             ),
+            anchor="mm",
         )
 
         return image
-
-    @staticmethod
+            @staticmethod
     def _circle_avatar(
         image: Image.Image,
         size: int,
     ) -> Image.Image:
+        """Transforme un avatar carré en avatar rond."""
+
         avatar = ImageOps.fit(
             image,
             (
@@ -936,19 +919,98 @@ class BracketImageService:
 
         return result
 
+    def _paste_avatar(
+        self,
+        canvas: Image.Image,
+        avatar: Image.Image,
+        x: int,
+        y: int,
+        size: int,
+        border_color: Color,
+        border_width: int,
+    ) -> None:
+        """
+        Colle un avatar rond avec un véritable contour visible.
+        """
+
+        border_width = max(
+            1,
+            border_width,
+        )
+
+        outer_size = (
+            size
+            + border_width
+            * 2
+        )
+
+        border = Image.new(
+            "RGBA",
+            (
+                outer_size,
+                outer_size,
+            ),
+            (
+                0,
+                0,
+                0,
+                0,
+            ),
+        )
+
+        border_draw = ImageDraw.Draw(
+            border
+        )
+
+        border_draw.ellipse(
+            (
+                0,
+                0,
+                outer_size - 1,
+                outer_size - 1,
+            ),
+            fill=(
+                *border_color,
+                255,
+            ),
+        )
+
+        circle = self._circle_avatar(
+            avatar,
+            size,
+        )
+
+        border.alpha_composite(
+            circle,
+            (
+                border_width,
+                border_width,
+            ),
+        )
+
+        canvas.alpha_composite(
+            border,
+            (
+                x - border_width,
+                y - border_width,
+            ),
+        )
+
     async def _resolve_avatar_map(
         self,
         matches: list[Any],
         supplied: dict[str, str] | None,
     ) -> dict[str, Image.Image]:
-        supplied = (
-            supplied
-            or {}
-        )
+        """
+        Télécharge tous les avatars nécessaires
+        dans une seule session HTTP.
+        """
+
+        supplied = supplied or {}
 
         identities: dict[
             str,
-            str | None,
+            tuple[str | None, str],
         ] = {}
 
         for match in matches:
@@ -968,24 +1030,41 @@ class BracketImageService:
                         f"player{slot}_name",
                         None,
                     )
-                    or "?"
+                    or "À déterminer"
                 )
 
-                if discord_id:
-                    key = str(
-                        discord_id
+                if (
+                    not discord_id
+                    and name == "À déterminer"
+                ):
+                    continue
+
+                key = self._player_key(
+                    discord_id,
+                    name,
+                )
+
+                url = None
+
+                if discord_id not in (
+                    None,
+                    "",
+                ):
+                    url = (
+                        supplied.get(
+                            str(discord_id)
+                        )
+                        or supplied.get(
+                            key
+                        )
                     )
 
-                    identities[
-                        key
-                    ] = supplied.get(
-                        key
-                    )
-
-                elif name:
-                    identities[
-                        f"name:{name}"
-                    ] = None
+                identities[
+                    key
+                ] = (
+                    url,
+                    name,
+                )
 
         if not identities:
             return {}
@@ -996,7 +1075,7 @@ class BracketImageService:
         )
 
         connector = aiohttp.TCPConnector(
-            limit=12,
+            limit=12
         )
 
         async with aiohttp.ClientSession(
@@ -1008,8 +1087,15 @@ class BracketImageService:
                     session,
                     url,
                     key,
+                    display_name,
                 )
-                for key, url in identities.items()
+                for (
+                    key,
+                    (
+                        url,
+                        display_name,
+                    ),
+                ) in identities.items()
             ]
 
             images = await asyncio.gather(
@@ -1024,20 +1110,98 @@ class BracketImageService:
         )
 
     # ==========================================================
-    # DONNÉES VISUELLES
+    # SEEDS ET DONNÉES VISUELLES
     # ==========================================================
+
+    def _build_seed_map(
+        self,
+        bracket: dict[int, list[Any]],
+    ) -> dict[str, int]:
+        """
+        Attribue un seed de secours à partir du premier tour.
+        """
+
+        first_round_number = max(
+            bracket
+        )
+
+        first_round = bracket.get(
+            first_round_number,
+            [],
+        )
+
+        seeds: dict[str, int] = {}
+        next_seed = 1
+
+        for match in first_round:
+            for slot in (
+                1,
+                2,
+            ):
+                discord_id = getattr(
+                    match,
+                    f"player{slot}_id",
+                    None,
+                )
+
+                name = getattr(
+                    match,
+                    f"player{slot}_name",
+                    None,
+                )
+
+                if (
+                    not discord_id
+                    and not name
+                ):
+                    continue
+
+                key = self._player_key(
+                    discord_id,
+                    name,
+                )
+
+                if key not in seeds:
+                    explicit_seed = getattr(
+                        match,
+                        f"player{slot}_seed",
+                        None,
+                    )
+
+                    seeds[
+                        key
+                    ] = (
+                        explicit_seed
+                        or next_seed
+                    )
+
+                    next_seed += 1
+
+        return seeds
 
     def _match_players(
         self,
         match: Any,
         avatar_urls: dict[str, str] | None,
+        seed_map: dict[str, int],
     ) -> tuple[
         PlayerVisual,
         PlayerVisual,
     ]:
+        """
+        Transforme les deux participants d'un match
+        en données visuelles.
+        """
+
         winner_id = getattr(
             match,
             "winner_id",
+            None,
+        )
+
+        winner_name = getattr(
+            match,
+            "winner_name",
             None,
         )
 
@@ -1046,7 +1210,7 @@ class BracketImageService:
             or {}
         )
 
-        visuals: list[
+        players: list[
             PlayerVisual
         ] = []
 
@@ -1069,11 +1233,52 @@ class BracketImageService:
                 or "À déterminer"
             )
 
-            visuals.append(
+            key = self._player_key(
+                player_id,
+                player_name,
+            )
+
+            explicit_seed = getattr(
+                match,
+                f"player{slot}_seed",
+                None,
+            )
+
+            player_winner = False
+
+            if (
+                winner_id not in (
+                    None,
+                    "",
+                )
+                and player_id not in (
+                    None,
+                    "",
+                )
+            ):
+                player_winner = (
+                    str(winner_id)
+                    == str(player_id)
+                )
+
+            elif (
+                winner_name
+                and player_name
+            ):
+                player_winner = (
+                    winner_name
+                    == player_name
+                )
+
+            players.append(
                 PlayerVisual(
                     discord_id=(
                         str(player_id)
                         if player_id
+                        not in (
+                            None,
+                            "",
+                        )
                         else None
                     ),
                     name=player_name,
@@ -1086,315 +1291,786 @@ class BracketImageService:
                             str(player_id)
                         )
                         if player_id
+                        not in (
+                            None,
+                            "",
+                        )
                         else None
                     ),
-                    winner=bool(
-                        winner_id
-                        and player_id
-                        and str(winner_id)
-                        == str(player_id)
+                    winner=player_winner,
+                    seed=(
+                        explicit_seed
+                        or seed_map.get(
+                            key
+                        )
                     ),
-                    seed=self._seed_for(
+                    deck=getattr(
                         match,
-                        slot,
-                    ),
-                    deck=self._deck_for(
-                        match,
-                        slot,
+                        f"player{slot}_deck",
+                        None,
                     ),
                 )
             )
 
         return (
-            visuals[0],
-            visuals[1],
+            players[0],
+            players[1],
         )
 
     # ==========================================================
-    # FOND
+    # GÉOMÉTRIE ADAPTATIVE
     # ==========================================================
 
-    def _draw_background_effects(
+    def _round_geometry(
         self,
-        image: Image.Image,
         player_capacity: int,
-        tournament_id: Any,
-    ) -> None:
+        round_number: int,
+        total_rounds: int,
+    ) -> RoundGeometry:
         """
-        Dessine un fond rouge/noir/bleu discret.
+        Retourne les dimensions adaptées
+        à une ronde latérale.
         """
 
-        width, height = image.size
-
-        header_height = (
-            self.theme.header_height
+        round_index = (
+            total_rounds
+            - round_number
         )
 
-        footer_y = (
-            height
-            - self.theme.footer_height
+        side_rounds = max(
+            1,
+            total_rounds - 1,
         )
 
-        center_x = (
-            width // 2
+        width_method = getattr(
+            self.theme,
+            "box_width_for_round",
+            None,
         )
 
-        center_width = (
-            self.theme.center_reserved_width(
+        height_method = getattr(
+            self.theme,
+            "box_height_for_round",
+            None,
+        )
+
+        avatar_method = getattr(
+            self.theme,
+            "player_avatar_size_for_round",
+            None,
+        )
+
+        name_method = getattr(
+            self.theme,
+            "player_name_font_size_for_round",
+            None,
+        )
+
+        score_method = getattr(
+            self.theme,
+            "player_score_font_size_for_round",
+            None,
+        )
+
+        width = (
+            width_method(
+                player_capacity,
+                round_index,
+                side_rounds,
+            )
+            if callable(
+                width_method
+            )
+            else self.theme.box_width(
                 player_capacity
             )
         )
 
-        center_left = (
-            center_x
-            - center_width // 2
+        height = (
+            height_method(
+                player_capacity,
+                round_index,
+                side_rounds,
+            )
+            if callable(
+                height_method
+            )
+            else self.theme.box_height(
+                player_capacity
+            )
         )
 
-        center_right = (
-            center_x
-            + center_width // 2
+        avatar_size = (
+            avatar_method(
+                player_capacity,
+                round_index,
+                side_rounds,
+            )
+            if callable(
+                avatar_method
+            )
+            else self.theme.player_avatar_size(
+                player_capacity
+            )
         )
 
-        layer = Image.new(
-            "RGBA",
-            image.size,
-            (
-                0,
-                0,
-                0,
-                0,
+        name_size = (
+            name_method(
+                player_capacity,
+                round_index,
+                side_rounds,
+            )
+            if callable(
+                name_method
+            )
+            else self.theme.player_name_font_size(
+                player_capacity
+            )
+        )
+
+        score_size = (
+            score_method(
+                player_capacity,
+                round_index,
+                side_rounds,
+            )
+            if callable(
+                score_method
+            )
+            else self.theme.player_score_font_size(
+                player_capacity
+            )
+        )
+
+        return RoundGeometry(
+            width=max(
+                80,
+                int(width),
+            ),
+            height=max(
+                34,
+                int(height),
+            ),
+            avatar_size=max(
+                14,
+                int(avatar_size),
+            ),
+            name_font_size=max(
+                9,
+                int(name_size),
+            ),
+            score_font_size=max(
+                10,
+                int(score_size),
+            ),
+            seed_font_size=max(
+                8,
+                int(
+                    self.theme.player_seed_font_size(
+                        player_capacity
+                    )
+                ),
             ),
         )
 
-        draw = ImageDraw.Draw(
-            layer
-        )
+    def _all_geometries(
+        self,
+        player_capacity: int,
+        total_rounds: int,
+    ) -> dict[int, RoundGeometry]:
+        """
+        Calcule les dimensions de toutes les rondes.
+        """
 
-        left_span = max(
-            center_left,
+        geometries: dict[
+            int,
+            RoundGeometry,
+        ] = {}
+
+        for round_number in range(
+            total_rounds,
             1,
+            -1,
+        ):
+            geometries[
+                round_number
+            ] = self._round_geometry(
+                player_capacity,
+                round_number,
+                total_rounds,
+            )
+
+        final_width = int(
+            self.theme.final_box_width(
+                player_capacity
+            )
         )
 
-        for x in range(
-            0,
-            center_left,
-        ):
-            ratio = (
-                1.0
-                - x / left_span
+        final_height = int(
+            self.theme.final_box_height(
+                player_capacity
             )
+        )
 
-            alpha = int(
-                self.theme.side_background_alpha
-                * ratio
-            )
-
-            draw.line(
-                (
-                    x,
-                    header_height,
-                    x,
-                    footer_y,
+        geometries[
+            1
+        ] = RoundGeometry(
+            width=max(
+                180,
+                final_width,
+            ),
+            height=max(
+                78,
+                final_height,
+            ),
+            avatar_size=max(
+                30,
+                int(
+                    getattr(
+                        self.theme,
+                        "final_avatar_size",
+                        40,
+                    )
                 ),
-                fill=(
-                    self.theme.left_background
-                    + (alpha,)
+            ),
+            name_font_size=max(
+                16,
+                int(
+                    getattr(
+                        self.theme,
+                        "final_name_font_size",
+                        22,
+                    )
                 ),
-            )
+            ),
+            score_font_size=max(
+                18,
+                int(
+                    getattr(
+                        self.theme,
+                        "final_score_font_size",
+                        23,
+                    )
+                ),
+            ),
+            seed_font_size=max(
+                11,
+                int(
+                    self.theme.player_seed_font_size(
+                        player_capacity
+                    )
+                )
+                + 2,
+            ),
+        )
 
-        right_span = max(
-            width - center_right,
+        return geometries
+
+    def _layout(
+        self,
+        bracket: dict[int, list[Any]],
+        player_capacity: int,
+        width: int,
+        height: int,
+        geometries: dict[int, RoundGeometry],
+        final_mode: bool,
+    ) -> dict[
+        int,
+        list[Position],
+    ]:
+        """
+        Calcule un bracket symétrique
+        dans le canvas 16:9.
+        """
+
+        total_rounds = max(
+            bracket
+        )
+
+        header_height = int(
+            getattr(
+                self.theme,
+                "header_height",
+                112,
+            )
+        )
+
+        footer_height = int(
+            getattr(
+                self.theme,
+                "footer_height",
+                54,
+            )
+        )
+
+        round_labels_height = int(
+            getattr(
+                self.theme,
+                "round_labels_height",
+                28,
+            )
+        )
+
+        top_padding = int(
+            getattr(
+                self.theme,
+                "bracket_top_padding",
+                10,
+            )
+        )
+
+        bottom_padding = int(
+            getattr(
+                self.theme,
+                "bracket_bottom_padding",
+                10,
+            )
+        )
+
+        margin_x = int(
+            getattr(
+                self.theme,
+                "horizontal_margin",
+                24,
+            )
+        )
+
+        content_top = (
+            header_height
+            + round_labels_height
+            + top_padding
+        )
+
+        content_bottom = (
+            height
+            - footer_height
+            - bottom_padding
+        )
+
+        content_height = max(
             1,
+            content_bottom
+            - content_top,
         )
 
-        for x in range(
-            center_right,
-            width,
-        ):
-            ratio = (
-                x - center_right
-            ) / right_span
+        final_geometry = geometries[
+            1
+        ]
 
-            alpha = int(
-                self.theme.side_background_alpha
-                * ratio
+        final_x = (
+            width // 2
+            - final_geometry.width // 2
+        )
+
+        if final_mode:
+            final_y = max(
+                content_top + 105,
+                min(
+                    int(
+                        height
+                        * 0.315
+                    ),
+                    (
+                        content_bottom
+                        - final_geometry.height
+                        - 400
+                    ),
+                ),
             )
 
-            draw.line(
+        else:
+            final_y = (
+                content_top
+                + content_height // 2
+                - final_geometry.height // 2
+            )
+
+        positions: dict[
+            int,
+            list[Position],
+        ] = {
+            1: [
                 (
-                    x,
-                    header_height,
-                    x,
-                    footer_y,
-                ),
-                fill=(
-                    self.theme.right_background
-                    + (alpha,)
-                ),
-            )
+                    final_x,
+                    final_y,
+                    "center",
+                )
+            ]
+        }
 
-        draw.rectangle(
-            (
-                center_left,
-                header_height,
-                center_right,
-                footer_y,
-            ),
-            fill=(
-                self.theme.background_center
-                + (228,)
+        side_round_count = (
+            total_rounds
+            - 1
+        )
+
+        if side_round_count <= 0:
+            return positions
+
+        column_gap_method = getattr(
+            self.theme,
+            "column_gap",
+            None,
+        )
+
+        center_gap = max(
+            18,
+            int(
+                column_gap_method(
+                    player_capacity
+                )
+                if callable(
+                    column_gap_method
+                )
+                else 18
             ),
         )
 
-        glow_span = max(
-            90,
-            width // 14,
+        left_outer_start = margin_x
+        right_outer_edge = (
+            width
+            - margin_x
         )
 
-        for offset in range(
-            glow_span
-        ):
-            ratio = (
-                1.0
-                - offset
-                / max(
-                    glow_span - 1,
+        left_inner_start = (
+            final_x
+            - center_gap
+            - geometries[2].width
+        )
+
+        right_inner_start = (
+            final_x
+            + final_geometry.width
+            + center_gap
+        )
+
+        if side_round_count == 1:
+            left_x_by_round = {
+                2: left_inner_start,
+            }
+
+            right_x_by_round = {
+                2: right_inner_start,
+            }
+
+        else:
+            left_x_by_round: dict[
+                int,
+                int,
+            ] = {}
+
+            right_x_by_round: dict[
+                int,
+                int,
+            ] = {}
+
+            for (
+                depth,
+                round_number,
+            ) in enumerate(
+                range(
+                    total_rounds,
                     1,
+                    -1,
+                )
+            ):
+                ratio = (
+                    depth
+                    / max(
+                        1,
+                        side_round_count - 1,
+                    )
+                )
+
+                geometry = geometries[
+                    round_number
+                ]
+
+                left_x = round(
+                    left_outer_start
+                    + (
+                        left_inner_start
+                        - left_outer_start
+                    )
+                    * ratio
+                )
+
+                right_x = round(
+                    right_outer_edge
+                    - geometry.width
+                    - (
+                        right_outer_edge
+                        - geometries[
+                            total_rounds
+                        ].width
+                        - right_inner_start
+                    )
+                    * ratio
+                )
+
+                if round_number == 2:
+                    left_x = (
+                        left_inner_start
+                    )
+
+                    right_x = (
+                        right_inner_start
+                    )
+
+                left_x_by_round[
+                    round_number
+                ] = left_x
+
+                right_x_by_round[
+                    round_number
+                ] = right_x
+
+        first_round = bracket.get(
+            total_rounds,
+            [],
+        )
+
+        first_left_count = math.ceil(
+            len(first_round)
+            / 2
+        )
+
+        first_right_count = (
+            len(first_round)
+            - first_left_count
+        )
+
+        first_geometry = geometries[
+            total_rounds
+        ]
+
+        def initial_y_positions(
+            count: int,
+        ) -> list[int]:
+            if count <= 0:
+                return []
+
+            if count == 1:
+                return [
+                    (
+                        content_top
+                        + content_height // 2
+                        - first_geometry.height // 2
+                    )
+                ]
+
+            available = max(
+                0,
+                content_height
+                - first_geometry.height,
+            )
+
+            fitted_step = (
+                available
+                / (
+                    count
+                    - 1
                 )
             )
 
-            alpha = int(
-                self.theme.side_glow_alpha
-                * ratio
-                * 0.34
+            first_gap_method = getattr(
+                self.theme,
+                "first_round_vertical_gap",
+                None,
             )
 
-            draw.line(
-                (
-                    offset,
-                    header_height,
-                    offset,
-                    footer_y,
-                ),
-                fill=(
-                    self.RED
-                    + (alpha,)
-                ),
+            preferred = float(
+                first_gap_method(
+                    player_capacity
+                )
+                if callable(
+                    first_gap_method
+                )
+                else (
+                    first_geometry.height
+                    + 8
+                )
             )
 
-            draw.line(
-                (
-                    width - 1 - offset,
-                    header_height,
-                    width - 1 - offset,
-                    footer_y,
-                ),
-                fill=(
-                    self.BLUE
-                    + (alpha,)
+            step = min(
+                fitted_step,
+                max(
+                    first_geometry.height
+                    + 2,
+                    preferred,
                 ),
             )
 
-        try:
-            seed = int(
-                tournament_id
+            span = (
+                step
+                * (
+                    count
+                    - 1
+                )
+                + first_geometry.height
             )
 
-        except (
-            TypeError,
-            ValueError,
-        ):
-            seed = 0
+            start = (
+                content_top
+                + max(
+                    0,
+                    int(
+                        (
+                            content_height
+                            - span
+                        )
+                        / 2
+                    ),
+                )
+            )
 
-        rng = random.Random(
-            seed
+            return [
+                round(
+                    start
+                    + index
+                    * step
+                )
+                for index in range(
+                    count
+                )
+            ]
+
+        left_first_y = (
+            initial_y_positions(
+                first_left_count
+            )
         )
 
-        for _ in range(
-            self.theme.particle_count
-        ):
-            side = rng.choice(
+        right_first_y = (
+            initial_y_positions(
+                first_right_count
+            )
+        )
+
+        positions[
+            total_rounds
+        ] = [
+            *[
                 (
+                    left_x_by_round[
+                        total_rounds
+                    ],
+                    y,
                     "left",
+                )
+                for y in left_first_y
+            ],
+            *[
+                (
+                    right_x_by_round[
+                        total_rounds
+                    ],
+                    y,
                     "right",
                 )
+                for y in right_first_y
+            ],
+        ]
+
+        for round_number in range(
+            total_rounds - 1,
+            1,
+            -1,
+        ):
+            matches = bracket.get(
+                round_number,
+                [],
             )
 
-            if side == "left":
-                x = rng.randint(
-                    0,
-                    max(
-                        1,
-                        center_left - 1,
-                    ),
-                )
-
-                color = self.RED
-
-            else:
-                x = rng.randint(
-                    min(
-                        width - 1,
-                        center_right,
-                    ),
-                    width - 1,
-                )
-
-                color = self.BLUE
-
-            y = rng.randint(
-                header_height + 6,
-                max(
-                    header_height + 7,
-                    footer_y - 6,
-                ),
+            left_count = math.ceil(
+                len(matches)
+                / 2
             )
 
-            radius = rng.choice(
-                (
-                    1,
-                    1,
-                    1,
-                    2,
-                )
+            right_count = (
+                len(matches)
+                - left_count
             )
 
-            alpha = rng.randint(
-                14,
-                max(
-                    15,
-                    self.theme.particle_alpha,
-                ),
+            child_geometry = geometries[
+                round_number + 1
+            ]
+
+            current_geometry = geometries[
+                round_number
+            ]
+
+            children = positions.get(
+                round_number + 1,
+                [],
             )
 
-            draw.ellipse(
-                (
-                    x - radius,
-                    y - radius,
-                    x + radius,
-                    y + radius,
-                ),
-                fill=(
-                    color
-                    + (alpha,)
-                ),
+            left_children = [
+                position
+                for position in children
+                if position[2]
+                == "left"
+            ]
+
+            right_children = [
+                position
+                for position in children
+                if position[2]
+                == "right"
+            ]
+
+            left_y = self._parent_y_positions(
+                left_children,
+                left_count,
+                child_geometry.height,
+                current_geometry.height,
             )
 
-        image.alpha_composite(
-            layer
-        )
+            right_y = self._parent_y_positions(
+                right_children,
+                right_count,
+                child_geometry.height,
+                current_geometry.height,
+            )
 
-    # ==========================================================
-    # PLACEMENT
-    # ==========================================================
+            positions[
+                round_number
+            ] = [
+                *[
+                    (
+                        left_x_by_round[
+                            round_number
+                        ],
+                        y,
+                        "left",
+                    )
+                    for y in left_y
+                ],
+                *[
+                    (
+                        right_x_by_round[
+                            round_number
+                        ],
+                        y,
+                        "right",
+                    )
+                    for y in right_y
+                ],
+            ]
+
+        return positions
 
     @staticmethod
     def _parent_y_positions(
-        children: list[
-            tuple[int, int, str]
-        ],
+        children: list[Position],
         parent_count: int,
+        child_height: int,
+        parent_height: int,
     ) -> list[int]:
+        """
+        Place chaque match parent
+        entre ses deux matchs enfants.
+        """
+
         if (
             parent_count <= 0
             or not children
@@ -1416,417 +2092,167 @@ class BracketImageService:
                 len(children) - 1,
             )
 
-            first_y = children[
-                first_index
-            ][1]
+            first_center = (
+                children[
+                    first_index
+                ][1]
+                + child_height // 2
+            )
 
-            second_y = children[
-                second_index
-            ][1]
+            second_center = (
+                children[
+                    second_index
+                ][1]
+                + child_height // 2
+            )
+
+            parent_center = (
+                first_center
+                + second_center
+            ) // 2
 
             result.append(
-                (
-                    first_y
-                    + second_y
-                )
-                // 2
+                parent_center
+                - parent_height // 2
             )
 
         return result
+            # ==========================================================
+    # FOND ET AMBIANCE
+    # ==========================================================
 
-    def _layout(
+    def _draw_background_effects(
         self,
-        bracket: dict[int, list[Any]],
-        player_capacity: int,
-        final_mode: bool,
-    ) -> dict[
-        int,
-        list[
-            tuple[int, int, str]
-        ],
-    ]:
+        image: Image.Image,
+        header_height: int,
+        footer_height: int,
+        tournament_id: Any,
+    ) -> None:
         """
-        Calcule les positions sur un canevas 16:9.
+        Dessine le dégradé rouge/bleu, les particules
+        et le vignettage.
         """
 
-        total_rounds = max(
-            bracket
-        )
-
-        first_round_matches = bracket.get(
-            total_rounds,
-            [],
-        )
-
-        first_round_count = len(
-            first_round_matches
-        )
-
-        if first_round_count < 1:
-            raise ValueError(
-                "Le premier tour du bracket est vide."
-            )
-
-        width = self.theme.image_width(
-            player_capacity
-        )
-
-        height = self.theme.image_height(
-            player_capacity
-        )
-
-        box_width = self.theme.box_width(
-            player_capacity
-        )
-
-        box_height = self.theme.box_height(
-            player_capacity
-        )
-
-        final_width = (
-            self.theme.final_box_width(
-                player_capacity
-            )
-        )
-
-        final_height = (
-            self.theme.final_box_height(
-                player_capacity
-            )
-        )
-
-        margin_x = (
-            self.theme.horizontal_margin
-        )
-
-        content_top = (
-            self.theme.header_height
-            + self.theme.round_labels_height
-            + self.theme.bracket_top_padding
-        )
+        width, height = image.size
 
         content_bottom = (
             height
-            - self.theme.footer_height
-            - self.theme.bracket_bottom_padding
+            - footer_height
         )
 
-        available_height = max(
-            box_height,
-            content_bottom
-            - content_top,
-        )
+        center_x = width // 2
 
-        left_first_count = math.ceil(
-            first_round_count / 2
-        )
-
-        right_first_count = (
-            first_round_count
-            - left_first_count
-        )
-
-        matches_per_side = max(
-            left_first_count,
-            right_first_count,
-            1,
-        )
-
-        if matches_per_side > 1:
-            maximum_gap = max(
-                box_height,
-                (
-                    available_height
-                    - box_height
-                )
-                // (
-                    matches_per_side
-                    - 1
-                ),
-            )
-
-            if matches_per_side >= 8:
-                vertical_gap = (
-                    maximum_gap
-                )
-
-            else:
-                requested_gap = max(
-                    box_height + 18,
-                    self.theme.first_round_vertical_gap(
-                        player_capacity
-                    ),
-                )
-
-                vertical_gap = min(
-                    maximum_gap,
-                    requested_gap,
-                )
-
-        else:
-            vertical_gap = 0
-
-        if matches_per_side == 1:
-            total_span = box_height
-
-        else:
-            total_span = (
-                box_height
-                + (
-                    matches_per_side
-                    - 1
-                )
-                * vertical_gap
-            )
-
-        first_y = (
-            content_top
-            + max(
-                0,
-                (
-                    available_height
-                    - total_span
-                )
-                // 2,
-            )
-        )
-
-        rounds_before_final = max(
-            1,
-            total_rounds - 1,
-        )
-
-        center_width = (
-            self.theme.center_reserved_width(
-                player_capacity
-            )
-        )
-
-        left_inner_edge = (
-            width // 2
-            - center_width // 2
-        )
-
-        if rounds_before_final > 1:
-            left_step = (
-                left_inner_edge
-                - box_width
-                - margin_x
-            ) / (
-                rounds_before_final
-                - 1
-            )
-
-        else:
-            left_step = 0.0
-
-        positions: dict[
-            int,
-            list[
-                tuple[int, int, str]
-            ],
-        ] = {}
-
-        for round_number in range(
-            total_rounds,
-            1,
-            -1,
-        ):
-            matches = bracket.get(
-                round_number,
-                [],
-            )
-
-            left_count = math.ceil(
-                len(matches) / 2
-            )
-
-            right_count = (
-                len(matches)
-                - left_count
-            )
-
-            depth = (
-                total_rounds
-                - round_number
-            )
-
-            left_x = round(
-                margin_x
-                + depth
-                * left_step
-            )
-
-            right_x = round(
-                width
-                - margin_x
-                - box_width
-                - depth
-                * left_step
-            )
-
-            if round_number == total_rounds:
-                left_y_positions = [
-                    first_y
-                    + index
-                    * vertical_gap
-                    for index in range(
-                        left_count
-                    )
-                ]
-
-                right_y_positions = [
-                    first_y
-                    + index
-                    * vertical_gap
-                    for index in range(
-                        right_count
-                    )
-                ]
-
-            else:
-                children = positions.get(
-                    round_number + 1,
-                    [],
-                )
-
-                left_children = [
-                    position
-                    for position in children
-                    if position[2]
-                    == "left"
-                ]
-
-                right_children = [
-                    position
-                    for position in children
-                    if position[2]
-                    == "right"
-                ]
-
-                left_y_positions = (
-                    self._parent_y_positions(
-                        left_children,
-                        left_count,
-                    )
-                )
-
-                right_y_positions = (
-                    self._parent_y_positions(
-                        right_children,
-                        right_count,
-                    )
-                )
-
-            positions[
-                round_number
-            ] = [
-                *[
-                    (
-                        left_x,
-                        y,
-                        "left",
-                    )
-                    for y in left_y_positions
-                ],
-                *[
-                    (
-                        right_x,
-                        y,
-                        "right",
-                    )
-                    for y in right_y_positions
-                ],
-            ]
-
-        final_x = (
-            width // 2
-            - final_width // 2
-        )
-
-        if final_mode:
-            final_center_y = (
-                content_top
-                + int(
-                    available_height
-                    * 0.245
-                )
-            )
-
-        else:
-            final_center_y = (
-                content_top
-                + int(
-                    available_height
-                    * 0.43
-                )
-            )
-
-        final_y = max(
-            content_top + 38,
-            final_center_y
-            - final_height // 2,
-        )
-
-        positions[1] = [
+        gradient = Image.new(
+            "RGBA",
+            image.size,
             (
-                final_x,
-                final_y,
-                "center",
+                0,
+                0,
+                0,
+                0,
+            ),
+        )
+
+        pixels = gradient.load()
+
+        left_background = getattr(
+            self.theme,
+            "left_background",
+            (
+                24,
+                7,
+                10,
+            ),
+        )
+
+        right_background = getattr(
+            self.theme,
+            "right_background",
+            (
+                5,
+                19,
+                43,
+            ),
+        )
+
+        center_background = getattr(
+            self.theme,
+            "background_center",
+            self.BG,
+        )
+
+        for x in range(
+            width
+        ):
+            normalized = (
+                x
+                / max(
+                    1,
+                    width - 1,
+                )
             )
-        ]
 
-        return positions
+            if normalized <= 0.5:
+                local = (
+                    normalized
+                    / 0.5
+                )
 
-    # ==========================================================
-    # CONNEXIONS
-    # ==========================================================
+                color = self._blend_color(
+                    left_background,
+                    center_background,
+                    local,
+                )
 
-    def _draw_connectors(
-        self,
-        image: Image.Image,
-        bracket: dict[int, list[Any]],
-        positions: dict[
-            int,
-            list[
-                tuple[int, int, str]
-            ],
-        ],
-        player_capacity: int,
-    ) -> None:
-        box_width = self.theme.box_width(
-            player_capacity
-        )
+            else:
+                local = (
+                    (
+                        normalized
+                        - 0.5
+                    )
+                    / 0.5
+                )
 
-        box_height = self.theme.box_height(
-            player_capacity
-        )
+                color = self._blend_color(
+                    center_background,
+                    right_background,
+                    local,
+                )
 
-        final_width = (
-            self.theme.final_box_width(
-                player_capacity
+            edge_strength = (
+                abs(
+                    normalized
+                    - 0.5
+                )
+                * 2
             )
-        )
 
-        final_height = (
-            self.theme.final_box_height(
-                player_capacity
+            alpha = round(
+                205
+                * (
+                    0.55
+                    + edge_strength
+                    * 0.45
+                )
             )
+
+            for y in range(
+                header_height,
+                content_bottom,
+            ):
+                pixels[
+                    x,
+                    y,
+                ] = (
+                    *color,
+                    alpha,
+                )
+
+        image.alpha_composite(
+            gradient
         )
 
-        line_width = (
-            self.theme.connector_width(
-                player_capacity
-            )
-        )
-
-        glow_width = (
-            self.theme.connector_glow_width(
-                player_capacity
-            )
-        )
-
-        glow_layer = Image.new(
+        glow = Image.new(
             "RGBA",
             image.size,
             (
@@ -1838,385 +2264,280 @@ class BracketImageService:
         )
 
         glow_draw = ImageDraw.Draw(
-            glow_layer
+            glow
         )
 
-        total_rounds = max(
-            bracket
+        glow_draw.ellipse(
+            (
+                -width // 3,
+                header_height
+                - height // 4,
+                width // 2,
+                height
+                + height // 3,
+            ),
+            fill=(
+                *self.RED,
+                int(
+                    getattr(
+                        self.theme,
+                        "side_glow_alpha",
+                        82,
+                    )
+                ),
+            ),
         )
 
-        for round_number in range(
-            total_rounds,
-            1,
-            -1,
-        ):
-            current_positions = positions.get(
-                round_number,
-                [],
+        glow_draw.ellipse(
+            (
+                width // 2,
+                header_height
+                - height // 4,
+                width
+                + width // 3,
+                height
+                + height // 3,
+            ),
+            fill=(
+                *self.BLUE,
+                int(
+                    getattr(
+                        self.theme,
+                        "side_glow_alpha",
+                        82,
+                    )
+                ),
+            ),
+        )
+
+        glow = glow.filter(
+            ImageFilter.GaussianBlur(
+                max(
+                    80,
+                    width // 10,
+                )
             )
-
-            next_positions = positions.get(
-                round_number - 1,
-                [],
-            )
-
-            if not next_positions:
-                continue
-
-            side_indexes = {
-                "left": 0,
-                "right": 0,
-            }
-
-            for (
-                x,
-                y,
-                side,
-            ) in current_positions:
-                if round_number - 1 == 1:
-                    target = (
-                        next_positions[0]
-                    )
-
-                    target_width = (
-                        final_width
-                    )
-
-                    target_height = (
-                        final_height
-                    )
-
-                else:
-                    target_candidates = [
-                        position
-                        for position
-                        in next_positions
-                        if position[2]
-                        == side
-                    ]
-
-                    if not target_candidates:
-                        continue
-
-                    local_index = (
-                        side_indexes[
-                            side
-                        ]
-                    )
-
-                    target = target_candidates[
-                        min(
-                            local_index // 2,
-                            len(
-                                target_candidates
-                            )
-                            - 1,
-                        )
-                    ]
-
-                    side_indexes[
-                        side
-                    ] += 1
-
-                    target_width = (
-                        box_width
-                    )
-
-                    target_height = (
-                        box_height
-                    )
-
-                (
-                    target_x,
-                    target_y,
-                    _,
-                ) = target
-
-                start_y = (
-                    y
-                    + box_height // 2
-                )
-
-                end_y = (
-                    target_y
-                    + target_height // 2
-                )
-
-                if side == "left":
-                    start_x = (
-                        x
-                        + box_width
-                    )
-
-                    end_x = target_x
-
-                else:
-                    start_x = x
-
-                    end_x = (
-                        target_x
-                        + target_width
-                    )
-
-                middle_x = (
-                    start_x
-                    + end_x
-                ) // 2
-
-                color = (
-                    self.RED
-                    if side == "left"
-                    else self.BLUE
-                )
-
-                glow_color = (
-                    color
-                    + (
-                        self.theme.connector_glow_alpha,
-                    )
-                )
-
-                segments = (
-                    (
-                        start_x,
-                        start_y,
-                        middle_x,
-                        start_y,
-                    ),
-                    (
-                        middle_x,
-                        start_y,
-                        middle_x,
-                        end_y,
-                    ),
-                    (
-                        middle_x,
-                        end_y,
-                        end_x,
-                        end_y,
-                    ),
-                )
-
-                for segment in segments:
-                    glow_draw.line(
-                        segment,
-                        fill=glow_color,
-                        width=glow_width,
-                    )
+        )
 
         image.alpha_composite(
-            glow_layer
+            glow
         )
 
-        draw = ImageDraw.Draw(
-            image
+        particle_layer = Image.new(
+            "RGBA",
+            image.size,
+            (
+                0,
+                0,
+                0,
+                0,
+            ),
         )
 
-        for round_number in range(
-            total_rounds,
-            1,
-            -1,
+        particle_draw = ImageDraw.Draw(
+            particle_layer
+        )
+
+        randomizer = random.Random(
+            str(
+                tournament_id
+            )
+        )
+
+        particle_count = int(
+            getattr(
+                self.theme,
+                "particle_count",
+                90,
+            )
+        )
+
+        particle_alpha = int(
+            getattr(
+                self.theme,
+                "particle_alpha",
+                48,
+            )
+        )
+
+        for _ in range(
+            particle_count
         ):
-            current_positions = positions.get(
-                round_number,
-                [],
+            x = randomizer.randrange(
+                0,
+                width,
             )
 
-            next_positions = positions.get(
-                round_number - 1,
-                [],
+            y = randomizer.randrange(
+                header_height,
+                max(
+                    header_height + 1,
+                    content_bottom,
+                ),
             )
 
-            if not next_positions:
+            distance = (
+                abs(
+                    x
+                    - center_x
+                )
+                / max(
+                    1,
+                    center_x,
+                )
+            )
+
+            if (
+                randomizer.random()
+                > (
+                    0.25
+                    + distance
+                    * 0.6
+                )
+            ):
                 continue
 
-            side_indexes = {
-                "left": 0,
-                "right": 0,
-            }
-
-            for (
-                x,
-                y,
-                side,
-            ) in current_positions:
-                if round_number - 1 == 1:
-                    target = (
-                        next_positions[0]
-                    )
-
-                    target_width = (
-                        final_width
-                    )
-
-                    target_height = (
-                        final_height
-                    )
-
-                else:
-                    target_candidates = [
-                        position
-                        for position
-                        in next_positions
-                        if position[2]
-                        == side
-                    ]
-
-                    if not target_candidates:
-                        continue
-
-                    local_index = (
-                        side_indexes[
-                            side
-                        ]
-                    )
-
-                    target = target_candidates[
-                        min(
-                            local_index // 2,
-                            len(
-                                target_candidates
-                            )
-                            - 1,
-                        )
-                    ]
-
-                    side_indexes[
-                        side
-                    ] += 1
-
-                    target_width = (
-                        box_width
-                    )
-
-                    target_height = (
-                        box_height
-                    )
-
+            radius = randomizer.choice(
                 (
-                    target_x,
-                    target_y,
-                    _,
-                ) = target
-
-                start_y = (
-                    y
-                    + box_height // 2
+                    1,
+                    1,
+                    1,
+                    2,
                 )
+            )
 
-                end_y = (
-                    target_y
-                    + target_height // 2
-                )
+            color = (
+                self.RED
+                if x < center_x
+                else self.BLUE
+            )
 
-                if side == "left":
-                    start_x = (
-                        x
-                        + box_width
+            alpha = randomizer.randint(
+                max(
+                    8,
+                    particle_alpha // 3,
+                ),
+                particle_alpha,
+            )
+
+            particle_draw.ellipse(
+                (
+                    x - radius,
+                    y - radius,
+                    x + radius,
+                    y + radius,
+                ),
+                fill=(
+                    *color,
+                    alpha,
+                ),
+            )
+
+        image.alpha_composite(
+            particle_layer
+        )
+
+        vignette = Image.new(
+            "L",
+            image.size,
+            0,
+        )
+
+        vignette_pixels = (
+            vignette.load()
+        )
+
+        vignette_alpha = int(
+            getattr(
+                self.theme,
+                "vignette_alpha",
+                92,
+            )
+        )
+
+        for y in range(
+            height
+        ):
+            vertical = (
+                abs(
+                    (
+                        y
+                        / max(
+                            1,
+                            height - 1,
+                        )
                     )
+                    - 0.5
+                )
+                * 2
+            )
 
-                    end_x = target_x
-
-                else:
-                    start_x = x
-
-                    end_x = (
-                        target_x
-                        + target_width
+            for x in range(
+                width
+            ):
+                horizontal = (
+                    abs(
+                        (
+                            x
+                            / max(
+                                1,
+                                width - 1,
+                            )
+                        )
+                        - 0.5
                     )
-
-                middle_x = (
-                    start_x
-                    + end_x
-                ) // 2
-
-                color = (
-                    self.RED
-                    if side == "left"
-                    else self.BLUE
+                    * 2
                 )
 
-                draw.line(
-                    (
-                        start_x,
-                        start_y,
-                        middle_x,
-                        start_y,
-                    ),
-                    fill=color,
-                    width=line_width,
+                strength = max(
+                    horizontal,
+                    vertical,
                 )
 
-                draw.line(
-                    (
-                        middle_x,
-                        start_y,
-                        middle_x,
-                        end_y,
-                    ),
-                    fill=color,
-                    width=line_width,
+                vignette_pixels[
+                    x,
+                    y,
+                ] = round(
+                    vignette_alpha
+                    * strength ** 2.2
                 )
 
-                draw.line(
-                    (
-                        middle_x,
-                        end_y,
-                        end_x,
-                        end_y,
-                    ),
-                    fill=color,
-                    width=line_width,
-                )
+        vignette_layer = Image.new(
+            "RGBA",
+            image.size,
+            (
+                0,
+                0,
+                0,
+                0,
+            ),
+        )
+
+        vignette_layer.putalpha(
+            vignette
+        )
+
+        image.alpha_composite(
+            vignette_layer
+        )
 
     # ==========================================================
-    # CASES DES MATCHS
+    # HEADER
     # ==========================================================
 
-    def _draw_match_box(
+    def _draw_hamster_fallback(
         self,
         canvas: Image.Image,
-        draw: ImageDraw.ImageDraw,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
-        match: Any,
-        side_color: tuple[int, int, int],
-        avatars: dict[str, Image.Image],
-        avatar_urls: dict[str, str] | None,
-        player_capacity: int,
-        *,
-        is_final: bool = False,
+        center_x: int,
+        center_y: int,
+        size: int,
     ) -> None:
-        if is_final:
-            radius = (
-                self.theme.final_box_radius
-            )
+        """
+        Dessine une petite mascotte hamster
+        si l'asset est absent.
+        """
 
-            border_width = (
-                self.theme.final_box_border_width
-            )
-
-        elif player_capacity >= 64:
-            radius = (
-                self.theme.compact_box_radius
-            )
-
-            border_width = (
-                self.theme.compact_box_border_width
-            )
-
-        else:
-            radius = (
-                self.theme.normal_box_radius
-            )
-
-            border_width = (
-                self.theme.normal_box_border_width
-            )
-
-        shadow_layer = Image.new(
+        layer = Image.new(
             "RGBA",
             canvas.size,
             (
@@ -2227,32 +2548,327 @@ class BracketImageService:
             ),
         )
 
-        shadow_draw = ImageDraw.Draw(
-            shadow_layer
+        draw = ImageDraw.Draw(
+            layer
         )
 
-        shadow_offset = (
-            self.theme.panel_shadow_offset
+        radius = size // 2
+
+        orange = (
+            218,
+            125,
+            57,
         )
 
-        shadow_draw.rounded_rectangle(
+        cream = (
+            255,
+            239,
+            208,
+        )
+
+        dark = (
+            39,
+            25,
+            22,
+        )
+
+        draw.ellipse(
             (
-                x + shadow_offset,
-                y + shadow_offset,
-                x + width + shadow_offset,
-                y + height + shadow_offset,
+                center_x
+                - radius
+                + 5,
+                center_y
+                - radius
+                + 6,
+                center_x
+                + radius
+                - 5,
+                center_y
+                + radius,
             ),
-            radius=radius,
             fill=(
-                0,
-                0,
-                0,
-                self.theme.panel_shadow_alpha,
+                *cream,
+                255,
+            ),
+            outline=(
+                *self.GOLD,
+                220,
+            ),
+            width=max(
+                1,
+                size // 28,
+            ),
+        )
+
+        ear = max(
+            8,
+            size // 5,
+        )
+
+        draw.ellipse(
+            (
+                center_x
+                - radius
+                + 1,
+                center_y
+                - radius,
+                center_x
+                - radius
+                + ear
+                * 2,
+                center_y
+                - radius
+                + ear
+                * 2,
+            ),
+            fill=(
+                *orange,
+                255,
+            ),
+        )
+
+        draw.ellipse(
+            (
+                center_x
+                + radius
+                - ear
+                * 2,
+                center_y
+                - radius,
+                center_x
+                + radius
+                - 1,
+                center_y
+                - radius
+                + ear
+                * 2,
+            ),
+            fill=(
+                *orange,
+                255,
+            ),
+        )
+
+        draw.pieslice(
+            (
+                center_x
+                - radius
+                + 7,
+                center_y
+                - radius
+                + 5,
+                center_x
+                + radius
+                - 7,
+                center_y
+                + radius
+                - 3,
+            ),
+            190,
+            350,
+            fill=(
+                *orange,
+                255,
+            ),
+        )
+
+        eye_radius = max(
+            2,
+            size // 24,
+        )
+
+        eye_y = (
+            center_y
+            + size // 20
+        )
+
+        for eye_x in (
+            center_x
+            - size // 7,
+            center_x
+            + size // 7,
+        ):
+            draw.ellipse(
+                (
+                    eye_x
+                    - eye_radius,
+                    eye_y
+                    - eye_radius,
+                    eye_x
+                    + eye_radius,
+                    eye_y
+                    + eye_radius,
+                ),
+                fill=(
+                    *dark,
+                    255,
+                ),
+            )
+
+        draw.ellipse(
+            (
+                center_x - 2,
+                eye_y
+                + size // 12,
+                center_x + 2,
+                eye_y
+                + size // 12
+                + 4,
+            ),
+            fill=(
+                *dark,
+                255,
             ),
         )
 
         canvas.alpha_composite(
-            shadow_layer
+            layer
+        )
+
+    def _draw_logo_fallback(
+        self,
+        draw: ImageDraw.ImageDraw,
+        center_x: int,
+        y: int,
+        width: int,
+        height: int,
+    ) -> None:
+        """
+        Dessine un emblème Hamtaro lorsqu'aucun
+        logo PNG n'est fourni.
+        """
+
+        left = (
+            center_x
+            - width // 2
+        )
+
+        right = (
+            center_x
+            + width // 2
+        )
+
+        bottom = (
+            y
+            + height
+        )
+
+        draw.polygon(
+            (
+                (
+                    left + 15,
+                    y + 12,
+                ),
+                (
+                    right - 15,
+                    y + 12,
+                ),
+                (
+                    right,
+                    y
+                    + height // 2,
+                ),
+                (
+                    center_x,
+                    bottom,
+                ),
+                (
+                    left,
+                    y
+                    + height // 2,
+                ),
+            ),
+            fill=(
+                8,
+                11,
+                18,
+                245,
+            ),
+            outline=self.RED,
+        )
+
+        draw.line(
+            (
+                left + 8,
+                y
+                + height // 2,
+                center_x,
+                bottom - 7,
+                right - 8,
+                y
+                + height // 2,
+            ),
+            fill=self.GOLD,
+            width=2,
+        )
+
+        title_font = self._font(
+            max(
+                16,
+                height // 5,
+            ),
+            bold=True,
+        )
+
+        subtitle_font = self._font(
+            max(
+                8,
+                height // 11,
+            ),
+            bold=True,
+        )
+
+        draw.text(
+            (
+                center_x,
+                y
+                + height
+                * 0.43,
+            ),
+            "HAMTARO",
+            font=title_font,
+            fill=self.TEXT,
+            anchor="mm",
+        )
+
+        draw.text(
+            (
+                center_x,
+                y
+                + height
+                * 0.66,
+            ),
+            "TOURNAMENT BOT",
+            font=subtitle_font,
+            fill=self.RED,
+            anchor="mm",
+        )
+
+    def _draw_information_card(
+        self,
+        draw: ImageDraw.ImageDraw,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        label: str,
+        value: str,
+        accent: Color | None = None,
+    ) -> None:
+        radius = int(
+            getattr(
+                self.theme,
+                "header_information_box_radius",
+                3,
+            )
+        )
+
+        border_width = int(
+            getattr(
+                self.theme,
+                "header_information_box_border_width",
+                1,
+            )
         )
 
         draw.rounded_rectangle(
@@ -2263,326 +2879,80 @@ class BracketImageService:
                 y + height,
             ),
             radius=radius,
-            fill=self.PANEL,
-            outline=side_color,
+            fill=(
+                *self._blend_color(
+                    self.PANEL,
+                    self.BG,
+                    0.20,
+                ),
+                235,
+            ),
+            outline=(
+                *self._blend_color(
+                    self.LINE,
+                    accent
+                    or self.TEXT,
+                    0.25,
+                ),
+                255,
+            ),
             width=border_width,
         )
 
-        row_height = (
-            height // 2
-        )
-
-        draw.line(
-            (
-                x + 1,
-                y + row_height,
-                x + width - 1,
-                y + row_height,
-            ),
-            fill=self.theme.separator,
-            width=self.theme.player_row_separator_width,
-        )
-
-        players = self._match_players(
-            match,
-            avatar_urls,
-        )
-
-        if is_final:
-            seed_width = 0
-
-            score_width = max(
-                40,
+        label_font = self._font(
+            max(
+                9,
                 int(
-                    width * 0.18
-                ),
-            )
-
-            avatar_size = min(
-                42,
-                row_height - 8,
-            )
-
-            name_font_size = (
-                self.theme.final_name_font_size
-            )
-
-            name_font = self._font(
-                name_font_size,
-                bold=True,
-            )
-
-            score_font = self._font(
-                self.theme.final_score_font_size,
-                bold=True,
-            )
-
-            seed_font = self._font(
-                1
-            )
-
-        else:
-            seed_width = (
-                self.theme.seed_column_width(
-                    player_capacity
+                    getattr(
+                        self.theme,
+                        "information_font_size",
+                        14,
+                    )
                 )
+                - 3,
             )
-
-            score_width = (
-                self.theme.score_column_width(
-                    player_capacity
-                )
-            )
-
-            avatar_size = min(
-                self.theme.player_avatar_size(
-                    player_capacity
-                ),
-                max(
-                    14,
-                    row_height - 6,
-                ),
-            )
-
-            name_font_size = (
-                self.theme.player_name_font_size(
-                    player_capacity
-                )
-            )
-
-            name_font = self._font(
-                name_font_size,
-                bold=False,
-            )
-
-            score_font = self._font(
-                self.theme.player_score_font_size(
-                    player_capacity
-                ),
-                bold=True,
-            )
-
-            seed_font = self._font(
-                self.theme.player_seed_font_size(
-                    player_capacity
-                ),
-                bold=True,
-            )
-
-        if seed_width > 0:
-            draw.line(
-                (
-                    x + seed_width,
-                    y + 1,
-                    x + seed_width,
-                    y + height - 1,
-                ),
-                fill=self.theme.separator,
-                width=1,
-            )
-
-        draw.line(
-            (
-                x + width - score_width,
-                y + 1,
-                x + width - score_width,
-                y + height - 1,
-            ),
-            fill=self.theme.separator,
-            width=1,
         )
 
-        for index, player in enumerate(
-            players
-        ):
-            row_y = (
-                y
-                + index
-                * row_height
-            )
-
-            if player.winner:
-                draw.rectangle(
-                    (
-                        x + 1,
-                        row_y + 1,
-                        x + width - 1,
-                        row_y + row_height - 1,
-                    ),
-                    fill=(
-                        self.GREEN[0],
-                        self.GREEN[1],
-                        self.GREEN[2],
-                        18,
-                    ),
-                )
-
-                draw.rectangle(
-                    (
-                        x + 1,
-                        row_y + 2,
-                        x
-                        + self.theme.winner_indicator_width,
-                        row_y
-                        + row_height
-                        - 2,
-                    ),
-                    fill=self.GREEN,
-                )
-
-            if seed_width > 0:
-                seed_text = (
-                    str(player.seed)
-                    if player.seed is not None
-                    else "—"
-                )
-
-                draw.text(
-                    (
-                        x + seed_width // 2,
-                        row_y + row_height // 2,
-                    ),
-                    seed_text,
-                    font=seed_font,
-                    fill=(
-                        self.TEXT
-                        if player.seed is not None
-                        else self.MUTED
-                    ),
-                    anchor="mm",
-                )
-
-            avatar_key = (
-                player.discord_id
-                or f"name:{player.name}"
-            )
-
-            avatar = avatars.get(
-                avatar_key
-            )
-
-            avatar_x = (
-                x
-                + seed_width
-                + self.theme.avatar_left_padding
-            )
-
-            avatar_y = (
-                row_y
-                + (
-                    row_height
-                    - avatar_size
-                )
-                // 2
-            )
-
-            if avatar is not None:
-                circle = self._circle_avatar(
-                    avatar,
-                    avatar_size,
-                )
-
-                canvas.alpha_composite(
-                    circle,
-                    (
-                        avatar_x,
-                        avatar_y,
-                    ),
-                )
-
-            name_x = (
-                avatar_x
-                + avatar_size
-                + self.theme.name_left_padding
-            )
-
-            name_right = (
-                x
-                + width
-                - score_width
-                - 4
-            )
-
-            available_name_width = max(
-                10,
-                name_right
-                - name_x,
-            )
-
-            maximum_characters = max(
-                4,
+        value_font = self._font(
+            max(
+                11,
                 int(
-                    available_name_width
-                    / max(
-                        6,
-                        name_font_size
-                        * 0.58,
+                    getattr(
+                        self.theme,
+                        "information_font_size",
+                        14,
                     )
                 ),
-            )
+            ),
+            bold=True,
+        )
 
-            name = self._safe_text(
-                player.name,
-                maximum_characters,
-            )
+        draw.text(
+            (
+                x + 14,
+                y + 11,
+            ),
+            label.upper(),
+            font=label_font,
+            fill=self.MUTED,
+        )
 
-            draw.text(
-                (
-                    name_x,
-                    row_y + row_height // 2,
-                ),
-                name,
-                font=name_font,
-                fill=(
-                    self.TEXT
-                    if player.winner
-                    else self.MUTED
-                ),
-                anchor="lm",
-            )
-
-            score_left = (
-                x
-                + width
-                - score_width
-            )
-
-            score_fill = (
-                self.theme.score_background
-                if player.score != "—"
-                else self.PANEL_ALT
-            )
-
-            draw.rectangle(
-                (
-                    score_left + 1,
-                    row_y + 1,
-                    x + width - 1,
-                    row_y + row_height - 1,
-                ),
-                fill=score_fill,
-            )
-
-            draw.text(
-                (
-                    score_left
-                    + score_width // 2,
-                    row_y
-                    + row_height // 2,
-                ),
-                player.score,
-                font=score_font,
-                fill=(
-                    self.theme.score_text
-                    if player.score != "—"
-                    else self.MUTED
-                ),
-                anchor="mm",
-            )
-
-    # ==========================================================
-    # HEADER
-    # ==========================================================
+        draw.text(
+            (
+                x + 14,
+                y
+                + height
+                - 13,
+            ),
+            self._safe_text(
+                value,
+                23,
+            ),
+            font=value_font,
+            fill=accent
+            or self.TEXT,
+            anchor="ls",
+        )
 
     def _draw_header(
         self,
@@ -2590,12 +2960,157 @@ class BracketImageService:
         draw: ImageDraw.ImageDraw,
         tournament: Any,
         player_capacity: int,
-        final_mode: bool,
     ) -> None:
+        """
+        Dessine le header complet
+        de la maquette Hamtaro Cup.
+        """
+
         width = image.width
 
-        header_height = (
-            self.theme.header_height
+        header_height = int(
+            getattr(
+                self.theme,
+                "header_height",
+                112,
+            )
+        )
+
+        draw.rectangle(
+            (
+                0,
+                0,
+                width,
+                header_height,
+            ),
+            fill=(
+                *getattr(
+                    self.theme,
+                    "header_background",
+                    self.BG,
+                ),
+                246,
+            ),
+        )
+
+        mascot_width = int(
+            getattr(
+                self.theme,
+                "header_mascot_width",
+                78,
+            )
+        )
+
+        mascot_height = int(
+            getattr(
+                self.theme,
+                "header_mascot_height",
+                94,
+            )
+        )
+
+        mascot_x = int(
+            getattr(
+                self.theme,
+                "header_mascot_x",
+                31,
+            )
+        )
+
+        mascot_y = int(
+            getattr(
+                self.theme,
+                "header_mascot_y",
+                6,
+            )
+        )
+
+        mascot_path = self._theme_path(
+            "header_mascot_path",
+            "hamtaro_header.png",
+        )
+
+        mascot = self._load_asset(
+            mascot_path
+        )
+
+        if mascot is not None:
+            mascot = self._contain_image(
+                mascot,
+                mascot_width,
+                mascot_height,
+            )
+
+            image.alpha_composite(
+                mascot,
+                (
+                    mascot_x,
+                    mascot_y,
+                ),
+            )
+
+            title_x = int(
+                getattr(
+                    self.theme,
+                    "header_title_with_mascot_x",
+                    126,
+                )
+            )
+
+        else:
+            self._draw_hamster_fallback(
+                image,
+                mascot_x
+                + mascot_width // 2,
+                mascot_y
+                + mascot_height // 2,
+                min(
+                    mascot_width,
+                    mascot_height,
+                ),
+            )
+
+            title_x = int(
+                getattr(
+                    self.theme,
+                    "header_title_with_mascot_x",
+                    126,
+                )
+            )
+
+        title_font = self._font(
+            int(
+                getattr(
+                    self.theme,
+                    "title_font_size",
+                    42,
+                )
+            ),
+            bold=True,
+            italic=True,
+        )
+
+        number_font = self._font(
+            int(
+                getattr(
+                    self.theme,
+                    "title_number_font_size",
+                    42,
+                )
+            ),
+            bold=True,
+            italic=True,
+        )
+
+        subtitle_font = self._font(
+            int(
+                getattr(
+                    self.theme,
+                    "subtitle_font_size",
+                    17,
+                )
+            ),
+            bold=True,
         )
 
         tournament_id = getattr(
@@ -2604,25 +3119,211 @@ class BracketImageService:
             "?",
         )
 
-        tournament_name = (
+        tournament_name = str(
             getattr(
                 tournament,
                 "name",
-                None,
+                "HAMTARO CUP",
             )
-            or "HAMTARO CUP"
+        ).upper()
+
+        title_y = int(
+            getattr(
+                self.theme,
+                "header_title_y",
+                17,
+            )
         )
 
-        tournament_format = (
+        draw.text(
+            (
+                title_x,
+                title_y,
+            ),
+            tournament_name,
+            font=title_font,
+            fill=self.TEXT,
+        )
+
+        title_width = self._text_width(
+            draw,
+            tournament_name,
+            title_font,
+        )
+
+        draw.text(
+            (
+                title_x
+                + title_width
+                + 12,
+                title_y,
+            ),
+            f"#{tournament_id}",
+            font=number_font,
+            fill=self.RED,
+        )
+
+        tournament_format = str(
             getattr(
                 tournament,
                 "format",
-                None,
+                "FORMAT INCONNU",
             )
-            or "FORMAT INCONNU"
+        ).upper()
+
+        metadata = (
+            f"FORMAT : {tournament_format}   •   "
+            f"ÉLIMINATION DIRECTE   •   "
+            f"{player_capacity} JOUEURS"
         )
 
-        organizer = (
+        draw.text(
+            (
+                title_x,
+                int(
+                    getattr(
+                        self.theme,
+                        "header_metadata_y",
+                        69,
+                    )
+                ),
+            ),
+            metadata,
+            font=subtitle_font,
+            fill=self.MUTED,
+        )
+
+        logo_width = int(
+            getattr(
+                self.theme,
+                "header_logo_maximum_width",
+                220,
+            )
+        )
+
+        logo_height = int(
+            getattr(
+                self.theme,
+                "header_logo_maximum_height",
+                106,
+            )
+        )
+
+        logo_y = int(
+            getattr(
+                self.theme,
+                "header_logo_vertical_offset",
+                1,
+            )
+        )
+
+        logo_path = self._theme_path(
+            "logo_path",
+            "hamtaro_logo.png",
+        )
+
+        logo = self._draw_asset_centered(
+            image,
+            logo_path,
+            width // 2,
+            logo_y,
+            logo_width,
+            logo_height,
+        )
+
+        if logo is None:
+            self._draw_logo_fallback(
+                draw,
+                width // 2,
+                logo_y + 3,
+                logo_width,
+                logo_height - 6,
+            )
+
+        box_height = int(
+            getattr(
+                self.theme,
+                "header_information_box_height",
+                64,
+            )
+        )
+
+        box_gap = int(
+            getattr(
+                self.theme,
+                "header_information_box_gap",
+                6,
+            )
+        )
+
+        date_width = int(
+            getattr(
+                self.theme,
+                "date_box_width",
+                180,
+            )
+        )
+
+        id_width = int(
+            getattr(
+                self.theme,
+                "tournament_id_box_width",
+                145,
+            )
+        )
+
+        organizer_width = int(
+            getattr(
+                self.theme,
+                "organizer_box_width",
+                220,
+            )
+        )
+
+        total_width = (
+            date_width
+            + id_width
+            + organizer_width
+            + box_gap
+            * 2
+        )
+
+        info_x = (
+            width
+            - int(
+                getattr(
+                    self.theme,
+                    "horizontal_margin",
+                    24,
+                )
+            )
+            - total_width
+        )
+
+        info_y = max(
+            8,
+            (
+                header_height
+                - box_height
+            )
+            // 2,
+        )
+
+        date_value = str(
+            getattr(
+                tournament,
+                "date",
+                None,
+            )
+            or getattr(
+                tournament,
+                "start_date",
+                None,
+            )
+            or "DATE À DÉFINIR"
+        )
+
+        organizer = str(
             getattr(
                 tournament,
                 "organizer_name",
@@ -2636,293 +3337,58 @@ class BracketImageService:
             or "HAMTARO BOT"
         )
 
-        date_value = (
-            self._first_existing_attribute(
-                tournament,
-                (
-                    "date",
-                    "start_date",
-                    "created_at",
-                    "created_on",
-                ),
-            )
-        )
-
-        draw.rectangle(
-            (
-                0,
-                0,
-                width,
-                header_height,
-            ),
-            fill=self.theme.header_background,
-        )
-
-        title_font = self._font(
-            self.theme.title_font_size,
-            bold=True,
-        )
-
-        subtitle_font = self._font(
-            self.theme.subtitle_font_size,
-            bold=True,
-        )
-
-        title_x = (
-            self.theme.header_title_x
-        )
-
-        title_y = (
-            self.theme.header_title_y
-        )
-
-        header_icon = self._load_asset(
-            self.theme.footer_icon_path
-        )
-
-        if header_icon is not None:
-            header_icon = self._contain_image(
-                header_icon,
-                58,
-                58,
-            )
-
-            image.alpha_composite(
-                header_icon,
-                (
-                    22,
-                    14,
-                ),
-            )
-
-            title_x = 92
-
-        base_title = self._safe_text(
-            str(
-                tournament_name
-            ).upper(),
-            26,
-        )
-
-        draw.text(
-            (
-                title_x,
-                title_y,
-            ),
-            base_title,
-            font=title_font,
-            fill=self.TEXT,
-        )
-
-        title_width = self._text_width(
+        self._draw_information_card(
             draw,
-            base_title,
-            title_font,
+            info_x,
+            info_y,
+            date_width,
+            box_height,
+            "Date",
+            date_value,
         )
 
-        id_text = (
-            f" #{tournament_id}"
+        self._draw_information_card(
+            draw,
+            info_x
+            + date_width
+            + box_gap,
+            info_y,
+            id_width,
+            box_height,
+            "ID du tournoi",
+            f"#{tournament_id}",
+            self.RED,
         )
 
-        draw.text(
+        self._draw_information_card(
+            draw,
             (
-                title_x + title_width,
-                title_y,
+                info_x
+                + date_width
+                + id_width
+                + box_gap
+                * 2
             ),
-            id_text,
-            font=title_font,
-            fill=self.RED,
+            info_y,
+            organizer_width,
+            box_height,
+            "Organisé par",
+            organizer,
         )
 
-        metadata = (
-            f"FORMAT : "
-            f"{str(tournament_format).upper()}"
-            f"   •   ÉLIMINATION DIRECTE"
-            f"   •   {player_capacity} JOUEURS"
-        )
-
-        draw.text(
-            (
-                title_x,
-                self.theme.header_metadata_y,
-            ),
-            metadata,
-            font=subtitle_font,
-            fill=self.MUTED,
-        )
-
-        logo_drawn = self._draw_optional_logo(
-            image,
-            center_x=width // 2,
-            y=4,
-            maximum_width=(
-                self.theme.header_logo_maximum_width
-            ),
-            maximum_height=(
-                self.theme.header_logo_maximum_height
-            ),
-        )
-
-        if not logo_drawn:
-            logo_font = self._font(
-                26,
-                bold=True,
+        separator_height = int(
+            getattr(
+                self.theme,
+                "header_separator_height",
+                3,
             )
-
-            small_logo_font = self._font(
-                12,
-                bold=True,
-            )
-
-            draw.rounded_rectangle(
-                (
-                    width // 2 - 105,
-                    18,
-                    width // 2 + 105,
-                    94,
-                ),
-                radius=6,
-                fill=self.PANEL,
-                outline=self.GOLD,
-                width=2,
-            )
-
-            draw.text(
-                (
-                    width // 2,
-                    36,
-                ),
-                "HAMTARO",
-                font=logo_font,
-                fill=self.TEXT,
-                anchor="ma",
-            )
-
-            draw.text(
-                (
-                    width // 2,
-                    73,
-                ),
-                "TOURNAMENT BOT",
-                font=small_logo_font,
-                fill=self.RED,
-                anchor="ma",
-            )
-
-        gap = 6
-
-        total_boxes_width = (
-            self.theme.date_box_width
-            + self.theme.tournament_id_box_width
-            + self.theme.organizer_box_width
-            + gap * 2
-        )
-
-        box_x = (
-            width
-            - self.theme.horizontal_margin
-            - total_boxes_width
-        )
-
-        box_y = 20
-
-        box_height = (
-            self.theme.header_information_box_height
-        )
-
-        boxes = (
-            (
-                self.theme.date_box_width,
-                "DATE",
-                self._format_date(
-                    date_value
-                ),
-                self.TEXT,
-            ),
-            (
-                self.theme.tournament_id_box_width,
-                "ID DU TOURNOI",
-                f"#{tournament_id}",
-                self.RED,
-            ),
-            (
-                self.theme.organizer_box_width,
-                "ORGANISÉ PAR",
-                self._safe_text(
-                    str(
-                        organizer
-                    ).upper(),
-                    19,
-                ),
-                self.TEXT,
-            ),
-        )
-
-        label_font = self._font(
-            11,
-            bold=True,
-        )
-
-        value_font = self._font(
-            15,
-            bold=True,
-        )
-
-        for (
-            box_width,
-            label,
-            value,
-            value_color,
-        ) in boxes:
-            draw.rounded_rectangle(
-                (
-                    box_x,
-                    box_y,
-                    box_x + box_width,
-                    box_y + box_height,
-                ),
-                radius=(
-                    self.theme.header_information_box_radius
-                ),
-                fill=self.PANEL,
-                outline=self.theme.separator,
-                width=1,
-            )
-
-            draw.text(
-                (
-                    box_x + 12,
-                    box_y + 10,
-                ),
-                label,
-                font=label_font,
-                fill=self.MUTED,
-            )
-
-            draw.text(
-                (
-                    box_x + 12,
-                    box_y + 31,
-                ),
-                value,
-                font=value_font,
-                fill=value_color,
-            )
-
-            box_x += (
-                box_width
-                + gap
-            )
-
-        separator_y = (
-            header_height
-            - self.theme.header_separator_height
         )
 
         draw.rectangle(
             (
                 0,
-                separator_y,
+                header_height
+                - separator_height,
                 width // 2,
                 header_height,
             ),
@@ -2932,7 +3398,8 @@ class BracketImageService:
         draw.rectangle(
             (
                 width // 2,
-                separator_y,
+                header_height
+                - separator_height,
                 width,
                 header_height,
             ),
@@ -2940,114 +3407,194 @@ class BracketImageService:
         )
 
     # ==========================================================
-    # TITRES DES ROUNDS
+    # TITRES DES RONDES
     # ==========================================================
 
-    def _draw_round_titles(
+    def _draw_round_headers(
         self,
         draw: ImageDraw.ImageDraw,
         positions: dict[
             int,
-            list[
-                tuple[int, int, str]
-            ],
+            list[Position],
+        ],
+        geometries: dict[
+            int,
+            RoundGeometry,
         ],
         player_capacity: int,
     ) -> None:
-        box_width = self.theme.box_width(
-            player_capacity
-        )
-
-        final_width = (
-            self.theme.final_box_width(
-                player_capacity
+        header_height = int(
+            getattr(
+                self.theme,
+                "header_height",
+                112,
             )
         )
 
+        title_y = (
+            header_height
+            + 12
+        )
+
+        underline_y = (
+            header_height
+            + int(
+                getattr(
+                    self.theme,
+                    "round_labels_height",
+                    28,
+                )
+            )
+            - 3
+        )
+
         font = self._font(
-            self.theme.round_font_size_for(
-                player_capacity
+            int(
+                self.theme.round_font_size_for(
+                    player_capacity
+                )
             ),
             bold=True,
         )
 
-        center_y = (
-            self.theme.header_height
-            + self.theme.round_labels_height // 2
+        underline_width = int(
+            getattr(
+                self.theme,
+                "round_title_underline_width",
+                74,
+            )
         )
 
-        for (
-            round_number,
-            round_positions,
-        ) in positions.items():
+        underline_height = int(
+            getattr(
+                self.theme,
+                "round_title_underline_height",
+                2,
+            )
+        )
+
+        for round_number in sorted(
+            positions,
+            reverse=True,
+        ):
+            round_positions = positions[
+                round_number
+            ]
+
             if not round_positions:
                 continue
 
+            geometry = geometries[
+                round_number
+            ]
+
             if round_number == 1:
-                (
-                    x,
-                    _,
-                    _,
-                ) = round_positions[0]
-
-                plate_width = min(
-                    140,
-                    final_width - 12,
+                x, _, _ = (
+                    round_positions[0]
                 )
 
-                plate_height = 28
-
-                plate_x = (
+                center_x = (
                     x
-                    + final_width // 2
-                    - plate_width // 2
+                    + geometry.width // 2
                 )
 
-                plate_y = (
-                    center_y
-                    - plate_height // 2
+                title = self._round_title(
+                    round_number
+                )
+
+                title_width = int(
+                    getattr(
+                        self.theme,
+                        "final_title_width",
+                        136,
+                    )
+                )
+
+                title_height = int(
+                    getattr(
+                        self.theme,
+                        "final_title_height",
+                        34,
+                    )
                 )
 
                 draw.rounded_rectangle(
                     (
-                        plate_x,
-                        plate_y,
-                        plate_x + plate_width,
-                        plate_y + plate_height,
+                        center_x
+                        - title_width // 2,
+                        header_height
+                        + 4,
+                        center_x
+                        + title_width // 2,
+                        header_height
+                        + 4
+                        + title_height,
                     ),
-                    radius=4,
-                    fill=self.theme.left_side_dark,
-                    outline=self.RED,
+                    radius=int(
+                        getattr(
+                            self.theme,
+                            "final_title_radius",
+                            5,
+                        )
+                    ),
+                    fill=getattr(
+                        self.theme,
+                        "final_title_background",
+                        self._blend_color(
+                            self.PANEL,
+                            self.RED,
+                            0.32,
+                        ),
+                    ),
+                    outline=getattr(
+                        self.theme,
+                        "final_title_border",
+                        self.RED,
+                    ),
                     width=1,
                 )
 
                 draw.text(
                     (
-                        x + final_width // 2,
-                        center_y,
+                        center_x,
+                        header_height
+                        + 4
+                        + title_height // 2,
                     ),
-                    self._round_title(
-                        round_number
+                    title,
+                    font=self._font(
+                        int(
+                            getattr(
+                                self.theme,
+                                "final_title_font_size",
+                                22,
+                            )
+                        ),
+                        bold=True,
                     ),
-                    font=font,
                     fill=self.TEXT,
                     anchor="mm",
                 )
 
                 continue
 
-            displayed_sides: set[str] = set()
+            seen: set[str] = set()
 
             for (
                 x,
                 _,
                 side,
             ) in round_positions:
-                if side in displayed_sides:
+                if side in seen:
                     continue
 
-                displayed_sides.add(
+                seen.add(
                     side
+                )
+
+                center_x = (
+                    x
+                    + geometry.width // 2
                 )
 
                 color = (
@@ -3056,1208 +3603,32 @@ class BracketImageService:
                     else self.BLUE
                 )
 
-                title_x = (
-                    x
-                    + box_width // 2
-                )
-
                 draw.text(
                     (
-                        title_x,
-                        center_y - 2,
+                        center_x,
+                        title_y,
                     ),
                     self._round_title(
                         round_number
                     ),
                     font=font,
-                    fill=color,
-                    anchor="mm",
+                    fill=self.TEXT,
+                    anchor="ma",
                 )
 
-                line_half_width = min(
-                    42,
-                    box_width // 3,
-                )
-
-                draw.line(
-                    (
-                        title_x - line_half_width,
-                        center_y + 12,
-                        title_x + line_half_width,
-                        center_y + 12,
-                    ),
-                    fill=color,
-                    width=2,
-                )
-
-    # ==========================================================
-    # CHAMPION ET STATISTIQUES
-    # ==========================================================
-
-    def _draw_fallback_trophy(
-        self,
-        draw: ImageDraw.ImageDraw,
-        center_x: int,
-        y: int,
-    ) -> None:
-        cup_width = 42
-        cup_height = 34
-
-        left = (
-            center_x
-            - cup_width // 2
-        )
-
-        right = (
-            center_x
-            + cup_width // 2
-        )
-
-        draw.rounded_rectangle(
-            (
-                left,
-                y,
-                right,
-                y + cup_height,
-            ),
-            radius=8,
-            fill=self.GOLD,
-            outline=(
-                255,
-                230,
-                130,
-            ),
-            width=2,
-        )
-
-        draw.arc(
-            (
-                left - 16,
-                y + 3,
-                left + 10,
-                y + 27,
-            ),
-            start=70,
-            end=290,
-            fill=self.GOLD,
-            width=4,
-        )
-
-        draw.arc(
-            (
-                right - 10,
-                y + 3,
-                right + 16,
-                y + 27,
-            ),
-            start=250,
-            end=110,
-            fill=self.GOLD,
-            width=4,
-        )
-
-        draw.rectangle(
-            (
-                center_x - 4,
-                y + cup_height,
-                center_x + 4,
-                y + cup_height + 16,
-            ),
-            fill=self.GOLD,
-        )
-
-        draw.rounded_rectangle(
-            (
-                center_x - 18,
-                y + cup_height + 14,
-                center_x + 18,
-                y + cup_height + 22,
-            ),
-            radius=3,
-            fill=self.GOLD,
-        )
-
-    def _draw_statistics_card(
-        self,
-        draw: ImageDraw.ImageDraw,
-        tournament: Any,
-        bracket: dict[int, list[Any]],
-        player_capacity: int,
-        center_x: int,
-        y: int,
-    ) -> None:
-        card_width = (
-            self.theme.statistics_card_width
-        )
-
-        card_height = (
-            self.theme.statistics_card_height
-        )
-
-        x = (
-            center_x
-            - card_width // 2
-        )
-
-        draw.rounded_rectangle(
-            (
-                x,
-                y,
-                x + card_width,
-                y + card_height,
-            ),
-            radius=self.theme.statistics_card_radius,
-            fill=self.PANEL,
-            outline=self.BLUE,
-            width=1,
-        )
-
-        draw.text(
-            (
-                center_x,
-                y + 12,
-            ),
-            "STATISTIQUES DU TOURNOI",
-            font=self._font(
-                self.theme.statistics_title_font_size,
-                bold=True,
-            ),
-            fill=self.RED,
-            anchor="ma",
-        )
-
-        all_matches = [
-            match
-            for matches in bracket.values()
-            for match in matches
-        ]
-
-        matches_played = sum(
-            1
-            for match in all_matches
-            if self._status_value(
-                getattr(
-                    match,
-                    "status",
-                    "",
-                )
-            )
-            in self.COMPLETED_STATUSES
-        )
-
-        rounds = max(
-            bracket
-        )
-
-        duration = (
-            getattr(
-                tournament,
-                "duration",
-                None,
-            )
-            or getattr(
-                tournament,
-                "total_duration",
-                None,
-            )
-            or "—"
-        )
-
-        statistics = (
-            (
-                str(
-                    player_capacity
-                ),
-                "JOUEURS",
-            ),
-            (
-                str(
-                    matches_played
-                ),
-                "MATCHS JOUÉS",
-            ),
-            (
-                str(
-                    duration
-                ).upper(),
-                "DURÉE TOTALE",
-            ),
-            (
-                str(
-                    rounds
-                ),
-                "ROUNDS",
-            ),
-        )
-
-        column_width = (
-            card_width
-            // len(
-                statistics
-            )
-        )
-
-        value_font = self._font(
-            self.theme.statistics_value_font_size,
-            bold=True,
-        )
-
-        label_font = self._font(
-            self.theme.statistics_label_font_size,
-            bold=True,
-        )
-
-        for (
-            index,
-            (
-                value,
-                label,
-            ),
-        ) in enumerate(
-            statistics
-        ):
-            column_x = (
-                x
-                + index
-                * column_width
-            )
-
-            center = (
-                column_x
-                + column_width // 2
-            )
-
-            if index > 0:
-                draw.line(
-                    (
-                        column_x,
-                        y + 42,
-                        column_x,
-                        y + card_height - 10,
-                    ),
-                    fill=self.theme.separator,
-                    width=1,
-                )
-
-            draw.text(
-                (
-                    center,
-                    y + 50,
-                ),
-                value,
-                font=value_font,
-                fill=self.TEXT,
-                anchor="ma",
-            )
-
-            draw.text(
-                (
-                    center,
-                    y + 78,
-                ),
-                label,
-                font=label_font,
-                fill=self.MUTED,
-                anchor="ma",
-            )
-
-    def _draw_champion_card(
-        self,
-        image: Image.Image,
-        draw: ImageDraw.ImageDraw,
-        tournament: Any,
-        bracket: dict[int, list[Any]],
-        final_match: Any,
-        final_position: tuple[int, int, str],
-        player_capacity: int,
-        avatars: dict[str, Image.Image],
-    ) -> None:
-        champion_name = getattr(
-            final_match,
-            "winner_name",
-            None,
-        )
-
-        champion_id = getattr(
-            final_match,
-            "winner_id",
-            None,
-        )
-
-        if not champion_name:
-            return
-
-        center_x = (
-            image.width // 2
-        )
-
-        final_height = (
-            self.theme.final_box_height(
-                player_capacity
-            )
-        )
-
-        final_y = (
-            final_position[1]
-        )
-
-        card_width = (
-            self.theme.champion_card_width
-        )
-
-        card_height = (
-            self.theme.champion_card_height
-        )
-
-        card_x = (
-            center_x
-            - card_width // 2
-        )
-
-        card_y = (
-            final_y
-            + final_height
-            + 22
-        )
-
-        draw.rounded_rectangle(
-            (
-                card_x,
-                card_y,
-                card_x + card_width,
-                card_y + card_height,
-            ),
-            radius=self.theme.champion_card_radius,
-            fill=(
-                7,
-                11,
-                20,
-            ),
-            outline=self.theme.champion_gold_dark,
-            width=self.theme.champion_card_border_width,
-        )
-
-        trophy_y = (
-            card_y + 12
-        )
-
-        trophy_drawn = (
-            self._draw_optional_trophy(
-                image,
-                center_x,
-                trophy_y,
-                self.theme.champion_trophy_width,
-                self.theme.champion_trophy_height,
-            )
-        )
-
-        if not trophy_drawn:
-            self._draw_fallback_trophy(
-                draw,
-                center_x,
-                trophy_y + 4,
-            )
-
-        draw.text(
-            (
-                center_x,
-                card_y + 91,
-            ),
-            "CHAMPION",
-            font=self._font(
-                self.theme.champion_title_font_size,
-                bold=True,
-            ),
-            fill=self.GOLD,
-            anchor="ma",
-        )
-
-        champion_image_y = (
-            card_y + 116
-        )
-
-        champion_drawn = (
-            self._draw_optional_champion_image(
-                image,
-                center_x,
-                champion_image_y,
-                self.theme.champion_image_width,
-                self.theme.champion_image_height,
-            )
-        )
-
-        if not champion_drawn:
-            key = (
-                str(champion_id)
-                if champion_id
-                else f"name:{champion_name}"
-            )
-
-            avatar = avatars.get(
-                key
-            )
-
-            if avatar is not None:
-                circle = self._circle_avatar(
-                    avatar,
-                    self.theme.champion_avatar_size,
-                )
-
-                image.alpha_composite(
-                    circle,
+                draw.rounded_rectangle(
                     (
                         center_x
-                        - self.theme.champion_avatar_size
-                        // 2,
-                        champion_image_y,
+                        - underline_width // 2,
+                        underline_y,
+                        center_x
+                        + underline_width // 2,
+                        underline_y
+                        + underline_height,
                     ),
+                    radius=max(
+                        1,
+                        underline_height // 2,
+                    ),
+                    fill=color,
                 )
-
-        name_bar_y = (
-            card_y + 238
-        )
-
-        draw.rounded_rectangle(
-            (
-                card_x + 22,
-                name_bar_y,
-                card_x + card_width - 22,
-                name_bar_y + 38,
-            ),
-            radius=4,
-            fill=self.theme.left_side_dark,
-            outline=self.RED,
-            width=1,
-        )
-
-        draw.text(
-            (
-                center_x,
-                name_bar_y + 19,
-            ),
-            self._safe_text(
-                champion_name,
-                22,
-            ),
-            font=self._font(
-                self.theme.champion_name_font_size,
-                bold=True,
-            ),
-            fill=self.TEXT,
-            anchor="mm",
-        )
-
-        winner_slot = 1
-
-        if (
-            getattr(
-                final_match,
-                "player2_id",
-                None,
-            )
-            and champion_id
-            and str(
-                getattr(
-                    final_match,
-                    "player2_id",
-                    None,
-                )
-            )
-            == str(
-                champion_id
-            )
-        ):
-            winner_slot = 2
-
-        deck = (
-            self._deck_for(
-                final_match,
-                winner_slot,
-            )
-            or "NON RENSEIGNÉ"
-        )
-
-        seed = self._seed_for(
-            final_match,
-            winner_slot,
-        )
-
-        seed_text = (
-            f"#{seed}"
-            if seed is not None
-            else "—"
-        )
-
-        draw.text(
-            (
-                center_x,
-                card_y + 288,
-            ),
-            (
-                "DECK : "
-                f"{self._safe_text(deck.upper(), 22)}"
-            ),
-            font=self._font(
-                self.theme.champion_information_font_size,
-                bold=True,
-            ),
-            fill=self.MUTED,
-            anchor="ma",
-        )
-
-        draw.text(
-            (
-                center_x,
-                card_y + 310,
-            ),
-            f"SEED : {seed_text}",
-            font=self._font(
-                self.theme.champion_information_font_size,
-                bold=True,
-            ),
-            fill=self.MUTED,
-            anchor="ma",
-        )
-
-        stats_y = (
-            card_y
-            + card_height
-            + 12
-        )
-
-        footer_y = (
-            image.height
-            - self.theme.footer_height
-        )
-
-        if (
-            stats_y
-            + self.theme.statistics_card_height
-            <= footer_y - 8
-        ):
-            self._draw_statistics_card(
-                draw,
-                tournament,
-                bracket,
-                player_capacity,
-                center_x,
-                stats_y,
-            )
-
-    def _draw_active_center_card(
-        self,
-        draw: ImageDraw.ImageDraw,
-        bracket: dict[int, list[Any]],
-        final_position: tuple[int, int, str],
-        player_capacity: int,
-        width: int,
-    ) -> None:
-        final_y = (
-            final_position[1]
-        )
-
-        final_height = (
-            self.theme.final_box_height(
-                player_capacity
-            )
-        )
-
-        card_width = min(
-            350,
-            self.theme.center_reserved_width(
-                player_capacity
-            )
-            - 20,
-        )
-
-        card_height = 126
-
-        x = (
-            width // 2
-            - card_width // 2
-        )
-
-        y = (
-            final_y
-            + final_height
-            + 26
-        )
-
-        all_matches = [
-            match
-            for matches in bracket.values()
-            for match in matches
-        ]
-
-        completed = sum(
-            1
-            for match in all_matches
-            if self._status_value(
-                getattr(
-                    match,
-                    "status",
-                    "",
-                )
-            )
-            in self.COMPLETED_STATUSES
-        )
-
-        total = len(
-            all_matches
-        )
-
-        progress = (
-            0
-            if total == 0
-            else completed / total
-        )
-
-        draw.rounded_rectangle(
-            (
-                x,
-                y,
-                x + card_width,
-                y + card_height,
-            ),
-            radius=6,
-            fill=self.PANEL,
-            outline=self.BLUE,
-            width=1,
-        )
-
-        draw.text(
-            (
-                width // 2,
-                y + 18,
-            ),
-            "TOURNOI EN COURS",
-            font=self._font(
-                18,
-                bold=True,
-            ),
-            fill=self.BLUE,
-            anchor="ma",
-        )
-
-        draw.text(
-            (
-                width // 2,
-                y + 49,
-            ),
-            (
-                f"{completed} / "
-                f"{total} matchs terminés"
-            ),
-            font=self._font(
-                15,
-                bold=True,
-            ),
-            fill=self.TEXT,
-            anchor="ma",
-        )
-
-        bar_x = (
-            x + 24
-        )
-
-        bar_y = (
-            y + 78
-        )
-
-        bar_width = (
-            card_width - 48
-        )
-
-        bar_height = 14
-
-        draw.rounded_rectangle(
-            (
-                bar_x,
-                bar_y,
-                bar_x + bar_width,
-                bar_y + bar_height,
-            ),
-            radius=7,
-            fill=self.PANEL_ALT,
-        )
-
-        filled_width = max(
-            0,
-            min(
-                bar_width,
-                int(
-                    bar_width
-                    * progress
-                ),
-            ),
-        )
-
-        if filled_width > 0:
-            draw.rounded_rectangle(
-                (
-                    bar_x,
-                    bar_y,
-                    bar_x + filled_width,
-                    bar_y + bar_height,
-                ),
-                radius=7,
-                fill=self.BLUE,
-            )
-
-        draw.text(
-            (
-                width // 2,
-                y + 105,
-            ),
-            (
-                "Résultats mis à jour après "
-                "validation du staff"
-            ),
-            font=self._font(
-                11
-            ),
-            fill=self.MUTED,
-            anchor="ma",
-        )
-
-    # ==========================================================
-    # FOOTER
-    # ==========================================================
-
-    def _draw_footer(
-        self,
-        image: Image.Image,
-        draw: ImageDraw.ImageDraw,
-        final_mode: bool,
-    ) -> None:
-        width, height = (
-            image.size
-        )
-
-        footer_y = (
-            height
-            - self.theme.footer_height
-        )
-
-        center_y = (
-            footer_y
-            + self.theme.footer_height // 2
-        )
-
-        draw.rectangle(
-            (
-                0,
-                footer_y,
-                width,
-                height,
-            ),
-            fill=self.theme.footer_background,
-        )
-
-        draw.line(
-            (
-                0,
-                footer_y,
-                width // 2,
-                footer_y,
-            ),
-            fill=self.RED,
-            width=2,
-        )
-
-        draw.line(
-            (
-                width // 2,
-                footer_y,
-                width,
-                footer_y,
-            ),
-            fill=self.BLUE,
-            width=2,
-        )
-
-        icon_x = (
-            self.theme.footer_horizontal_padding
-        )
-
-        icon_drawn = (
-            self._draw_optional_footer_icon(
-                image,
-                icon_x,
-                center_y,
-            )
-        )
-
-        text_x = (
-            icon_x
-            + self.theme.footer_icon_size
-            + 10
-            if icon_drawn
-            else icon_x
-        )
-
-        footer_font = self._font(
-            self.theme.footer_title_font_size,
-            bold=True,
-        )
-
-        info_font = self._font(
-            self.theme.footer_information_font_size,
-            bold=True,
-        )
-
-        draw.text(
-            (
-                text_x,
-                center_y,
-            ),
-            "ORGANISÉ AVEC",
-            font=info_font,
-            fill=self.MUTED,
-            anchor="lm",
-        )
-
-        organized_width = (
-            self._text_width(
-                draw,
-                "ORGANISÉ AVEC",
-                info_font,
-            )
-        )
-
-        draw.text(
-            (
-                text_x
-                + organized_width
-                + 14,
-                center_y,
-            ),
-            "HAMTARO TOURNAMENT BOT",
-            font=footer_font,
-            fill=self.RED,
-            anchor="lm",
-        )
-
-        center_text = (
-            "MERCI À TOUS LES PARTICIPANTS !"
-            if final_mode
-            else (
-                "TOURNOI EN COURS — "
-                "BON DUEL À TOUS !"
-            )
-        )
-
-        draw.text(
-            (
-                width // 2,
-                center_y,
-            ),
-            center_text,
-            font=footer_font,
-            fill=self.TEXT,
-            anchor="mm",
-        )
-
-        draw.text(
-            (
-                width
-                - self.theme.footer_horizontal_padding,
-                center_y,
-            ),
-            "DISCORD.GG/HAMTARO",
-            font=info_font,
-            fill=self.BLUE,
-            anchor="rm",
-        )
-
-    # ==========================================================
-    # GÉNÉRATION DE L'IMAGE
-    # ==========================================================
-
-    async def render(
-        self,
-        tournament: Any,
-        bracket: dict[int, list[Any]],
-        *,
-        avatar_urls: dict[str, str] | None = None,
-        final_mode: bool = False,
-    ) -> io.BytesIO:
-        if not bracket:
-            raise ValueError(
-                "Aucun bracket n'a été généré "
-                "pour ce tournoi."
-            )
-
-        total_rounds = max(
-            bracket
-        )
-
-        first_round_matches = len(
-            bracket.get(
-                total_rounds,
-                [],
-            )
-        )
-
-        if first_round_matches < 1:
-            raise ValueError(
-                "Le premier tour du tournoi est vide."
-            )
-
-        player_capacity = (
-            first_round_matches
-            * 2
-        )
-
-        if (
-            player_capacity
-            not in self.SUPPORTED_PLAYER_CAPACITIES
-        ):
-            raise ValueError(
-                "Le moteur graphique prend uniquement "
-                "en charge les brackets de 2, 4, 8, "
-                "16, 32, 64 ou 128 joueurs."
-            )
-
-        self.theme.validate_player_capacity(
-            player_capacity
-        )
-
-        width = self.theme.image_width(
-            player_capacity
-        )
-
-        height = self.theme.image_height(
-            player_capacity
-        )
-
-        positions = self._layout(
-            bracket,
-            player_capacity,
-            final_mode,
-        )
-
-        image = Image.new(
-            "RGBA",
-            (
-                width,
-                height,
-            ),
-            self.BG + (255,),
-        )
-
-        self._draw_optional_background(
-            image
-        )
-
-        tournament_id = getattr(
-            tournament,
-            "id",
-            0,
-        )
-
-        self._draw_background_effects(
-            image,
-            player_capacity,
-            tournament_id,
-        )
-
-        draw = ImageDraw.Draw(
-            image
-        )
-
-        self._draw_header(
-            image,
-            draw,
-            tournament,
-            player_capacity,
-            final_mode,
-        )
-
-        self._draw_round_titles(
-            draw,
-            positions,
-            player_capacity,
-        )
-
-        self._draw_connectors(
-            image,
-            bracket,
-            positions,
-            player_capacity,
-        )
-
-        all_matches = [
-            match
-            for matches in bracket.values()
-            for match in matches
-        ]
-
-        avatars = await self._resolve_avatar_map(
-            all_matches,
-            avatar_urls,
-        )
-
-        box_width = self.theme.box_width(
-            player_capacity
-        )
-
-        box_height = self.theme.box_height(
-            player_capacity
-        )
-
-        final_width = (
-            self.theme.final_box_width(
-                player_capacity
-            )
-        )
-
-        final_height = (
-            self.theme.final_box_height(
-                player_capacity
-            )
-        )
-
-        for (
-            round_number,
-            matches,
-        ) in bracket.items():
-            round_positions = positions.get(
-                round_number,
-                [],
-            )
-
-            for (
-                match,
-                position,
-            ) in zip(
-                matches,
-                round_positions,
-            ):
-                (
-                    x,
-                    y,
-                    side,
-                ) = position
-
-                is_final = (
-                    round_number == 1
-                )
-
-                if is_final:
-                    side_color = (
-                        self.GOLD
-                    )
-
-                    current_width = (
-                        final_width
-                    )
-
-                    current_height = (
-                        final_height
-                    )
-
-                elif side == "left":
-                    side_color = (
-                        self.RED
-                    )
-
-                    current_width = (
-                        box_width
-                    )
-
-                    current_height = (
-                        box_height
-                    )
-
-                else:
-                    side_color = (
-                        self.BLUE
-                    )
-
-                    current_width = (
-                        box_width
-                    )
-
-                    current_height = (
-                        box_height
-                    )
-
-                self._draw_match_box(
-                    image,
-                    draw,
-                    x,
-                    y,
-                    current_width,
-                    current_height,
-                    match,
-                    side_color,
-                    avatars,
-                    avatar_urls,
-                    player_capacity,
-                    is_final=is_final,
-                )
-
-        final_matches = bracket.get(
-            1,
-            [],
-        )
-
-        final_match = (
-            final_matches[0]
-            if final_matches
-            else None
-        )
-
-        if (
-            final_match is not None
-            and positions.get(1)
-        ):
-            if (
-                final_mode
-                and getattr(
-                    final_match,
-                    "winner_name",
-                    None,
-                )
-            ):
-                self._draw_champion_card(
-                    image,
-                    draw,
-                    tournament,
-                    bracket,
-                    final_match,
-                    positions[1][0],
-                    player_capacity,
-                    avatars,
-                )
-
-            else:
-                self._draw_active_center_card(
-                    draw,
-                    bracket,
-                    positions[1][0],
-                    player_capacity,
-                    width,
-                )
-
-        self._draw_footer(
-            image,
-            draw,
-            final_mode,
-        )
-
-        output = io.BytesIO()
-
-        image.convert(
-            "RGB"
-        ).save(
-            output,
-            format="PNG",
-            optimize=True,
-            compress_level=7,
-        )
-
-        output.seek(0)
-
-        return output
