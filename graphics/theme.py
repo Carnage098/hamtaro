@@ -54,6 +54,7 @@ class HamtaroBracketTheme:
     champion_laurel_filename: str = "champion_laurel.png"
     footer_icon_filename: str = "hamtaro_footer.png"
     discord_logo_filename: str = "discord_logo.png"
+    bot_avatar_filename: str = "hamtaro_bot_avatar.png"
 
     # ==========================================================
     # COULEURS GÉNÉRALES
@@ -129,8 +130,8 @@ class HamtaroBracketTheme:
     # FORMAT GÉNÉRAL
     # ==========================================================
 
-    header_height: int = 164
-    footer_height: int = 64
+    header_height: int = 176
+    footer_height: int = 72
 
     horizontal_margin: int = 24
     vertical_margin: int = 14
@@ -145,26 +146,27 @@ class HamtaroBracketTheme:
     # HEADER
     # ==========================================================
 
-    title_font_size: int = 64
-    title_number_font_size: int = 52
+    title_font_size: int = 76
+    title_number_font_size: int = 56
+    center_title_font_size: int = 27
 
-    subtitle_font_size: int = 24
+    subtitle_font_size: int = 23
     information_font_size: int = 21
-    round_font_size: int = 21
+    round_font_size: int = 22
 
     header_title_x: int = 48
-    header_title_y: int = 14
-    header_metadata_y: int = 92
+    header_title_y: int = 10
+    header_metadata_y: int = 104
 
     header_mascot_x: int = 22
     header_mascot_y: int = 12
-    header_mascot_width: int = 100
-    header_mascot_height: int = 128
+    header_mascot_width: int = 92
+    header_mascot_height: int = 118
 
-    header_title_with_mascot_x: int = 144
+    header_title_with_mascot_x: int = 132
 
-    header_logo_maximum_width: int = 236
-    header_logo_maximum_height: int = 150
+    header_logo_maximum_width: int = 252
+    header_logo_maximum_height: int = 158
     header_logo_vertical_offset: int = 0
 
     header_information_box_height: int = 90
@@ -183,16 +185,20 @@ class HamtaroBracketTheme:
     # FOOTER
     # ==========================================================
 
-    footer_title_font_size: int = 18
+    footer_title_font_size: int = 19
     footer_information_font_size: int = 16
-    footer_center_font_size: int = 19
+    footer_center_font_size: int = 18
+    footer_server_name_font_size: int = 23
 
-    footer_icon_size: int = 38
+    footer_icon_size: int = 40
     footer_discord_logo_size: int = 36
+    footer_bot_avatar_size: int = 54
+    footer_bot_avatar_border_width: int = 3
 
     footer_horizontal_padding: int = 26
     footer_top_separator_height: int = 2
 
+    server_name: str = "FONT ROW"
     discord_invite_text: str = "HTTPS://DISCORD.GG/HAMTARO"
     footer_center_text: str = "MERCI À TOUS LES PARTICIPANTS !"
 
@@ -245,8 +251,8 @@ class HamtaroBracketTheme:
     # ==========================================================
 
     round_title_vertical_padding: int = 7
-    round_title_underline_width: int = 132
-    round_title_underline_height: int = 4
+    round_title_underline_width: int = 142
+    round_title_underline_height: int = 5
 
     round_title_background_enabled: bool = True
     round_title_background_radius: int = 3
@@ -255,12 +261,12 @@ class HamtaroBracketTheme:
     # FINALE
     # ==========================================================
 
-    final_title_font_size: int = 32
-    final_name_font_size: int = 25
-    final_score_font_size: int = 26
+    final_title_font_size: int = 34
+    final_name_font_size: int = 26
+    final_score_font_size: int = 27
 
-    final_title_height: int = 44
-    final_title_width: int = 176
+    final_title_height: int = 46
+    final_title_width: int = 186
     final_vertical_offset: int = 10
 
     final_avatar_size: int = 52
@@ -276,43 +282,60 @@ class HamtaroBracketTheme:
     # CARTE DU CHAMPION
     # ==========================================================
 
-    champion_title_font_size: int = 38
-    champion_name_font_size: int = 32
-    champion_information_font_size: int = 17
+    champion_title_font_size: int = 39
+    champion_name_font_size: int = 31
+    champion_information_font_size: int = 16
 
-    champion_avatar_size: int = 132
+    champion_avatar_size: int = 126
+    champion_mascot_size: int = 82
+    champion_handoff_trophy_width: int = 36
+    champion_handoff_trophy_height: int = 36
+    champion_visual_gap: int = 18
 
-    champion_card_width: int = 330
-    champion_card_height: int = 360
+    champion_card_width: int = 370
+    champion_card_height: int = 440
     champion_card_radius: int = 8
     champion_card_border_width: int = 2
 
     champion_card_background: Color = (5, 10, 20)
 
-    champion_trophy_width: int = 82
-    champion_trophy_height: int = 82
+    champion_trophy_width: int = 80
+    champion_trophy_height: int = 80
 
-    champion_image_width: int = 144
-    champion_image_height: int = 144
+    champion_image_width: int = 82
+    champion_image_height: int = 82
 
-    champion_laurel_width: int = 212
-    champion_laurel_height: int = 164
+    champion_laurel_width: int = 218
+    champion_laurel_height: int = 168
 
-    champion_name_plate_width: int = 220
+    champion_name_plate_width: int = 248
     champion_name_plate_height: int = 43
     champion_name_plate_radius: int = 4
 
     champion_glow_radius: int = 24
     champion_glow_alpha: int = 105
 
-    champion_particle_count: int = 26
+    champion_particle_count: int = 30
     champion_particle_radius: int = 2
+
+    # Deuxième place / finaliste
+    runner_up_card_width: int = 310
+    runner_up_card_height: int = 62
+    runner_up_card_radius: int = 8
+    runner_up_avatar_size: int = 36
+    runner_up_trophy_width: int = 26
+    runner_up_trophy_height: int = 26
+    runner_up_title_font_size: int = 15
+    runner_up_name_font_size: int = 18
+    runner_up_information_font_size: int = 13
+    runner_up_platinum: Color = (184, 218, 255)
+    runner_up_background: Color = (9, 31, 62)
 
     # ==========================================================
     # STATISTIQUES
     # ==========================================================
 
-    statistics_card_width: int = 420
+    statistics_card_width: int = 440
     statistics_card_height: int = 104
     statistics_card_radius: int = 5
     statistics_card_border_width: int = 1
@@ -388,6 +411,10 @@ class HamtaroBracketTheme:
     @property
     def discord_logo_path(self) -> Path:
         return self.assets_directory / self.discord_logo_filename
+
+    @property
+    def bot_avatar_path(self) -> Path:
+        return self.assets_directory / self.bot_avatar_filename
 
     # ==========================================================
     # NORMALISATION DU NOMBRE DE JOUEURS
