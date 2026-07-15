@@ -200,7 +200,7 @@ class HamtaroBracketTheme:
 
     server_name: str = "FONT ROW"
     discord_invite_text: str = "HTTPS://DISCORD.GG/HAMTARO"
-    footer_center_text: str = "MERCI À TOUS LES PARTICIPANTS !"
+    footer_center_text: str = "MERCI A TOUS LES PARTICIPANTS !"
 
     # ==========================================================
     # CASES DES MATCHS
@@ -285,6 +285,14 @@ class HamtaroBracketTheme:
     champion_title_font_size: int = 39
     champion_name_font_size: int = 31
     champion_information_font_size: int = 16
+    champion_deck_font_size: int = 18
+    champion_deck_plate_width: int = 310
+    champion_deck_plate_height: int = 38
+    champion_deck_plate_radius: int = 7
+    champion_deck_plate_background: Color = (20, 17, 8)
+    champion_deck_plate_border: Color = (255, 199, 55)
+    champion_deck_label_color: Color = (255, 226, 125)
+    champion_seed_badge_width: int = 70
 
     champion_avatar_size: int = 126
     champion_mascot_size: int = 82
@@ -293,7 +301,7 @@ class HamtaroBracketTheme:
     champion_visual_gap: int = 18
 
     champion_card_width: int = 370
-    champion_card_height: int = 440
+    champion_card_height: int = 470
     champion_card_radius: int = 8
     champion_card_border_width: int = 2
 
