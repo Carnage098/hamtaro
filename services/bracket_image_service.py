@@ -181,8 +181,8 @@ class BracketImageService:
     
         cleaned = (
             value
-            or "À déterminer"
-        ).strip() or "À déterminer"
+            or "A determiner"
+        ).strip() or "A determiner"
     
         if len(cleaned) <= maximum:
             return cleaned
@@ -282,7 +282,7 @@ class BracketImageService:
             return (
                 "BYE"
                 if player_id
-                else "—"
+                else "-"
             )
     
         status = BracketImageService._status_value(
@@ -309,7 +309,7 @@ class BracketImageService:
             if score is not None:
                 return str(score)
     
-        return "—"
+        return "-"
     
     @staticmethod
     def _round_title(
@@ -321,10 +321,10 @@ class BracketImageService:
             1: "FINALE",
             2: "DEMI-FINALES",
             3: "QUARTS",
-            4: "8ÈMES",
-            5: "16ÈMES",
-            6: "32ÈMES",
-            7: "64ÈMES",
+            4: "8EMES",
+            5: "16EMES",
+            6: "32EMES",
+            7: "64EMES",
         }
     
         return names.get(
@@ -457,8 +457,8 @@ class BracketImageService:
     
         cleaned = (
             text
-            or "À déterminer"
-        ).strip() or "À déterminer"
+            or "A determiner"
+        ).strip() or "A determiner"
     
         if (
             cls._text_width(
@@ -470,7 +470,7 @@ class BracketImageService:
         ):
             return cleaned
     
-        suffix = "…"
+        suffix = "..."
         low = 1
         high = len(cleaned)
         best = suffix
@@ -1068,12 +1068,12 @@ class BracketImageService:
                         f"player{slot}_name",
                         None,
                     )
-                    or "À déterminer"
+                    or "A determiner"
                 )
     
                 if (
                     not discord_id
-                    and name == "À déterminer"
+                    and name == "A determiner"
                 ):
                     continue
     
@@ -1268,7 +1268,7 @@ class BracketImageService:
                     f"player{slot}_name",
                     None,
                 )
-                or "À déterminer"
+                or "A determiner"
             )
     
             key = self._player_key(
@@ -2506,19 +2506,42 @@ class BracketImageService:
             width=2,
         )
 
-        title_font = self._font(max(28, height // 4), bold=True)
-        subtitle_font = self._font(max(14, height // 9), bold=True)
+        title_text = "HAMTARO"
+        subtitle_text = "TOURNAMENT BOT"
+
+        # Les deux textes sont ajustés à la largeur intérieure de l'emblème.
+        # Cela évite notamment que « TOURNAMENT BOT » dépasse du blason.
+        title_size = max(24, height // 4)
+        title_font = self._font(title_size, bold=True)
+        title_maximum_width = max(80, width - 54)
+        while (
+            title_size > 16
+            and self._text_width(draw, title_text, title_font) > title_maximum_width
+        ):
+            title_size -= 1
+            title_font = self._font(title_size, bold=True)
+
+        subtitle_size = max(11, height // 11)
+        subtitle_font = self._font(subtitle_size, bold=True)
+        subtitle_maximum_width = max(70, width - 70)
+        while (
+            subtitle_size > 9
+            and self._text_width(draw, subtitle_text, subtitle_font)
+            > subtitle_maximum_width
+        ):
+            subtitle_size -= 1
+            subtitle_font = self._font(subtitle_size, bold=True)
 
         draw.text(
-            (center_x, y + height * 0.40),
-            "HAMTARO",
+            (center_x, y + height * 0.37),
+            title_text,
             font=title_font,
             fill=self.TEXT,
             anchor="mm",
         )
         draw.text(
-            (center_x, y + height * 0.68),
-            "TOURNAMENT BOT",
+            (center_x, y + height * 0.61),
+            subtitle_text,
             font=subtitle_font,
             fill=self.RED,
             anchor="mm",
@@ -2708,8 +2731,8 @@ class BracketImageService:
 
         tournament_format = str(getattr(tournament, "format", "FORMAT INCONNU")).upper()
         metadata = (
-            f"FORMAT : {tournament_format}   •   "
-            f"ÉLIMINATION DIRECTE   •   {player_capacity} JOUEURS"
+            f"FORMAT : {tournament_format}   |   "
+            f"ELIMINATION DIRECTE   |   {player_capacity} JOUEURS"
         )
         metadata = self._fit_text(draw, metadata, subtitle_font, available_title_width)
         metadata_y = min(
@@ -2793,7 +2816,7 @@ class BracketImageService:
         date_value = str(
             getattr(tournament, "date", None)
             or getattr(tournament, "start_date", None)
-            or "DATE À DÉFINIR"
+            or "DATE A DEFINIR"
         )
         organizer = str(
             getattr(tournament, "organizer_name", None)
@@ -2818,7 +2841,7 @@ class BracketImageService:
             info_y,
             organizer_width,
             box_height,
-            "Organisé par",
+            "Organise par",
             organizer,
         )
 
@@ -3783,7 +3806,7 @@ class BracketImageService:
         draw.line((seed_x2, y, seed_x2, y + height), fill=separator, width=1)
         draw.line((score_x1, y, score_x1, y + height), fill=separator, width=1)
 
-        seed_text = str(player.seed) if player.seed is not None else "—"
+        seed_text = str(player.seed) if player.seed is not None else "-"
         seed_font = self._font(geometry.seed_font_size, bold=True)
         draw.text(
             (x + seed_width // 2, y + height // 2),
@@ -3837,7 +3860,7 @@ class BracketImageService:
         )
         name_color = (
             self.TEXT
-            if player.name != "À déterminer"
+            if player.name != "A determiner"
             else getattr(self.theme, "disabled_text", self.MUTED)
         )
         draw.text(
@@ -4543,10 +4566,10 @@ class BracketImageService:
                         f"player{slot}_deck",
                         None,
                     )
-                    or "NON RENSEIGNÉ"
+                    or "NON RENSEIGNE"
                 )
     
-        return "NON RENSEIGNÉ"
+        return "NON RENSEIGNE"
     
     def _draw_champion_card(
         self,
@@ -4801,6 +4824,90 @@ class BracketImageService:
             anchor="mm",
         )
 
+        # Bandeau dédié au deck du champion, placé immédiatement sous son nom.
+        # Le nom du deck est ainsi visible avant les informations de la 2e place.
+        champion_seed = seed_map.get(champion_key)
+        deck = self._champion_deck(final_match, champion_id, champion_name)
+        deck_plate_width = min(
+            card_width - 30,
+            int(getattr(self.theme, "champion_deck_plate_width", 310)),
+        )
+        deck_plate_height = int(
+            getattr(self.theme, "champion_deck_plate_height", 38)
+        )
+        deck_plate_x = center_x - deck_plate_width // 2
+        deck_plate_y = name_plate_y + name_plate_height + 8
+        seed_badge_width = min(
+            int(getattr(self.theme, "champion_seed_badge_width", 70)),
+            deck_plate_width // 3,
+        )
+        draw.rounded_rectangle(
+            (
+                deck_plate_x,
+                deck_plate_y,
+                deck_plate_x + deck_plate_width,
+                deck_plate_y + deck_plate_height,
+            ),
+            radius=int(getattr(self.theme, "champion_deck_plate_radius", 7)),
+            fill=getattr(
+                self.theme,
+                "champion_deck_plate_background",
+                self._blend_color(self.GOLD, self.BG, 0.86),
+            ),
+            outline=getattr(
+                self.theme,
+                "champion_deck_plate_border",
+                self.GOLD,
+            ),
+            width=2,
+        )
+        draw.line(
+            (
+                deck_plate_x + deck_plate_width - seed_badge_width,
+                deck_plate_y + 5,
+                deck_plate_x + deck_plate_width - seed_badge_width,
+                deck_plate_y + deck_plate_height - 5,
+            ),
+            fill=self._blend_color(self.GOLD, self.BG, 0.45),
+            width=1,
+        )
+        deck_font = self._font(
+            int(getattr(self.theme, "champion_deck_font_size", 18)),
+            bold=True,
+        )
+        deck_label = f"DECK DU CHAMPION | {str(deck).upper()}"
+        fitted_deck = self._fit_text(
+            draw,
+            deck_label,
+            deck_font,
+            deck_plate_width - seed_badge_width - 22,
+        )
+        draw.text(
+            (
+                deck_plate_x + 12,
+                deck_plate_y + deck_plate_height // 2,
+            ),
+            fitted_deck,
+            font=deck_font,
+            fill=getattr(
+                self.theme,
+                "champion_deck_label_color",
+                self.theme.champion_gold_light,
+            ),
+            anchor="lm",
+        )
+        seed_font = self._font(max(14, int(getattr(self.theme, "champion_information_font_size", 16))), bold=True)
+        draw.text(
+            (
+                deck_plate_x + deck_plate_width - seed_badge_width // 2,
+                deck_plate_y + deck_plate_height // 2,
+            ),
+            f"#{champion_seed or '?'}",
+            font=seed_font,
+            fill=self.TEXT,
+            anchor="mm",
+        )
+
         runner_slot = 2
         first_name = getattr(final_match, "player1_name", None)
         second_name = getattr(final_match, "player2_name", None)
@@ -4820,13 +4927,13 @@ class BracketImageService:
         runner_seed = seed_map.get(runner_key)
         runner_deck = (
             getattr(final_match, f"player{runner_slot}_deck", None)
-            or "NON RENSEIGNÉ"
+            or "NON RENSEIGNE"
         )
         runner_avatar = avatars.get(runner_key)
         if runner_avatar is None:
             runner_avatar = self._create_fallback_avatar(runner_name)
 
-        runner_card_y = name_plate_y + name_plate_height + 12
+        runner_card_y = deck_plate_y + deck_plate_height + 10
         runner_card_height = int(getattr(self.theme, "runner_up_card_height", 62))
         runner_card_width = min(
             card_width - 26,
@@ -4895,7 +5002,7 @@ class BracketImageService:
         )
         runner_info = self._fit_text(
             draw,
-            f"DECK • {str(runner_deck).upper()}   •   SEED #{runner_seed or '?'}",
+            f"DECK | {str(runner_deck).upper()}   |   SEED #{runner_seed or '?'}",
             runner_info_font,
             runner_card_width - 120,
         )
@@ -4904,21 +5011,6 @@ class BracketImageService:
             runner_info,
             font=runner_info_font,
             fill=self.MUTED,
-        )
-
-        champion_seed = seed_map.get(champion_key)
-        deck = self._champion_deck(final_match, champion_id, champion_name)
-        champion_information_size = int(getattr(self.theme, "champion_information_font_size", 17))
-        info_font = self._font(champion_information_size, bold=True)
-        info_y = runner_card_y + runner_card_height + 10
-        deck_text = self._fit_text(draw, f"DECK • {str(deck).upper()}", info_font, card_width - 28)
-        draw.text((center_x, info_y), deck_text, font=info_font, fill=self.MUTED, anchor="ma")
-        draw.text(
-            (center_x, info_y + max(20, champion_information_size + 4)),
-            f"SEED • #{champion_seed or '?'}",
-            font=info_font,
-            fill=self.MUTED,
-            anchor="ma",
         )
 
         particle_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
@@ -5007,7 +5099,7 @@ class BracketImageService:
                 "total_duration",
                 None,
             )
-            or "—"
+            or "-"
         ).upper()
     
         return (
@@ -5021,11 +5113,11 @@ class BracketImageService:
                 str(
                     played
                 ),
-                "MATCHS JOUÉS",
+                "MATCHS JOUES",
             ),
             (
                 duration,
-                "DURÉE TOTALE",
+                "DUREE TOTALE",
             ),
             (
                 str(
@@ -5551,7 +5643,9 @@ class BracketImageService:
         )
         baseline = footer_y + footer_height // 2
         left_x = padding + icon_size + 12
-        prefix = "ORGANISÉ AVEC"
+        # Labels statiques en ASCII pour eviter les caracteres carres
+        # sur les environnements Railway qui chargent une police de secours.
+        prefix = "ORGANISE AVEC"
         draw.text((left_x, baseline), prefix, font=normal_font, fill=self.MUTED, anchor="lm")
         prefix_width = self._text_width(draw, prefix, normal_font)
         draw.text(
@@ -5563,9 +5657,9 @@ class BracketImageService:
         )
 
         center_text = (
-            str(getattr(self.theme, "footer_center_text", "MERCI À TOUS LES PARTICIPANTS !"))
+            str(getattr(self.theme, "footer_center_text", "MERCI A TOUS LES PARTICIPANTS !"))
             if final_mode
-            else "RÉSULTATS ACTUALISÉS APRÈS VALIDATION DU STAFF"
+            else "RESULTATS ACTUALISES APRES VALIDATION DU STAFF"
         )
         center_font = self._font(
             max(int(18 * display_scale), int(getattr(self.theme, "footer_center_font_size", 18))),
