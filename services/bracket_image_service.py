@@ -5,6 +5,7 @@ import io
 import math
 import random
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -332,94 +333,74 @@ class BracketImageService:
         )
     
     @staticmethod
+    @lru_cache(maxsize=256)
     def _font(
         size: int,
         bold: bool = False,
         italic: bool = False,
     ) -> ImageFont.ImageFont:
-        """Charge une police disponible sur Railway/Linux."""
-    
-        size = max(
-            8,
-            int(size),
-        )
-    
+        """
+        Charge une police TrueType redimensionnable.
+
+        Railway ne fournit pas toujours les mêmes chemins de polices.
+        Les noms génériques sont donc essayés avant les chemins Linux.
+        Le dernier fallback conserve la taille demandée avec les versions
+        récentes de Pillow, ce qui évite les minuscules textes du rendu.
+        """
+
+        size = max(8, int(size))
+
         if bold and italic:
-            candidates = (
-                (
-                    "/usr/share/fonts/truetype/"
-                    "dejavu/DejaVuSans-BoldOblique.ttf"
-                ),
-                (
-                    "/usr/share/fonts/truetype/liberation2/"
-                    "LiberationSans-BoldItalic.ttf"
-                ),
-                (
-                    "/usr/share/fonts/truetype/freefont/"
-                    "FreeSansBoldOblique.ttf"
-                ),
+            filenames = (
+                "DejaVuSans-BoldOblique.ttf",
+                "LiberationSans-BoldItalic.ttf",
+                "FreeSansBoldOblique.ttf",
             )
-    
         elif bold:
-            candidates = (
-                (
-                    "/usr/share/fonts/truetype/"
-                    "dejavu/DejaVuSans-Bold.ttf"
-                ),
-                (
-                    "/usr/share/fonts/truetype/liberation2/"
-                    "LiberationSans-Bold.ttf"
-                ),
-                (
-                    "/usr/share/fonts/truetype/freefont/"
-                    "FreeSansBold.ttf"
-                ),
+            filenames = (
+                "DejaVuSans-Bold.ttf",
+                "LiberationSans-Bold.ttf",
+                "FreeSansBold.ttf",
             )
-    
         elif italic:
-            candidates = (
-                (
-                    "/usr/share/fonts/truetype/"
-                    "dejavu/DejaVuSans-Oblique.ttf"
-                ),
-                (
-                    "/usr/share/fonts/truetype/liberation2/"
-                    "LiberationSans-Italic.ttf"
-                ),
-                (
-                    "/usr/share/fonts/truetype/freefont/"
-                    "FreeSansOblique.ttf"
-                ),
+            filenames = (
+                "DejaVuSans-Oblique.ttf",
+                "LiberationSans-Italic.ttf",
+                "FreeSansOblique.ttf",
             )
-    
         else:
-            candidates = (
-                (
-                    "/usr/share/fonts/truetype/"
-                    "dejavu/DejaVuSans.ttf"
-                ),
-                (
-                    "/usr/share/fonts/truetype/liberation2/"
-                    "LiberationSans-Regular.ttf"
-                ),
-                (
-                    "/usr/share/fonts/truetype/freefont/"
-                    "FreeSans.ttf"
-                ),
+            filenames = (
+                "DejaVuSans.ttf",
+                "LiberationSans-Regular.ttf",
+                "FreeSans.ttf",
             )
-    
-        for path in candidates:
+
+        search_directories = (
+            Path("/usr/share/fonts/truetype/dejavu"),
+            Path("/usr/share/fonts/truetype/liberation2"),
+            Path("/usr/share/fonts/truetype/freefont"),
+            Path("/usr/local/share/fonts"),
+            Path("/app/fonts"),
+        )
+
+        candidates: list[str | Path] = [*filenames]
+        candidates.extend(
+            directory / filename
+            for directory in search_directories
+            for filename in filenames
+        )
+
+        for candidate in candidates:
             try:
-                return ImageFont.truetype(
-                    path,
-                    size=size,
-                )
-    
-            except OSError:
+                return ImageFont.truetype(str(candidate), size=size)
+            except (OSError, ValueError):
                 continue
-    
-        return ImageFont.load_default()
-    
+
+        try:
+            return ImageFont.load_default(size=size)
+        except TypeError:
+            return ImageFont.load_default()
+
     @staticmethod
     def _text_width(
         draw: ImageDraw.ImageDraw,
@@ -2600,7 +2581,7 @@ class BracketImageService:
         tournament: Any,
         player_capacity: int,
     ) -> None:
-        """Dessine le header HD complet de la maquette Hamtaro Cup."""
+        """Dessine un header plus spectaculaire avec titres agrandis."""
 
         width = image.width
         header_height = self._effective_header_height(canvas_height=image.height)
@@ -2608,25 +2589,43 @@ class BracketImageService:
 
         draw.rectangle(
             (0, 0, width, header_height),
-            fill=(*getattr(self.theme, "header_background", self.BG), 250),
+            fill=(*getattr(self.theme, "header_background", self.BG), 255),
         )
 
-        mascot_width = max(
-            int(104 * display_scale),
-            int(getattr(self.theme, "header_mascot_width", 104)),
+        logo_width = max(
+            int(238 * display_scale),
+            int(getattr(self.theme, "header_logo_maximum_width", 220)),
         )
-        mascot_height = max(
-            int(132 * display_scale),
-            int(getattr(self.theme, "header_mascot_height", 132)),
+        logo_height = min(
+            header_height - 16,
+            max(
+                int(142 * display_scale),
+                int(getattr(self.theme, "header_logo_maximum_height", 136)),
+            ),
         )
-        mascot_x = int(getattr(self.theme, "header_mascot_x", 28))
-        mascot_y = max(6, (header_height - mascot_height) // 2)
+        logo_y = max(
+            2,
+            int(getattr(self.theme, "header_logo_vertical_offset", 0)),
+        )
+
+        configured_mascot_width = int(getattr(self.theme, "header_mascot_width", 100))
+        configured_mascot_height = int(getattr(self.theme, "header_mascot_height", 128))
+        mascot_width = max(62, round(configured_mascot_width * 0.80 * display_scale))
+        mascot_height = max(78, round(configured_mascot_height * 0.80 * display_scale))
+        mascot_x = int(getattr(self.theme, "header_mascot_x", 22))
+        mascot_y = max(8, (header_height - mascot_height) // 2)
 
         mascot_path = self._theme_path("header_mascot_path", "hamtaro_header.png")
         mascot = self._load_asset(mascot_path)
         if mascot is not None:
             mascot = self._contain_image(mascot, mascot_width, mascot_height)
-            image.alpha_composite(mascot, (mascot_x, mascot_y))
+            image.alpha_composite(
+                mascot,
+                (
+                    mascot_x + (mascot_width - mascot.width) // 2,
+                    mascot_y + (mascot_height - mascot.height) // 2,
+                ),
+            )
         else:
             self._draw_hamster_fallback(
                 image,
@@ -2636,55 +2635,86 @@ class BracketImageService:
             )
 
         title_x = max(
-            mascot_x + mascot_width + 22,
-            int(getattr(self.theme, "header_title_with_mascot_x", 148)),
+            mascot_x + mascot_width + 18,
+            int(getattr(self.theme, "header_title_with_mascot_x", 132)),
         )
         title_size = max(
-            int(68 * display_scale),
-            int(getattr(self.theme, "title_font_size", 68)),
+            int(72 * display_scale),
+            int(getattr(self.theme, "title_font_size", 60)),
+            72,
         )
         number_size = max(
-            int(70 * display_scale),
-            int(getattr(self.theme, "title_number_font_size", 70)),
+            int(54 * display_scale),
+            int(getattr(self.theme, "title_number_font_size", 46)),
+            54,
         )
         subtitle_size = max(
-            18,
-            int(20 * display_scale),
+            int(22 * display_scale),
+            int(getattr(self.theme, "subtitle_font_size", 20)),
+            22,
         )
+
         title_font = self._font(title_size, bold=True, italic=True)
         number_font = self._font(number_size, bold=True, italic=True)
         subtitle_font = self._font(subtitle_size, bold=True)
 
         tournament_id = getattr(tournament, "id", "?")
-        tournament_name = str(getattr(tournament, "name", "HAMTARO CUP")).upper()
-        tournament_name = self._fit_text(draw, tournament_name, title_font, int(580 * display_scale))
-        title_y = max(12, int(getattr(self.theme, "header_title_y", 14)))
+        raw_name = str(getattr(tournament, "name", "HAMTARO CUP")).strip().upper()
+        tournament_name = (
+            "HAMTARO CUP"
+            if raw_name.replace(" ", "") == "HAMTAROCUP"
+            else raw_name
+        )
 
+        logo_left = width // 2 - logo_width // 2
+        available_title_width = max(260, logo_left - title_x - 28)
+        number_label = f"#{tournament_id}"
+        number_width = self._text_width(draw, number_label, number_font)
+        tournament_name = self._fit_text(
+            draw,
+            tournament_name,
+            title_font,
+            max(120, available_title_width - number_width - 20),
+        )
+
+        title_y = max(10, int(getattr(self.theme, "header_title_y", 14)) - 2)
+        draw.text(
+            (title_x + 3, title_y + 3),
+            tournament_name,
+            font=title_font,
+            fill=(0, 0, 0, 190),
+        )
         draw.text(
             (title_x, title_y),
             tournament_name,
             font=title_font,
             fill=self.TEXT,
         )
+
         title_width = self._text_width(draw, tournament_name, title_font)
+        number_x = title_x + title_width + 12
         draw.text(
-            (title_x + title_width + 14, title_y),
-            f"#{tournament_id}",
+            (number_x + 2, title_y + 2),
+            number_label,
+            font=number_font,
+            fill=(0, 0, 0, 180),
+        )
+        draw.text(
+            (number_x, title_y),
+            number_label,
             font=number_font,
             fill=self.RED,
         )
 
-        tournament_format = str(
-            getattr(tournament, "format", "FORMAT INCONNU")
-        ).upper()
+        tournament_format = str(getattr(tournament, "format", "FORMAT INCONNU")).upper()
         metadata = (
             f"FORMAT : {tournament_format}   •   "
             f"ÉLIMINATION DIRECTE   •   {player_capacity} JOUEURS"
         )
-        metadata = self._fit_text(draw, metadata, subtitle_font, int(720 * display_scale))
-        metadata_y = max(
-            int(header_height * 0.62),
-            int(getattr(self.theme, "header_metadata_y", 96)),
+        metadata = self._fit_text(draw, metadata, subtitle_font, available_title_width)
+        metadata_y = min(
+            header_height - subtitle_size - 14,
+            max(title_y + title_size + 4, int(getattr(self.theme, "header_metadata_y", 92)) - 4),
         )
         draw.text(
             (title_x, metadata_y),
@@ -2693,21 +2723,6 @@ class BracketImageService:
             fill=self.MUTED,
         )
 
-        logo_width = max(
-            int(285 * display_scale),
-            int(getattr(self.theme, "header_logo_maximum_width", 285)),
-        )
-        logo_height = min(
-            header_height - 12,
-            max(
-                int(150 * display_scale),
-                int(getattr(self.theme, "header_logo_maximum_height", 150)),
-            ),
-        )
-        logo_y = max(
-            2,
-            int(getattr(self.theme, "header_logo_vertical_offset", 2)),
-        )
         logo_path = self._theme_path("logo_path", "hamtaro_logo.png")
         logo = self._draw_asset_centered(
             image,
@@ -2726,25 +2741,49 @@ class BracketImageService:
                 logo_height - 4,
             )
 
+        center_title_font = self._font(
+            max(
+                int(24 * display_scale),
+                int(getattr(self.theme, "center_title_font_size", 24)),
+            ),
+            bold=True,
+            italic=True,
+        )
+        center_title_y = min(header_height - 18, logo_y + logo_height - 16)
+        draw.text(
+            (width // 2 + 1, center_title_y + 1),
+            "HAMTARO CUP",
+            font=center_title_font,
+            fill=(0, 0, 0, 170),
+            anchor="mm",
+        )
+        draw.text(
+            (width // 2, center_title_y),
+            "HAMTARO CUP",
+            font=center_title_font,
+            fill=self.TEXT,
+            anchor="mm",
+        )
+
         box_height = min(
             header_height - 24,
             max(
-                int(96 * display_scale),
-                int(getattr(self.theme, "header_information_box_height", 96)),
+                int(88 * display_scale),
+                int(getattr(self.theme, "header_information_box_height", 88)),
             ),
         )
         box_gap = max(8, int(getattr(self.theme, "header_information_box_gap", 8)))
         date_width = max(
-            int(240 * display_scale),
-            int(getattr(self.theme, "date_box_width", 240)),
+            int(205 * display_scale),
+            int(getattr(self.theme, "date_box_width", 205)),
         )
         id_width = max(
-            int(180 * display_scale),
-            int(getattr(self.theme, "tournament_id_box_width", 180)),
+            int(165 * display_scale),
+            int(getattr(self.theme, "tournament_id_box_width", 165)),
         )
         organizer_width = max(
-            int(260 * display_scale),
-            int(getattr(self.theme, "organizer_box_width", 260)),
+            int(235 * display_scale),
+            int(getattr(self.theme, "organizer_box_width", 235)),
         )
         total_width = date_width + id_width + organizer_width + box_gap * 2
         margin = int(getattr(self.theme, "horizontal_margin", 24))
@@ -2762,9 +2801,7 @@ class BracketImageService:
             or "HAMTARO BOT"
         )
 
-        self._draw_information_card(
-            draw, info_x, info_y, date_width, box_height, "Date", date_value
-        )
+        self._draw_information_card(draw, info_x, info_y, date_width, box_height, "Date", date_value)
         self._draw_information_card(
             draw,
             info_x + date_width + box_gap,
@@ -2785,19 +2822,10 @@ class BracketImageService:
             organizer,
         )
 
-        separator_height = max(
-            3,
-            int(getattr(self.theme, "header_separator_height", 3)),
-        )
-        draw.rectangle(
-            (0, header_height - separator_height, width // 2, header_height),
-            fill=self.RED,
-        )
-        draw.rectangle(
-            (width // 2, header_height - separator_height, width, header_height),
-            fill=self.BLUE,
-        )
-    
+        separator_height = max(3, int(getattr(self.theme, "header_separator_height", 3)))
+        draw.rectangle((0, header_height - separator_height, width // 2, header_height), fill=self.RED)
+        draw.rectangle((width // 2, header_height - separator_height, width, header_height), fill=self.BLUE)
+
     # ==========================================================
     # TITRES DES RONDES
     # ==========================================================
@@ -2809,33 +2837,42 @@ class BracketImageService:
         geometries: dict[int, RoundGeometry],
         player_capacity: int,
     ) -> None:
+        """Dessine des intitulés de rondes plus grands et mieux détachés."""
+
         canvas_height = int(self.theme.image_height(player_capacity))
         canvas_width = int(self.theme.image_width(player_capacity))
         display_scale = self._display_scale(canvas_width)
         header_height = self._effective_header_height(canvas_height=canvas_height)
+        labels_height = int(getattr(self.theme, "round_labels_height", 48))
 
-        title_y = header_height + 11
-        labels_height = int(getattr(self.theme, "round_labels_height", 40))
-        underline_y = header_height + labels_height - 5
+        label_center_y = header_height + labels_height // 2 - 1
+        underline_y = header_height + labels_height - 6
         font_size = max(
-            int(20 * display_scale),
-            int(self.theme.round_font_size_for(player_capacity)),
-            int(getattr(self.theme, "round_font_size", 20)),
+            int(22 * display_scale),
+            int(self.theme.round_font_size_for(player_capacity)) + 2,
+            int(getattr(self.theme, "round_font_size", 20)) + 2,
         )
         font = self._font(font_size, bold=True)
         underline_width = max(
-            int(112 * display_scale),
-            int(getattr(self.theme, "round_title_underline_width", 112)),
+            int(122 * display_scale),
+            int(getattr(self.theme, "round_title_underline_width", 122)),
         )
         underline_height = max(
-            3,
-            int(getattr(self.theme, "round_title_underline_height", 3)),
+            4,
+            int(getattr(self.theme, "round_title_underline_height", 4)),
+        )
+        backgrounds_enabled = bool(
+            getattr(self.theme, "round_title_background_enabled", True)
+        )
+        background_radius = int(
+            getattr(self.theme, "round_title_background_radius", 4)
         )
 
         for round_number in sorted(positions, reverse=True):
             round_positions = positions[round_number]
             if not round_positions:
                 continue
+
             geometry = geometries[round_number]
 
             if round_number == 1:
@@ -2843,42 +2880,55 @@ class BracketImageService:
                 center_x = x + geometry.width // 2
                 title = self._round_title(round_number)
                 title_width = max(
-                    int(154 * display_scale),
-                    int(getattr(self.theme, "final_title_width", 154)),
+                    int(176 * display_scale),
+                    int(getattr(self.theme, "final_title_width", 176)),
                 )
                 title_height = max(
-                    int(39 * display_scale),
-                    int(getattr(self.theme, "final_title_height", 39)),
+                    int(44 * display_scale),
+                    int(getattr(self.theme, "final_title_height", 44)),
                 )
+                title_top = header_height + 4
+
                 draw.rounded_rectangle(
                     (
                         center_x - title_width // 2,
-                        header_height + 4,
+                        title_top,
                         center_x + title_width // 2,
-                        header_height + 4 + title_height,
+                        title_top + title_height,
                     ),
                     radius=int(getattr(self.theme, "final_title_radius", 5)),
                     fill=getattr(
                         self.theme,
                         "final_title_background",
-                        self._blend_color(self.PANEL, self.RED, 0.32),
+                        self._blend_color(self.PANEL, self.RED, 0.30),
                     ),
-                    outline=getattr(self.theme, "final_title_border", self.RED),
-                    width=1,
+                    outline=self.GOLD,
+                    width=2,
                 )
+
                 final_font = self._font(
                     max(
-                        int(25 * display_scale),
-                        int(getattr(self.theme, "final_title_font_size", 25)),
+                        int(30 * display_scale),
+                        int(getattr(self.theme, "final_title_font_size", 30)),
                     ),
                     bold=True,
                 )
                 draw.text(
-                    (center_x, header_height + 4 + title_height // 2),
+                    (center_x, title_top + title_height // 2 - 1),
                     title,
                     font=final_font,
                     fill=self.TEXT,
                     anchor="mm",
+                )
+                draw.rounded_rectangle(
+                    (
+                        center_x - title_width // 3,
+                        title_top + title_height - 4,
+                        center_x + title_width // 3,
+                        title_top + title_height,
+                    ),
+                    radius=2,
+                    fill=self.GOLD,
                 )
                 continue
 
@@ -2887,14 +2937,38 @@ class BracketImageService:
                 if side in seen:
                     continue
                 seen.add(side)
+
                 center_x = x + geometry.width // 2
                 color = self.RED if side == "left" else self.BLUE
+                title = self._round_title(round_number)
+                text_width = self._text_width(draw, title, font)
+                background_width = max(
+                    underline_width,
+                    min(geometry.width + 28, text_width + 28),
+                )
+                background_height = max(30, font_size + 12)
+                background_top = label_center_y - background_height // 2 - 2
+
+                if backgrounds_enabled:
+                    draw.rounded_rectangle(
+                        (
+                            center_x - background_width // 2,
+                            background_top,
+                            center_x + background_width // 2,
+                            background_top + background_height,
+                        ),
+                        radius=background_radius,
+                        fill=self._blend_color(self.BG, color, 0.13),
+                        outline=self._blend_color(self.LINE, color, 0.45),
+                        width=1,
+                    )
+
                 draw.text(
-                    (center_x, title_y),
-                    self._round_title(round_number),
+                    (center_x, label_center_y - 2),
+                    title,
                     font=font,
                     fill=self.TEXT,
-                    anchor="ma",
+                    anchor="mm",
                 )
                 draw.rounded_rectangle(
                     (
@@ -2906,7 +2980,8 @@ class BracketImageService:
                     radius=max(1, underline_height // 2),
                     fill=color,
                 )
-                    # ==========================================================
+
+    # ==========================================================
     # CONNECTEURS LUMINEUX
     # ==========================================================
     
@@ -3627,131 +3702,62 @@ class BracketImageService:
         player_capacity: int,
         final_card: bool = False,
     ) -> None:
-        """
-        Dessine une ligne de joueur avec :
-    
-        - seed ;
-        - avatar ;
-        - pseudo ;
-        - score ;
-        - indicateur du vainqueur.
-        """
-    
-        accent = (
-            self.RED
-            if side == "left"
-            else self.BLUE
-        )
-    
-        seed_width = int(
-            self.theme.seed_column_width(
-                player_capacity
-            )
-        )
-    
-        score_width = int(
-            self.theme.score_column_width(
-                player_capacity
-            )
-        )
-    
+        """Dessine une ligne de joueur lisible et moins éblouissante."""
+
+        if side == "left":
+            accent = self.RED
+        elif side == "right":
+            accent = self.BLUE
+        else:
+            accent = self.GOLD
+
+        seed_width = int(self.theme.seed_column_width(player_capacity))
+        score_width = int(self.theme.score_column_width(player_capacity))
+
         if final_card:
-            seed_width = max(
-                28,
-                seed_width + 4,
-            )
-    
-            score_width = max(
-                38,
-                score_width + 8,
-            )
-    
-        separator = getattr(
-            self.theme,
-            "separator",
-            self.LINE,
-        )
-    
+            seed_width = max(32, seed_width + 6)
+            score_width = max(44, score_width + 10)
+
+        separator = getattr(self.theme, "separator", self.LINE)
         row_background = (
-            self._blend_color(
-                self.PANEL,
-                accent,
-                0.10,
-            )
+            self._blend_color(self.PANEL, accent, 0.13)
             if player.winner
-            else self.PANEL
+            else self._blend_color(self.PANEL, self.BG, 0.05)
         )
-    
+
         draw.rectangle(
-            (
-                x,
-                y,
-                x + width,
-                y + height,
-            ),
-            fill=(
-                *row_background,
-                248,
-            ),
+            (x, y, x + width, y + height),
+            fill=(*row_background, 250),
         )
-    
+
         if player.winner:
-            indicator_width = int(
-                getattr(
-                    self.theme,
-                    "winner_indicator_width",
-                    3,
-                )
+            indicator_width = max(
+                3,
+                int(getattr(self.theme, "winner_indicator_width", 3)),
             )
-    
-            indicator_x1 = (
-                x
-                if side == "left"
-                else x
-                + width
-                - indicator_width
-            )
-    
+            indicator_x1 = x if side != "right" else x + width - indicator_width
             draw.rectangle(
                 (
                     indicator_x1,
                     y,
-                    indicator_x1
-                    + indicator_width,
+                    indicator_x1 + indicator_width,
                     y + height,
                 ),
                 fill=self.GREEN,
             )
-    
-        seed_x2 = (
-            x
-            + seed_width
-        )
-    
-        score_x1 = (
-            x
-            + width
-            - score_width
-        )
-    
+
+        seed_x2 = x + seed_width
+        score_x1 = x + width - score_width
+
         draw.rectangle(
-            (
-                x,
-                y,
-                seed_x2,
-                y + height,
-            ),
+            (x, y, seed_x2, y + height),
             fill=(
-                *self._blend_color(
-                    self.PANEL_ALT,
-                    accent,
-                    0.12,
-                ),
+                *self._blend_color(self.PANEL_ALT, accent, 0.11),
                 255,
             ),
         )
-    
-        score_background = (
+
+        original_score_background = (
             getattr(
                 self.theme,
                 "score_winner_background",
@@ -3764,131 +3770,48 @@ class BracketImageService:
                 self.theme.score_background,
             )
         )
-    
+        score_background = self._blend_color(
+            original_score_background,
+            self.PANEL,
+            0.24 if final_card else 0.36,
+        )
         draw.rectangle(
-            (
-                score_x1,
-                y,
-                x + width,
-                y + height,
-            ),
+            (score_x1, y, x + width, y + height),
             fill=score_background,
         )
-    
-        draw.line(
-            (
-                seed_x2,
-                y,
-                seed_x2,
-                y + height,
-            ),
-            fill=separator,
-            width=1,
-        )
-    
-        draw.line(
-            (
-                score_x1,
-                y,
-                score_x1,
-                y + height,
-            ),
-            fill=separator,
-            width=1,
-        )
-    
-        seed_text = (
-            str(
-                player.seed
-            )
-            if player.seed is not None
-            else "—"
-        )
-    
-        seed_font = self._font(
-            geometry.seed_font_size,
-            bold=True,
-        )
-    
+
+        draw.line((seed_x2, y, seed_x2, y + height), fill=separator, width=1)
+        draw.line((score_x1, y, score_x1, y + height), fill=separator, width=1)
+
+        seed_text = str(player.seed) if player.seed is not None else "—"
+        seed_font = self._font(geometry.seed_font_size, bold=True)
         draw.text(
-            (
-                x
-                + seed_width // 2,
-                y
-                + height // 2,
-            ),
+            (x + seed_width // 2, y + height // 2),
             seed_text,
             font=seed_font,
-            fill=(
-                self.TEXT
-                if player.seed is not None
-                else self.MUTED
-            ),
+            fill=self.TEXT if player.seed is not None else self.MUTED,
             anchor="mm",
         )
-    
+
         avatar_size = min(
             geometry.avatar_size,
-            max(
-                14,
-                height - 6,
-            ),
+            max(14, height - (6 if not final_card else 8)),
         )
-    
-        avatar_x = (
-            seed_x2
-            + int(
-                getattr(
-                    self.theme,
-                    "avatar_left_padding",
-                    4,
-                )
-            )
-        )
-    
-        avatar_y = (
-            y
-            + (
-                height
-                - avatar_size
-            )
-            // 2
-        )
-    
-        avatar_key = self._player_key(
-            player.discord_id,
-            player.name,
-        )
-    
-        avatar = avatar_map.get(
-            avatar_key
-        )
-    
-        if avatar is None:
-            avatar = self._create_fallback_avatar(
-                player.name
-            )
-    
-        border_color = (
-            self.GREEN
-            if player.winner
-            else accent
-        )
-    
+        avatar_x = seed_x2 + int(getattr(self.theme, "avatar_left_padding", 4))
+        avatar_y = y + (height - avatar_size) // 2
+        avatar_key = self._player_key(player.discord_id, player.name)
+        avatar = avatar_map.get(avatar_key) or self._create_fallback_avatar(player.name)
+        border_color = self.GREEN if player.winner else accent
         border_width = int(
             getattr(
                 self.theme,
-                (
-                    "avatar_winner_border_width"
-                    if player.winner
-                    else "avatar_border_width"
-                ),
-                2
-                if player.winner
-                else 1,
+                "avatar_winner_border_width" if player.winner else "avatar_border_width",
+                2 if player.winner else 1,
             )
         )
-    
+        if final_card:
+            border_width = max(2, border_width)
+
         self._paste_avatar(
             image,
             avatar,
@@ -3898,93 +3821,56 @@ class BracketImageService:
             border_color,
             border_width,
         )
-    
-        name_font = self._font(
-            geometry.name_font_size,
-            bold=player.winner,
-        )
-    
+
+        name_font = self._font(geometry.name_font_size, bold=player.winner or final_card)
         name_x = (
             avatar_x
             + avatar_size
-            + int(
-                getattr(
-                    self.theme,
-                    "name_left_padding",
-                    5,
-                )
-            )
+            + int(getattr(self.theme, "name_left_padding", 5))
         )
-    
-        available_name_width = max(
-            10,
-            score_x1
-            - name_x
-            - 4,
-        )
-    
+        available_name_width = max(10, score_x1 - name_x - 5)
         display_name = self._fit_text(
             draw,
             player.name,
             name_font,
             available_name_width,
         )
-    
         name_color = (
             self.TEXT
-            if player.name
-            != "À déterminer"
-            else getattr(
-                self.theme,
-                "disabled_text",
-                self.MUTED,
-            )
+            if player.name != "À déterminer"
+            else getattr(self.theme, "disabled_text", self.MUTED)
         )
-    
         draw.text(
-            (
-                name_x,
-                y
-                + height // 2,
-            ),
+            (name_x, y + height // 2),
             display_name,
             font=name_font,
             fill=name_color,
             anchor="lm",
         )
-    
-        score_font = self._font(
-            geometry.score_font_size,
-            bold=True,
+
+        score_font = self._font(geometry.score_font_size, bold=True)
+        luminance = (
+            score_background[0] * 0.2126
+            + score_background[1] * 0.7152
+            + score_background[2] * 0.0722
         )
-    
-        score_color = (
-            getattr(
-                self.theme,
-                "score_winner_text",
-                self.theme.score_text,
+        if luminance >= 138:
+            score_color = (
+                getattr(self.theme, "score_winner_text", self.theme.score_text)
+                if player.winner
+                else getattr(self.theme, "score_loser_text", self.theme.score_text)
             )
-            if player.winner
-            else getattr(
-                self.theme,
-                "score_loser_text",
-                self.theme.score_text,
-            )
-        )
-    
+        else:
+            score_color = self.TEXT
+
         draw.text(
-            (
-                score_x1
-                + score_width // 2,
-                y
-                + height // 2,
-            ),
+            (score_x1 + score_width // 2, y + height // 2),
             player.score,
             font=score_font,
             fill=score_color,
             anchor="mm",
         )
-    
+
     # ==========================================================
     # CARTES DES MATCHS
     # ==========================================================
@@ -4005,87 +3891,55 @@ class BracketImageService:
         total_rounds: int,
         final_card: bool = False,
     ) -> None:
-        """
-        Dessine une carte contenant deux lignes de joueurs.
-        """
-    
-        accent = (
-            self.RED
-            if side == "left"
-            else self.BLUE
-        )
-    
-        if side == "center":
+        """Dessine une carte de match, avec une finale centrale renforcée."""
+
+        if side == "left":
+            accent = self.RED
+        elif side == "right":
+            accent = self.BLUE
+        else:
             accent = self.GOLD
-    
+
         radius = int(
             getattr(
                 self.theme,
-                (
-                    "final_box_radius"
-                    if final_card
-                    else (
-                        "compact_box_radius"
-                        if player_capacity >= 32
-                        else "normal_box_radius"
-                    )
-                ),
-                7
+                "final_box_radius"
                 if final_card
-                else 4,
+                else (
+                    "compact_box_radius"
+                    if player_capacity >= 32
+                    else "normal_box_radius"
+                ),
+                8 if final_card else 4,
             )
         )
-    
         border_width = int(
             getattr(
                 self.theme,
-                (
-                    "final_box_border_width"
-                    if final_card
-                    else (
-                        "compact_box_border_width"
-                        if player_capacity >= 32
-                        else "normal_box_border_width"
-                    )
-                ),
-                3
+                "final_box_border_width"
                 if final_card
-                else 2,
+                else (
+                    "compact_box_border_width"
+                    if player_capacity >= 32
+                    else "normal_box_border_width"
+                ),
+                3 if final_card else 2,
             )
         )
-    
-        opacity_method = getattr(
-            self.theme,
-            "round_card_opacity",
-            None,
-        )
-    
-        round_index = (
-            total_rounds
-            - round_number
-        )
-    
-        side_round_count = max(
-            1,
-            total_rounds - 1,
-        )
-    
+        if final_card:
+            border_width = max(3, border_width)
+
+        opacity_method = getattr(self.theme, "round_card_opacity", None)
+        round_index = total_rounds - round_number
+        side_round_count = max(1, total_rounds - 1)
         card_opacity = (
-            int(
-                opacity_method(
-                    round_index,
-                    side_round_count,
-                )
-            )
-            if callable(
-                opacity_method
-            )
+            int(opacity_method(round_index, side_round_count))
+            if callable(opacity_method)
             else 255
         )
-    
         if final_card:
             card_opacity = 255
-    
+
         self._draw_card_shadow(
             image,
             x,
@@ -4094,7 +3948,7 @@ class BracketImageService:
             geometry.height,
             radius,
         )
-    
+
         if final_card:
             self._draw_card_glow(
                 image,
@@ -4104,75 +3958,64 @@ class BracketImageService:
                 geometry.height,
                 radius,
                 self.GOLD,
-                int(
-                    getattr(
-                        self.theme,
-                        "final_glow_alpha",
-                        100,
-                    )
+                min(
+                    230,
+                    int(getattr(self.theme, "final_glow_alpha", 110)) + 35,
                 ),
-                int(
-                    getattr(
-                        self.theme,
-                        "final_glow_radius",
-                        10,
-                    )
-                ),
-                glow_width=6,
+                int(getattr(self.theme, "final_glow_radius", 14)) + 2,
+                glow_width=9,
             )
-    
-        card_layer = Image.new(
-            "RGBA",
-            image.size,
-            (
-                0,
-                0,
-                0,
-                0,
-            ),
+
+        card_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        card_draw = ImageDraw.Draw(card_layer)
+        card_background = (
+            self._blend_color(self.PANEL, self.GOLD, 0.055)
+            if final_card
+            else self.PANEL
         )
-    
-        card_draw = ImageDraw.Draw(
-            card_layer
-        )
-    
         card_draw.rounded_rectangle(
-            (
-                x,
-                y,
-                x + geometry.width,
-                y + geometry.height,
-            ),
+            (x, y, x + geometry.width, y + geometry.height),
             radius=radius,
-            fill=(
-                *self.PANEL,
-                card_opacity,
-            ),
-            outline=(
-                *accent,
-                255,
-            ),
+            fill=(*card_background, card_opacity),
+            outline=(*accent, 255),
             width=border_width,
         )
-    
-        image.alpha_composite(
-            card_layer
-        )
-    
-        draw = ImageDraw.Draw(
-            image
-        )
-    
-        player1, player2 = self._match_players(
-            match,
-            avatar_urls,
-            seed_map,
-        )
-    
-        row_height = (
-            geometry.height // 2
-        )
-    
+        image.alpha_composite(card_layer)
+
+        draw = ImageDraw.Draw(image)
+
+        if final_card:
+            # Les deux couleurs des branches restent visibles autour de la finale.
+            split_x = x + geometry.width // 2
+            draw.line(
+                (x + radius, y + 2, split_x, y + 2),
+                fill=self.RED,
+                width=3,
+            )
+            draw.line(
+                (split_x, y + 2, x + geometry.width - radius, y + 2),
+                fill=self.BLUE,
+                width=3,
+            )
+            draw.line(
+                (x + 2, y + radius, x + 2, y + geometry.height - radius),
+                fill=self.RED,
+                width=3,
+            )
+            draw.line(
+                (
+                    x + geometry.width - 2,
+                    y + radius,
+                    x + geometry.width - 2,
+                    y + geometry.height - radius,
+                ),
+                fill=self.BLUE,
+                width=3,
+            )
+
+        player1, player2 = self._match_players(match, avatar_urls, seed_map)
+        row_height = geometry.height // 2
+
         self._draw_player_row(
             image,
             draw,
@@ -4180,21 +4023,15 @@ class BracketImageService:
             avatar_map,
             x + border_width,
             y + border_width,
-            geometry.width
-            - border_width * 2,
-            row_height
-            - border_width,
+            geometry.width - border_width * 2,
+            row_height - border_width,
             side,
             geometry,
             player_capacity,
             final_card,
         )
-    
-        second_y = (
-            y
-            + row_height
-        )
-    
+
+        second_y = y + row_height
         self._draw_player_row(
             image,
             draw,
@@ -4202,89 +4039,47 @@ class BracketImageService:
             avatar_map,
             x + border_width,
             second_y,
-            geometry.width
-            - border_width * 2,
-            geometry.height
-            - row_height
-            - border_width,
+            geometry.width - border_width * 2,
+            geometry.height - row_height - border_width,
             side,
             geometry,
             player_capacity,
             final_card,
         )
-    
-        separator_width = int(
-            getattr(
-                self.theme,
-                "player_row_separator_width",
-                1,
-            )
+
+        separator_width = max(
+            1,
+            int(getattr(self.theme, "player_row_separator_width", 1)),
         )
-    
         draw.line(
             (
                 x + border_width,
                 second_y,
-                x
-                + geometry.width
-                - border_width,
+                x + geometry.width - border_width,
                 second_y,
             ),
-            fill=getattr(
-                self.theme,
-                "separator",
-                self.LINE,
-            ),
-            width=separator_width,
+            fill=self.GOLD if final_card else getattr(self.theme, "separator", self.LINE),
+            width=2 if final_card else separator_width,
         )
-    
-        status = self._status_value(
-            getattr(
-                match,
-                "status",
-                "",
-            )
-        )
-    
-        if status in {
-            "pending",
-            "waiting_validation",
-            "reported",
-        }:
+
+        status = self._status_value(getattr(match, "status", ""))
+        if not final_card and status in {"pending", "waiting_validation", "reported"}:
             pending_color = getattr(
                 self.theme,
                 "pending_orange",
-                (
-                    247,
-                    158,
-                    48,
-                ),
+                (247, 158, 48),
             )
-    
-            radius_status = max(
-                2,
-                geometry.height // 18,
-            )
-    
+            radius_status = max(2, geometry.height // 18)
             draw.ellipse(
                 (
-                    x
-                    + geometry.width
-                    - radius_status
-                    * 2
-                    - 4,
+                    x + geometry.width - radius_status * 2 - 4,
                     y + 4,
-                    x
-                    + geometry.width
-                    - 4,
-                    y
-                    + radius_status
-                    * 2
-                    + 4,
+                    x + geometry.width - 4,
+                    y + radius_status * 2 + 4,
                 ),
                 fill=pending_color,
             )
-    
+
     def _draw_all_match_cards(
         self,
         image: Image.Image,
@@ -4764,614 +4559,387 @@ class BracketImageService:
         seed_map: dict[str, int],
     ) -> tuple[int, int, int, int] | None:
         """
-        Dessine la grande zone champion sous la finale.
-    
-        La carte contient :
-    
-        - le trophée ;
-        - le titre CHAMPION ;
-        - les lauriers ;
-        - l'illustration Hamtaro ;
-        - le pseudo du vainqueur ;
-        - son deck ;
-        - son seed.
+        Dessine la carte du champion.
+
+        Le grand gagnant apparaît avec son avatar Discord en visuel principal,
+        les lauriers au-dessus et Hamtaro placé à côté de lui avec un trophée.
+        Une seconde carte plus compacte met également en avant le finaliste
+        battu à la deuxième place.
         """
-    
-        champion_name = getattr(
-            final_match,
-            "winner_name",
-            None,
-        )
-    
-        champion_id = getattr(
-            final_match,
-            "winner_id",
-            None,
-        )
-    
+
+        champion_name = getattr(final_match, "winner_name", None)
+        champion_id = getattr(final_match, "winner_id", None)
         if not champion_name:
             return None
-    
-        draw = ImageDraw.Draw(
-            image
-        )
-    
-        card_width = int(
-            getattr(
-                self.theme,
-                "champion_card_width",
-                280,
-            )
-        )
-    
-        card_height = int(
-            getattr(
-                self.theme,
-                "champion_card_height",
-                320,
-            )
-        )
-    
-        card_x = (
-            image.width // 2
-            - card_width // 2
-        )
-    
-        card_y = (
-            final_position[1]
-            + final_geometry.height
-            + 18
-        )
-    
-        footer_top = (
-            image.height
-            - int(
-                getattr(
-                    self.theme,
-                    "footer_height",
-                    54,
-                )
-            )
-        )
-    
-        maximum_bottom = (
-            footer_top
-            - int(
-                getattr(
-                    self.theme,
-                    "statistics_card_height",
-                    104,
-                )
-            )
-            - 26
-        )
-    
-        if (
-            card_y
-            + card_height
-            > maximum_bottom
-        ):
-            card_height = max(
-                250,
-                maximum_bottom
-                - card_y,
-            )
-    
-        glow_layer = Image.new(
-            "RGBA",
-            image.size,
-            (
-                0,
-                0,
-                0,
-                0,
-            ),
-        )
-    
-        glow_draw = ImageDraw.Draw(
-            glow_layer
-        )
-    
-        glow_draw.rounded_rectangle(
-            (
-                card_x - 6,
-                card_y - 6,
-                card_x
-                + card_width
-                + 6,
-                card_y
-                + card_height
-                + 6,
-            ),
-            radius=(
-                int(
-                    getattr(
-                        self.theme,
-                        "champion_card_radius",
-                        8,
-                    )
-                )
-                + 8
-            ),
-            outline=(
-                *self.GOLD,
-                int(
-                    getattr(
-                        self.theme,
-                        "champion_glow_alpha",
-                        105,
-                    )
+
+        def draw_colored_trophy(
+            target_draw: ImageDraw.ImageDraw,
+            center_x: int,
+            y: int,
+            width: int,
+            height: int,
+            color: Color,
+        ) -> None:
+            cup_top = y + height // 8
+            cup_bottom = y + height // 2
+            stroke = max(2, width // 12)
+            target_draw.rounded_rectangle(
+                (
+                    center_x - width // 4,
+                    cup_top,
+                    center_x + width // 4,
+                    cup_bottom,
                 ),
-            ),
-            width=10,
-        )
-    
-        glow_layer = glow_layer.filter(
-            ImageFilter.GaussianBlur(
-                int(
-                    getattr(
-                        self.theme,
-                        "champion_glow_radius",
-                        18,
-                    )
-                )
+                radius=max(2, width // 12),
+                fill=color,
             )
+            target_draw.arc(
+                (
+                    center_x - width // 2,
+                    cup_top,
+                    center_x - width // 8,
+                    cup_bottom + height // 6,
+                ),
+                70,
+                290,
+                fill=color,
+                width=stroke,
+            )
+            target_draw.arc(
+                (
+                    center_x + width // 8,
+                    cup_top,
+                    center_x + width // 2,
+                    cup_bottom + height // 6,
+                ),
+                250,
+                110,
+                fill=color,
+                width=stroke,
+            )
+            target_draw.rectangle(
+                (
+                    center_x - width // 18,
+                    cup_bottom,
+                    center_x + width // 18,
+                    y + height * 3 // 4,
+                ),
+                fill=color,
+            )
+            target_draw.rounded_rectangle(
+                (
+                    center_x - width // 4,
+                    y + height * 3 // 4,
+                    center_x + width // 4,
+                    y + height * 7 // 8,
+                ),
+                radius=3,
+                fill=color,
+            )
+
+        card_width = max(356, int(getattr(self.theme, "champion_card_width", 370)))
+        card_height = max(430, int(getattr(self.theme, "champion_card_height", 440)))
+        card_x = image.width // 2 - card_width // 2
+        card_y = final_position[1] + final_geometry.height + 18
+
+        footer_top = image.height - self._effective_footer_height(canvas_height=image.height)
+        maximum_bottom = footer_top - int(getattr(self.theme, "statistics_card_height", 104)) - 26
+        if card_y + card_height > maximum_bottom:
+            card_height = max(355, maximum_bottom - card_y)
+
+        glow_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        glow_draw = ImageDraw.Draw(glow_layer)
+        glow_draw.rounded_rectangle(
+            (card_x - 7, card_y - 7, card_x + card_width + 7, card_y + card_height + 7),
+            radius=int(getattr(self.theme, "champion_card_radius", 8)) + 10,
+            outline=(*self.GOLD, int(getattr(self.theme, "champion_glow_alpha", 105))),
+            width=12,
         )
-    
-        image.alpha_composite(
-            glow_layer
+        glow_layer = glow_layer.filter(
+            ImageFilter.GaussianBlur(int(getattr(self.theme, "champion_glow_radius", 22)))
         )
-    
-        draw = ImageDraw.Draw(
-            image
-        )
-    
+        image.alpha_composite(glow_layer)
+
+        draw = ImageDraw.Draw(image)
         draw.rounded_rectangle(
-            (
-                card_x,
-                card_y,
-                card_x
-                + card_width,
-                card_y
-                + card_height,
-            ),
-            radius=int(
-                getattr(
-                    self.theme,
-                    "champion_card_radius",
-                    8,
-                )
-            ),
+            (card_x, card_y, card_x + card_width, card_y + card_height),
+            radius=int(getattr(self.theme, "champion_card_radius", 8)),
             fill=getattr(
                 self.theme,
                 "champion_card_background",
-                self._blend_color(
-                    self.PANEL,
-                    self.BG,
-                    0.25,
-                ),
+                self._blend_color(self.PANEL, self.BG, 0.25),
             ),
             outline=self.GOLD,
-            width=int(
-                getattr(
-                    self.theme,
-                    "champion_card_border_width",
-                    2,
-                )
-            ),
+            width=int(getattr(self.theme, "champion_card_border_width", 2)),
         )
-    
-        center_x = (
-            image.width // 2
-        )
-    
-        trophy_width = int(
-            getattr(
-                self.theme,
-                "champion_trophy_width",
-                70,
-            )
-        )
-    
-        trophy_height = int(
-            getattr(
-                self.theme,
-                "champion_trophy_height",
-                70,
-            )
-        )
-    
-        trophy_y = (
-            card_y + 10
-        )
-    
-        trophy_path = self._theme_path(
-            "trophy_path",
-            "trophy.png",
-        )
-    
-        trophy = self._draw_asset_centered(
-            image,
-            trophy_path,
-            center_x,
-            trophy_y,
-            trophy_width,
-            trophy_height,
-        )
-    
+
+        center_x = image.width // 2
+        draw.line((card_x + 12, card_y + 3, center_x, card_y + 3), fill=self.RED, width=3)
+        draw.line((center_x, card_y + 3, card_x + card_width - 12, card_y + 3), fill=self.BLUE, width=3)
+
+        trophy_width = int(getattr(self.theme, "champion_trophy_width", 82))
+        trophy_height = int(getattr(self.theme, "champion_trophy_height", 82))
+        trophy_y = card_y + 8
+        trophy_path = self._theme_path("trophy_path", "trophy.png")
+        trophy = self._draw_asset_centered(image, trophy_path, center_x, trophy_y, trophy_width, trophy_height)
         if trophy is None:
-            self._draw_trophy_fallback(
-                draw,
-                center_x,
-                trophy_y,
-                trophy_width,
-                trophy_height,
-            )
-    
-        title_font = self._font(
-            int(
-                getattr(
-                    self.theme,
-                    "champion_title_font_size",
-                    28,
-                )
+            self._draw_trophy_fallback(draw, center_x, trophy_y, trophy_width, trophy_height)
+
+        champion_title_size = int(getattr(self.theme, "champion_title_font_size", 38))
+        title_font = self._font(champion_title_size, bold=True, italic=True)
+        title_y = trophy_y + trophy_height + 2
+        draw.text((center_x, title_y), "CHAMPION", font=title_font, fill=self.GOLD, anchor="ma")
+
+        avatar_size = min(
+            max(110, int(getattr(self.theme, "champion_avatar_size", 126))),
+            140,
+        )
+        mascot_size = max(
+            66,
+            min(
+                int(getattr(self.theme, "champion_mascot_size", 82)),
+                avatar_size - 24,
             ),
-            bold=True,
-            italic=True,
         )
-    
-        title_y = (
-            trophy_y
-            + trophy_height
-            + 2
-        )
-    
-        draw.text(
-            (
-                center_x,
-                title_y,
-            ),
-            "CHAMPION",
-            font=title_font,
-            fill=self.GOLD,
-            anchor="ma",
-        )
-    
-        mascot_width = int(
-            getattr(
-                self.theme,
-                "champion_image_width",
-                128,
-            )
-        )
-    
-        mascot_height = int(
-            getattr(
-                self.theme,
-                "champion_image_height",
-                128,
-            )
-        )
-    
-        mascot_y = (
-            title_y + 28
-        )
-    
-        mascot_center_y = (
-            mascot_y
-            + mascot_height // 2
-        )
-    
-        laurel_path = self._theme_path(
-            "champion_laurel_path",
-            "champion_laurel.png",
-        )
-    
+        visual_gap = int(getattr(self.theme, "champion_visual_gap", 18))
+        visual_group_width = avatar_size + mascot_size + visual_gap
+        avatar_top = title_y + max(34, int(champion_title_size * 0.82))
+        avatar_left = center_x - visual_group_width // 2
+        mascot_left = avatar_left + avatar_size + visual_gap
+        mascot_top = avatar_top + max(10, avatar_size - mascot_size - 8)
+        avatar_center_y = avatar_top + avatar_size // 2
+
+        laurel_width = min(int(getattr(self.theme, "champion_laurel_width", 212)), card_width - 50)
+        laurel_height = int(getattr(self.theme, "champion_laurel_height", 164))
+        laurel_path = self._theme_path("champion_laurel_path", "champion_laurel.png")
+        avatar_center_x = avatar_left + avatar_size // 2
         laurel = self._draw_asset_centered(
             image,
             laurel_path,
-            center_x,
-            mascot_y - 7,
-            int(
-                getattr(
-                    self.theme,
-                    "champion_laurel_width",
-                    186,
-                )
-            ),
-            int(
-                getattr(
-                    self.theme,
-                    "champion_laurel_height",
-                    142,
-                )
-            ),
+            avatar_center_x,
+            avatar_center_y - laurel_height // 2,
+            laurel_width,
+            laurel_height,
         )
-    
         if laurel is None:
-            self._draw_laurel_fallback(
-                draw,
-                center_x,
-                mascot_center_y,
-                int(
-                    getattr(
-                        self.theme,
-                        "champion_laurel_width",
-                        186,
-                    )
-                ),
-                int(
-                    getattr(
-                        self.theme,
-                        "champion_laurel_height",
-                        142,
-                    )
-                ),
-            )
-    
-        champion_path = self._theme_path(
-            "champion_path",
-            "champion_hamtaro.png",
+            self._draw_laurel_fallback(draw, avatar_center_x, avatar_center_y, laurel_width, laurel_height)
+
+        champion_key = self._player_key(champion_id, champion_name)
+        champion_avatar = avatars.get(champion_key)
+        if champion_avatar is None:
+            champion_avatar = self._create_fallback_avatar(champion_name)
+        self._paste_avatar(
+            image,
+            champion_avatar,
+            avatar_left,
+            avatar_top,
+            avatar_size,
+            self._blend_color(self.GOLD, self.TEXT, 0.15),
+            4,
         )
-    
+
+        champion_path = self._theme_path("champion_path", "champion_hamtaro.png")
         mascot = self._draw_asset_centered(
             image,
             champion_path,
-            center_x,
-            mascot_y,
-            mascot_width,
-            mascot_height,
+            mascot_left + mascot_size // 2,
+            mascot_top,
+            mascot_size,
+            mascot_size,
         )
-    
         if mascot is None:
             self._draw_hamster_fallback(
                 image,
-                center_x,
-                mascot_center_y,
-                min(
-                    mascot_width,
-                    mascot_height,
-                ),
+                mascot_left + mascot_size // 2,
+                mascot_top + mascot_size // 2,
+                mascot_size,
             )
-    
-        draw = ImageDraw.Draw(
-            image
+
+        handoff_trophy_width = max(
+            28,
+            int(getattr(self.theme, "champion_handoff_trophy_width", 36)),
         )
-    
-        name_plate_width = int(
-            getattr(
-                self.theme,
-                "champion_name_plate_width",
-                178,
-            )
+        handoff_trophy_height = max(
+            28,
+            int(getattr(self.theme, "champion_handoff_trophy_height", 36)),
         )
-    
-        name_plate_height = int(
-            getattr(
-                self.theme,
-                "champion_name_plate_height",
-                37,
-            )
+        handoff_center_x = avatar_left + avatar_size + visual_gap // 2 + 6
+        handoff_y = avatar_top + avatar_size // 2 - handoff_trophy_height // 2 - 2
+        handoff_color = self._blend_color(self.GOLD, self.TEXT, 0.12)
+        draw_colored_trophy(
+            draw,
+            handoff_center_x,
+            handoff_y,
+            handoff_trophy_width,
+            handoff_trophy_height,
+            handoff_color,
         )
-    
-        name_plate_y = min(
-            card_y
-            + card_height
-            - 82,
-            mascot_y
-            + mascot_height
-            + 5,
-        )
-    
+
+        name_plate_width = min(card_width - 34, int(getattr(self.theme, "champion_name_plate_width", 220)) + 20)
+        name_plate_height = int(getattr(self.theme, "champion_name_plate_height", 43))
+        name_plate_y = avatar_top + avatar_size + 18
         draw.rounded_rectangle(
             (
-                center_x
-                - name_plate_width // 2,
+                center_x - name_plate_width // 2,
                 name_plate_y,
-                center_x
-                + name_plate_width // 2,
-                name_plate_y
-                + name_plate_height,
+                center_x + name_plate_width // 2,
+                name_plate_y + name_plate_height,
             ),
-            radius=int(
-                getattr(
-                    self.theme,
-                    "champion_name_plate_radius",
-                    4,
-                )
-            ),
-            fill=self._blend_color(
-                self.RED,
-                self.BG,
-                0.30,
-            ),
+            radius=int(getattr(self.theme, "champion_name_plate_radius", 4)),
+            fill=self._blend_color(self.RED, self.BG, 0.28),
             outline=self.RED,
-            width=1,
+            width=2,
         )
-    
-        name_font = self._font(
-            int(
-                getattr(
-                    self.theme,
-                    "champion_name_font_size",
-                    26,
-                )
-            ),
-            bold=True,
-            italic=True,
-        )
-    
-        fitted_name = self._fit_text(
-            draw,
-            champion_name,
-            name_font,
-            name_plate_width - 16,
-        )
-    
+
+        name_font = self._font(int(getattr(self.theme, "champion_name_font_size", 32)), bold=True, italic=True)
+        fitted_name = self._fit_text(draw, champion_name, name_font, name_plate_width - 18)
         draw.text(
-            (
-                center_x,
-                name_plate_y
-                + name_plate_height // 2,
-            ),
+            (center_x, name_plate_y + name_plate_height // 2),
             fitted_name,
             font=name_font,
             fill=self.TEXT,
             anchor="mm",
         )
-    
-        champion_key = self._player_key(
-            champion_id,
-            champion_name,
+
+        runner_slot = 2
+        first_name = getattr(final_match, "player1_name", None)
+        second_name = getattr(final_match, "player2_name", None)
+        first_id = getattr(final_match, "player1_id", None)
+        second_id = getattr(final_match, "player2_id", None)
+        if (
+            (champion_id not in (None, "") and str(first_id) == str(champion_id))
+            or (champion_name and first_name == champion_name)
+        ):
+            runner_slot = 2
+        else:
+            runner_slot = 1
+
+        runner_name = getattr(final_match, f"player{runner_slot}_name", None) or "Finaliste"
+        runner_id = getattr(final_match, f"player{runner_slot}_id", None)
+        runner_key = self._player_key(runner_id, runner_name)
+        runner_seed = seed_map.get(runner_key)
+        runner_deck = (
+            getattr(final_match, f"player{runner_slot}_deck", None)
+            or "NON RENSEIGNÉ"
         )
-    
-        champion_seed = seed_map.get(
-            champion_key
+        runner_avatar = avatars.get(runner_key)
+        if runner_avatar is None:
+            runner_avatar = self._create_fallback_avatar(runner_name)
+
+        runner_card_y = name_plate_y + name_plate_height + 12
+        runner_card_height = int(getattr(self.theme, "runner_up_card_height", 62))
+        runner_card_width = min(
+            card_width - 26,
+            int(getattr(self.theme, "runner_up_card_width", 310)),
         )
-    
-        deck = self._champion_deck(
-            final_match,
-            champion_id,
-            champion_name,
-        )
-    
-        info_font = self._font(
-            int(
-                getattr(
-                    self.theme,
-                    "champion_information_font_size",
-                    15,
-                )
+        runner_card_x = center_x - runner_card_width // 2
+        platinum = getattr(self.theme, "runner_up_platinum", (184, 218, 255))
+        draw.rounded_rectangle(
+            (
+                runner_card_x,
+                runner_card_y,
+                runner_card_x + runner_card_width,
+                runner_card_y + runner_card_height,
             ),
+            radius=int(getattr(self.theme, "runner_up_card_radius", 8)),
+            fill=getattr(
+                self.theme,
+                "runner_up_background",
+                self._blend_color(self.BLUE, self.BG, 0.42),
+            ),
+            outline=platinum,
+            width=2,
+        )
+        self._paste_avatar(
+            image,
+            runner_avatar,
+            runner_card_x + 10,
+            runner_card_y + (runner_card_height - int(getattr(self.theme, "runner_up_avatar_size", 36))) // 2,
+            int(getattr(self.theme, "runner_up_avatar_size", 36)),
+            platinum,
+            2,
+        )
+        draw_colored_trophy(
+            draw,
+            runner_card_x + runner_card_width - 30,
+            runner_card_y + 11,
+            int(getattr(self.theme, "runner_up_trophy_width", 26)),
+            int(getattr(self.theme, "runner_up_trophy_height", 26)),
+            platinum,
+        )
+        runner_title_font = self._font(
+            int(getattr(self.theme, "runner_up_title_font_size", 15)),
+            bold=True,
+            italic=True,
+        )
+        runner_name_font = self._font(
+            int(getattr(self.theme, "runner_up_name_font_size", 18)),
             bold=True,
         )
-    
-        info_y = (
-            name_plate_y
-            + name_plate_height
-            + 10
+        runner_info_font = self._font(
+            int(getattr(self.theme, "runner_up_information_font_size", 13)),
+            bold=True,
         )
-    
         draw.text(
-            (
-                center_x,
-                info_y,
-            ),
-            (
-                "DECK : "
-                f"{self._safe_text(deck.upper(), 24)}"
-            ),
+            (runner_card_x + 54, runner_card_y + 9),
+            "2E PLACE",
+            font=runner_title_font,
+            fill=platinum,
+        )
+        fitted_runner_name = self._fit_text(draw, runner_name, runner_name_font, runner_card_width - 120)
+        draw.text(
+            (runner_card_x + 54, runner_card_y + 27),
+            fitted_runner_name,
+            font=runner_name_font,
+            fill=self.TEXT,
+        )
+        runner_info = self._fit_text(
+            draw,
+            f"DECK • {str(runner_deck).upper()}   •   SEED #{runner_seed or '?'}",
+            runner_info_font,
+            runner_card_width - 120,
+        )
+        draw.text(
+            (runner_card_x + 54, runner_card_y + 44),
+            runner_info,
+            font=runner_info_font,
+            fill=self.MUTED,
+        )
+
+        champion_seed = seed_map.get(champion_key)
+        deck = self._champion_deck(final_match, champion_id, champion_name)
+        champion_information_size = int(getattr(self.theme, "champion_information_font_size", 17))
+        info_font = self._font(champion_information_size, bold=True)
+        info_y = runner_card_y + runner_card_height + 10
+        deck_text = self._fit_text(draw, f"DECK • {str(deck).upper()}", info_font, card_width - 28)
+        draw.text((center_x, info_y), deck_text, font=info_font, fill=self.MUTED, anchor="ma")
+        draw.text(
+            (center_x, info_y + max(20, champion_information_size + 4)),
+            f"SEED • #{champion_seed or '?'}",
             font=info_font,
             fill=self.MUTED,
             anchor="ma",
         )
-    
-        draw.text(
-            (
-                center_x,
-                info_y + 23,
-            ),
-            (
-                "SEED : "
-                f"#{champion_seed or '?'}"
-            ),
-            font=info_font,
-            fill=self.MUTED,
-            anchor="ma",
-        )
-    
-        particle_layer = Image.new(
-            "RGBA",
-            image.size,
-            (
-                0,
-                0,
-                0,
-                0,
-            ),
-        )
-    
-        particle_draw = ImageDraw.Draw(
-            particle_layer
-        )
-    
-        randomizer = random.Random(
-            f"champion:{champion_name}"
-        )
-    
-        particle_count = int(
-            getattr(
-                self.theme,
-                "champion_particle_count",
-                26,
-            )
-        )
-    
-        for _ in range(
-            particle_count
-        ):
-            px = randomizer.randint(
-                card_x + 14,
-                card_x
-                + card_width
-                - 14,
-            )
-    
-            py = randomizer.randint(
-                mascot_y,
-                min(
-                    card_y
-                    + card_height
-                    - 15,
-                    info_y + 15,
-                ),
-            )
-    
-            if (
-                abs(
-                    px - center_x
-                )
-                < mascot_width // 2
-            ):
+
+        particle_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        particle_draw = ImageDraw.Draw(particle_layer)
+        randomizer = random.Random(f"champion:{champion_name}")
+        particle_count = int(getattr(self.theme, "champion_particle_count", 26))
+        for _ in range(particle_count):
+            px = randomizer.randint(card_x + 14, card_x + card_width - 14)
+            py = randomizer.randint(title_y + 16, card_y + card_height - 14)
+            if avatar_left - 16 <= px <= mascot_left + mascot_size + 10 and avatar_top - 12 <= py <= avatar_top + avatar_size + 14:
                 continue
-    
-            radius = randomizer.choice(
-                (
-                    1,
-                    1,
-                    2,
-                )
-            )
-    
+            radius = randomizer.choice((1, 1, 2))
             particle_draw.ellipse(
-                (
-                    px - radius,
-                    py - radius,
-                    px + radius,
-                    py + radius,
-                ),
-                fill=(
-                    *self.GOLD,
-                    randomizer.randint(
-                        90,
-                        210,
-                    ),
-                ),
+                (px - radius, py - radius, px + radius, py + radius),
+                fill=(*self.GOLD, randomizer.randint(90, 210)),
             )
-    
-        image.alpha_composite(
-            particle_layer
-        )
-    
-        return (
-            card_x,
-            card_y,
-            card_x
-            + card_width,
-            card_y
-            + card_height,
-        )
-    
+        image.alpha_composite(particle_layer)
+
+        return (card_x, card_y, card_x + card_width, card_y + card_height)
+
+
     # ==========================================================
     # STATISTIQUES
     # ==========================================================
@@ -5934,7 +5502,7 @@ class BracketImageService:
         image: Image.Image,
         final_mode: bool,
     ) -> None:
-        """Dessine le footer avec une taille réellement lisible en HD."""
+        """Dessine le footer avec le nom du serveur et l'avatar du bot."""
 
         draw = ImageDraw.Draw(image)
         footer_height = self._effective_footer_height(canvas_height=image.height)
@@ -5946,31 +5514,16 @@ class BracketImageService:
             (0, footer_y, image.width, image.height),
             fill=(*getattr(self.theme, "footer_background", self.BG), 255),
         )
-        separator_height = max(
-            2,
-            int(getattr(self.theme, "footer_top_separator_height", 2)),
-        )
-        draw.rectangle(
-            (0, footer_y, image.width // 2, footer_y + separator_height),
-            fill=self.RED,
-        )
-        draw.rectangle(
-            (image.width // 2, footer_y, image.width, footer_y + separator_height),
-            fill=self.BLUE,
-        )
+        separator_height = max(2, int(getattr(self.theme, "footer_top_separator_height", 2)))
+        draw.rectangle((0, footer_y, image.width // 2, footer_y + separator_height), fill=self.RED)
+        draw.rectangle((image.width // 2, footer_y, image.width, footer_y + separator_height), fill=self.BLUE)
 
-        icon_size = max(
-            int(38 * display_scale),
-            int(getattr(self.theme, "footer_icon_size", 38)),
-        )
+        icon_size = max(int(38 * display_scale), int(getattr(self.theme, "footer_icon_size", 38)))
         icon_path = self._theme_path("footer_icon_path", "hamtaro_footer.png")
         icon = self._load_asset(icon_path)
         if icon is not None:
             icon = self._contain_image(icon, icon_size, icon_size)
-            image.alpha_composite(
-                icon,
-                (padding, footer_y + (footer_height - icon.height) // 2),
-            )
+            image.alpha_composite(icon, (padding, footer_y + (footer_height - icon.height) // 2))
         else:
             self._draw_hamster_fallback(
                 image,
@@ -5981,15 +5534,17 @@ class BracketImageService:
 
         draw = ImageDraw.Draw(image)
         normal_font = self._font(
-            max(
-                int(16 * display_scale),
-                int(getattr(self.theme, "footer_information_font_size", 16)),
-            )
+            max(int(16 * display_scale), int(getattr(self.theme, "footer_information_font_size", 16)))
         )
         emphasis_font = self._font(
+            max(int(18 * display_scale), int(getattr(self.theme, "footer_title_font_size", 18))),
+            bold=True,
+            italic=True,
+        )
+        server_font = self._font(
             max(
-                int(18 * display_scale),
-                int(getattr(self.theme, "footer_title_font_size", 18)),
+                int(22 * display_scale),
+                int(getattr(self.theme, "footer_server_name_font_size", 23)),
             ),
             bold=True,
             italic=True,
@@ -5997,13 +5552,7 @@ class BracketImageService:
         baseline = footer_y + footer_height // 2
         left_x = padding + icon_size + 12
         prefix = "ORGANISÉ AVEC"
-        draw.text(
-            (left_x, baseline),
-            prefix,
-            font=normal_font,
-            fill=self.MUTED,
-            anchor="lm",
-        )
+        draw.text((left_x, baseline), prefix, font=normal_font, fill=self.MUTED, anchor="lm")
         prefix_width = self._text_width(draw, prefix, normal_font)
         draw.text(
             (left_x + prefix_width + 14, baseline),
@@ -6014,68 +5563,56 @@ class BracketImageService:
         )
 
         center_text = (
-            str(
-                getattr(
-                    self.theme,
-                    "footer_center_text",
-                    "MERCI À TOUS LES PARTICIPANTS !",
-                )
-            )
+            str(getattr(self.theme, "footer_center_text", "MERCI À TOUS LES PARTICIPANTS !"))
             if final_mode
             else "RÉSULTATS ACTUALISÉS APRÈS VALIDATION DU STAFF"
         )
         center_font = self._font(
-            max(
-                int(18 * display_scale),
-                int(getattr(self.theme, "footer_center_font_size", 18)),
-            ),
+            max(int(18 * display_scale), int(getattr(self.theme, "footer_center_font_size", 18))),
             bold=True,
             italic=True,
         )
-        draw.text(
-            (image.width // 2, baseline),
-            center_text,
-            font=center_font,
-            fill=self.MUTED,
-            anchor="mm",
-        )
+        draw.text((image.width // 2, baseline), center_text, font=center_font, fill=self.MUTED, anchor="mm")
 
-        discord_size = max(
-            int(36 * display_scale),
-            int(getattr(self.theme, "footer_discord_logo_size", 36)),
+        bot_avatar_size = max(
+            int(50 * display_scale),
+            int(getattr(self.theme, "footer_bot_avatar_size", 54)),
         )
-        discord_path = self._theme_path("discord_logo_path", "discord_logo.png")
-        discord_icon = self._load_asset(discord_path)
-        invite = str(
-            getattr(self.theme, "discord_invite_text", "HTTPS://DISCORD.GG/HAMTARO")
-        )
-        icon_x = image.width - padding - discord_size
-        text_x = icon_x - 14
-        draw.text(
-            (text_x, baseline),
-            invite,
-            font=normal_font,
-            fill=self.MUTED,
-            anchor="rm",
-        )
-        if discord_icon is not None:
-            discord_icon = self._contain_image(
-                discord_icon,
-                discord_size,
-                discord_size,
+        bot_avatar_x = image.width - padding - bot_avatar_size
+        bot_avatar_y = footer_y + (footer_height - bot_avatar_size) // 2
+        server_name = str(getattr(self.theme, "server_name", "FONT ROW")).upper()
+        bot_avatar_path = self._theme_path("bot_avatar_path", "hamtaro_bot_avatar.png")
+        bot_avatar = self._load_asset(bot_avatar_path)
+        if bot_avatar is None:
+            bot_avatar = self._load_asset(
+                self._theme_path("footer_icon_path", "hamtaro_footer.png")
             )
-            image.alpha_composite(
-                discord_icon,
-                (icon_x, footer_y + (footer_height - discord_icon.height) // 2),
+        if bot_avatar is not None:
+            self._paste_avatar(
+                image,
+                bot_avatar,
+                bot_avatar_x,
+                bot_avatar_y,
+                bot_avatar_size,
+                self.BLUE,
+                int(getattr(self.theme, "footer_bot_avatar_border_width", 3)),
             )
         else:
-            self._draw_discord_fallback(
-                draw,
-                icon_x + discord_size // 2,
-                baseline,
-                discord_size,
+            self._draw_hamster_fallback(
+                image,
+                bot_avatar_x + bot_avatar_size // 2,
+                bot_avatar_y + bot_avatar_size // 2,
+                bot_avatar_size,
             )
-    
+        draw = ImageDraw.Draw(image)
+        draw.text(
+            (bot_avatar_x - 16, baseline),
+            server_name,
+            font=server_font,
+            fill=self.TEXT,
+            anchor="rm",
+        )
+
     # ==========================================================
     # GÉNÉRATION DE L'IMAGE
     # ==========================================================
