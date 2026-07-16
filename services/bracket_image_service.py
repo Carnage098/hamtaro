@@ -6704,8 +6704,12 @@ class BracketImageService:
             bold=True,
             italic=True,
         )
+        center_x = (
+            image.width // 2
+            + int(getattr(self.theme, "footer_center_offset_x", 0))
+        )
         draw.text(
-            (image.width // 2, baseline),
+            (center_x, baseline),
             center_text,
             font=center_font,
             fill=self.MUTED,
@@ -6823,7 +6827,7 @@ class BracketImageService:
         )
 
         # Rectangle d'appel a l'action a gauche de la carte serveur.
-        callout_width = int(getattr(self.theme, "footer_callout_width", 620))
+        callout_width = int(getattr(self.theme, "footer_callout_width", 700))
         callout_height = min(
             footer_height - 10,
             int(getattr(self.theme, "footer_callout_height", profile_height)),
@@ -6851,42 +6855,85 @@ class BracketImageService:
             width=int(getattr(self.theme, "footer_callout_border_width", 2)),
         )
 
-        callout_text = str(
+        callout_title = str(
+            getattr(self.theme, "footer_callout_title", "REJOINS NOUS")
+        ).upper()
+        callout_subtitle = str(
             getattr(
                 self.theme,
-                "footer_callout_text",
-                "REJOINS NOUS POUR PARTICIPER A DE NOUVELLES AVENTURES !",
+                "footer_callout_subtitle",
+                "POUR PARTICIPER A DE NOUVELLES AVENTURES !",
             )
         ).upper()
-        line1 = "REJOINS NOUS POUR PARTICIPER"
-        line2 = "A DE NOUVELLES AVENTURES !"
-        callout_font = self._font(
-            max(14, int(getattr(self.theme, "footer_callout_font_size", 18))),
+
+        title_font = self._font(
+            max(
+                18,
+                int(getattr(self.theme, "footer_callout_title_font_size", 27)),
+            ),
             bold=True,
             italic=True,
         )
-        available_width = callout_width - 24
-        if self._text_width(draw, line1, callout_font) > available_width:
-            line1 = self._fit_text(draw, line1, callout_font, available_width)
-        if self._text_width(draw, line2, callout_font) > available_width:
-            line2 = self._fit_text(draw, line2, callout_font, available_width)
+        subtitle_font = self._font(
+            max(
+                14,
+                int(getattr(self.theme, "footer_callout_subtitle_font_size", 18)),
+            ),
+            bold=True,
+        )
 
-        line_gap = int(getattr(self.theme, "footer_callout_line_gap", 6))
-        top_y = callout_y + callout_height // 2 - (callout_font.size + line_gap // 2)
-        bottom_y = callout_y + callout_height // 2 + (callout_font.size // 2 + line_gap // 2)
-        draw.text(
-            (callout_x + callout_width // 2, top_y),
-            line1,
-            font=callout_font,
-            fill=self.TEXT,
-            anchor="ma",
+        horizontal_padding = int(
+            getattr(self.theme, "footer_callout_horizontal_padding", 24)
+        )
+        available_width = max(40, callout_width - horizontal_padding * 2)
+        callout_title = self._fit_text(
+            draw,
+            callout_title,
+            title_font,
+            available_width,
+        )
+        callout_subtitle = self._fit_text(
+            draw,
+            callout_subtitle,
+            subtitle_font,
+            available_width,
+        )
+
+        line_gap = int(getattr(self.theme, "footer_callout_line_gap", 2))
+        title_height = self._text_height(draw, callout_title, title_font)
+        subtitle_height = self._text_height(draw, callout_subtitle, subtitle_font)
+        total_text_height = title_height + line_gap + subtitle_height
+        text_top = callout_y + (callout_height - total_text_height) // 2
+        callout_center_x = callout_x + callout_width // 2
+
+        title_center_y = text_top + title_height // 2
+        subtitle_center_y = (
+            text_top
+            + title_height
+            + line_gap
+            + subtitle_height // 2
         )
         draw.text(
-            (callout_x + callout_width // 2, bottom_y),
-            line2,
-            font=callout_font,
-            fill=self.TEXT,
-            anchor="ma",
+            (callout_center_x, title_center_y),
+            callout_title,
+            font=title_font,
+            fill=getattr(
+                self.theme,
+                "footer_callout_title_color",
+                self.TEXT,
+            ),
+            anchor="mm",
+        )
+        draw.text(
+            (callout_center_x, subtitle_center_y),
+            callout_subtitle,
+            font=subtitle_font,
+            fill=getattr(
+                self.theme,
+                "footer_callout_subtitle_color",
+                self.BLUE,
+            ),
+            anchor="mm",
         )
     # ==========================================================
     # GÉNÉRATION DE L'IMAGE
