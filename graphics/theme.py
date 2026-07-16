@@ -211,6 +211,17 @@ class HamtaroBracketTheme:
     footer_server_profile_background: Color = (11, 18, 31)
     footer_server_profile_border: Color = (42, 145, 255)
 
+    footer_callout_width: int = 620
+    footer_callout_height: int = 68
+    footer_callout_gap: int = 16
+    footer_callout_radius: int = 9
+    footer_callout_border_width: int = 2
+    footer_callout_font_size: int = 18
+    footer_callout_line_gap: int = 6
+    footer_callout_background: Color = (11, 18, 31)
+    footer_callout_border: Color = (42, 145, 255)
+    footer_callout_text: str = "REJOINS NOUS POUR PARTICIPER A DE NOUVELLES AVENTURES !"
+
     footer_horizontal_padding: int = 26
     footer_top_separator_height: int = 2
 
