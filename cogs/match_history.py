@@ -11,18 +11,23 @@ try:
 except ImportError:
     from database import DATABASE
 
+from utils.tournament_resolver import (
+    tournament_code_autocomplete,
+    resolve_tournament,
+)
+
 
 class MatchHistoryCog(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.db = bot.db
 
     def _guild_id(self, interaction: discord.Interaction) -> str:
         if interaction.guild is None:
             raise ValueError(
                 "Cette commande doit être utilisée dans un serveur."
             )
-
         return str(interaction.guild.id)
 
     async def _get_bracket_matches(
@@ -30,47 +35,39 @@ class MatchHistoryCog(commands.Cog):
         guild_id: str,
         player_id: str,
         limit: int,
+        tournament_id: int | None = None,
     ) -> list[aiosqlite.Row]:
+        tournament_filter = ""
+        parameters: list[object] = [guild_id, player_id, player_id]
+        if tournament_id is not None:
+            tournament_filter = "AND tournaments.id = ?"
+            parameters.append(tournament_id)
+        parameters.append(limit)
 
         async with aiosqlite.connect(DATABASE) as db:
             db.row_factory = aiosqlite.Row
-
-            cursor = await db.execute("""
+            cursor = await db.execute(
+                f"""
                 SELECT
-                    matches.id,
-                    matches.round,
-                    matches.player1_id,
-                    matches.player2_id,
-                    matches.player1_name,
-                    matches.player2_name,
-                    matches.player1_score,
-                    matches.player2_score,
-                    matches.winner_id,
-                    matches.winner_name,
-                    matches.status,
-                    matches.validated_at,
-                    matches.created_at,
+                    matches.id, matches.round,
+                    matches.player1_id, matches.player2_id,
+                    matches.player1_name, matches.player2_name,
+                    matches.player1_score, matches.player2_score,
+                    matches.winner_id, matches.winner_name,
+                    matches.status, matches.validated_at, matches.created_at,
                     tournaments.name AS tournament_name,
                     tournaments.format AS tournament_format,
                     tournaments.code AS tournament_code
                 FROM matches
-                JOIN tournaments
-                    ON tournaments.id = matches.tournament_id
+                JOIN tournaments ON tournaments.id = matches.tournament_id
                 WHERE tournaments.guild_id = ?
-                AND (
-                    matches.player1_id = ?
-                    OR matches.player2_id = ?
-                )
-                ORDER BY
-                    COALESCE(matches.validated_at, matches.created_at) DESC
+                AND (matches.player1_id = ? OR matches.player2_id = ?)
+                {tournament_filter}
+                ORDER BY COALESCE(matches.validated_at, matches.created_at) DESC
                 LIMIT ?
-            """, (
-                guild_id,
-                player_id,
-                player_id,
-                limit,
-            ))
-
+                """,
+                tuple(parameters),
+            )
             return list(await cursor.fetchall())
 
     async def _get_swiss_matches(
@@ -78,233 +75,196 @@ class MatchHistoryCog(commands.Cog):
         guild_id: str,
         player_id: str,
         limit: int,
+        tournament_id: int | None = None,
     ) -> list[aiosqlite.Row]:
+        tournament_filter = ""
+        parameters: list[object] = [guild_id, player_id, player_id]
+        if tournament_id is not None:
+            tournament_filter = "AND tournaments.id = ?"
+            parameters.append(tournament_id)
+        parameters.append(limit)
 
         async with aiosqlite.connect(DATABASE) as db:
             db.row_factory = aiosqlite.Row
-
-            cursor = await db.execute("""
+            cursor = await db.execute(
+                f"""
                 SELECT
-                    swiss_matches.id,
-                    swiss_matches.round_number,
+                    swiss_matches.id, swiss_matches.round_number,
                     swiss_matches.table_number,
-                    swiss_matches.player1_id,
-                    swiss_matches.player2_id,
-                    swiss_matches.player1_name,
-                    swiss_matches.player2_name,
-                    swiss_matches.player1_score,
-                    swiss_matches.player2_score,
-                    swiss_matches.winner_id,
-                    swiss_matches.winner_name,
-                    swiss_matches.is_draw,
-                    swiss_matches.is_bye,
-                    swiss_matches.status,
-                    swiss_matches.reported_at,
+                    swiss_matches.player1_id, swiss_matches.player2_id,
+                    swiss_matches.player1_name, swiss_matches.player2_name,
+                    swiss_matches.player1_score, swiss_matches.player2_score,
+                    swiss_matches.winner_id, swiss_matches.winner_name,
+                    swiss_matches.is_draw, swiss_matches.is_double_loss,
+                    swiss_matches.result, swiss_matches.is_bye,
+                    swiss_matches.status, swiss_matches.reported_at,
                     swiss_matches.created_at,
                     tournaments.name AS tournament_name,
                     tournaments.format AS tournament_format,
                     tournaments.code AS tournament_code
                 FROM swiss_matches
-                JOIN tournaments
-                    ON tournaments.id = swiss_matches.tournament_id
+                JOIN tournaments ON tournaments.id = swiss_matches.tournament_id
                 WHERE tournaments.guild_id = ?
-                AND (
-                    swiss_matches.player1_id = ?
-                    OR swiss_matches.player2_id = ?
-                )
-                ORDER BY
-                    COALESCE(swiss_matches.reported_at, swiss_matches.created_at) DESC
+                AND (swiss_matches.player1_id = ? OR swiss_matches.player2_id = ?)
+                {tournament_filter}
+                ORDER BY COALESCE(swiss_matches.reported_at, swiss_matches.created_at) DESC
                 LIMIT ?
-            """, (
-                guild_id,
-                player_id,
-                player_id,
-                limit,
-            ))
-
+                """,
+                tuple(parameters),
+            )
             return list(await cursor.fetchall())
 
-    def _format_bracket_match(
-        self,
-        match: aiosqlite.Row,
-        player_id: str,
-    ) -> str:
-
-        player1_id = match["player1_id"]
-        player2_id = match["player2_id"]
-
+    def _format_bracket_match(self, match: aiosqlite.Row, player_id: str) -> str:
+        player1_id = str(match["player1_id"] or "")
         player1_name = match["player1_name"] or "Joueur 1"
         player2_name = match["player2_name"] or "Joueur 2"
-
-        player1_score = match["player1_score"]
-        player2_score = match["player2_score"]
-
-        winner_id = match["winner_id"]
-        status = match["status"]
+        winner_id = str(match["winner_id"] or "")
 
         if player_id == winner_id:
             result = "✅ Victoire"
-        elif winner_id is not None:
+        elif winner_id:
             result = "❌ Défaite"
         else:
             result = "⏳ En attente"
 
-        if player_id == player1_id:
-            opponent = player2_name
-        else:
-            opponent = player1_name
-
-        score = f"{player1_score}-{player2_score}"
-
+        opponent = player2_name if player_id == player1_id else player1_name
+        score = f"{match['player1_score']}-{match['player2_score']}"
         return (
-            f"{result} — **{match['tournament_name']}** "
-            f"`{match['tournament_code']}`\n"
-            f"Format : **{match['tournament_format']}** | "
-            f"Round : **{match['round']}** | "
-            f"Adversaire : **{opponent}** | "
-            f"Score : `{score}` | "
-            f"Statut : `{status}`"
+            f"{result} — **{match['tournament_name']}** `{match['tournament_code']}`\n"
+            f"Format : **{match['tournament_format']}** | Round : **{match['round']}** | "
+            f"Adversaire : **{opponent}** | Score : `{score}` | "
+            f"Statut : `{match['status']}`"
         )
 
-    def _format_swiss_match(
-        self,
-        match: aiosqlite.Row,
-        player_id: str,
-    ) -> str:
-
-        player1_id = match["player1_id"]
+    def _format_swiss_match(self, match: aiosqlite.Row, player_id: str) -> str:
+        player1_id = str(match["player1_id"] or "")
         player1_name = match["player1_name"] or "Joueur 1"
         player2_name = match["player2_name"] or "BYE"
+        winner_id = str(match["winner_id"] or "")
+        is_bye = int(match["is_bye"] or 0) == 1
+        is_double_loss = int(match["is_double_loss"] or 0) == 1
+        legacy_draw = int(match["is_draw"] or 0) == 1
+        result_value = str(match["result"] or "none").lower()
 
-        player1_score = match["player1_score"]
-        player2_score = match["player2_score"]
-
-        winner_id = match["winner_id"]
-        is_draw = match["is_draw"]
-        is_bye = match["is_bye"]
-        status = match["status"]
-
+        opponent = player2_name if player_id == player1_id else player1_name
         if is_bye:
             result = "🟢 BYE"
             opponent = "BYE"
-        elif is_draw:
-            result = "➖ Égalité"
-            opponent = player2_name if player_id == player1_id else player1_name
+        elif is_double_loss or legacy_draw or result_value in {"double_loss", "draw"}:
+            result = "🔴 Double loss"
         elif player_id == winner_id:
             result = "✅ Victoire"
-            opponent = player2_name if player_id == player1_id else player1_name
-        elif winner_id is not None:
+        elif winner_id:
             result = "❌ Défaite"
-            opponent = player2_name if player_id == player1_id else player1_name
         else:
             result = "⏳ En attente"
-            opponent = player2_name if player_id == player1_id else player1_name
 
-        score = f"{player1_score}-{player2_score}"
-
+        score = f"{match['player1_score']}-{match['player2_score']}"
         return (
-            f"{result} — **{match['tournament_name']}** "
-            f"`{match['tournament_code']}`\n"
+            f"{result} — **{match['tournament_name']}** `{match['tournament_code']}`\n"
             f"Format : **{match['tournament_format']}** | "
             f"Ronde suisse : **{match['round_number']}** | "
             f"Table : **{match['table_number']}** | "
-            f"Adversaire : **{opponent}** | "
-            f"Score : `{score}` | "
-            f"Statut : `{status}`"
+            f"Adversaire : **{opponent}** | Score : `{score}` | "
+            f"Statut : `{match['status']}`"
         )
 
     @app_commands.command(
         name="match_history",
-        description="Voir l'historique des matchs d'un joueur"
+        description="Voir l'historique des matchs d'un joueur",
     )
     @app_commands.describe(
-        member="Joueur à consulter"
+        member="Joueur à consulter",
+        code="Code facultatif du tournoi",
+        tous_les_tournois="Afficher l'historique de tous les tournois du serveur",
     )
+    @app_commands.autocomplete(code=tournament_code_autocomplete)
     async def match_history(
         self,
         interaction: discord.Interaction,
         member: discord.Member | None = None,
+        code: str | None = None,
+        tous_les_tournois: bool = False,
     ):
-
-        await interaction.response.defer(
-            ephemeral=True
-        )
+        await interaction.response.defer(ephemeral=True)
 
         try:
             guild_id = self._guild_id(interaction)
-
+            tournament = None
+            tournament_id = None
+            if not tous_les_tournois:
+                tournament = await resolve_tournament(
+                    interaction,
+                    self.db,
+                    code=code,
+                    require_active=False,
+                )
+                tournament_id = int(tournament.id)
         except ValueError as error:
-            await interaction.followup.send(
-                f"❌ {error}",
-                ephemeral=True,
-            )
+            await interaction.followup.send(f"❌ {error}", ephemeral=True)
             return
 
         target = member or interaction.user
         player_id = str(target.id)
-
         bracket_matches = await self._get_bracket_matches(
-            guild_id=guild_id,
-            player_id=player_id,
-            limit=5,
+            guild_id, player_id, 5, tournament_id
         )
-
         swiss_matches = await self._get_swiss_matches(
-            guild_id=guild_id,
-            player_id=player_id,
-            limit=5,
+            guild_id, player_id, 5, tournament_id
         )
 
-        lines = []
-
-        for match in bracket_matches:
-            lines.append(
-                self._format_bracket_match(
-                    match,
-                    player_id,
-                )
-            )
-
-        for match in swiss_matches:
-            lines.append(
-                self._format_swiss_match(
-                    match,
-                    player_id,
-                )
-            )
+        lines = [
+            self._format_bracket_match(match, player_id)
+            for match in bracket_matches
+        ]
+        lines.extend(
+            self._format_swiss_match(match, player_id)
+            for match in swiss_matches
+        )
 
         if not lines:
+            scope = (
+                "tous les tournois"
+                if tous_les_tournois
+                else f"le tournoi `{tournament.code}`"
+            )
             await interaction.followup.send(
-                f"❌ Aucun historique trouvé pour {target.mention}.",
+                f"❌ Aucun historique trouvé pour {target.mention} dans {scope}.",
                 ephemeral=True,
             )
             return
 
-        lines = lines[:10]
-
         embed = discord.Embed(
             title="📜 Historique des matchs",
-            description=f"Historique de {target.mention}",
+            description=(
+                f"Historique de {target.mention} — tous les tournois"
+                if tous_les_tournois
+                else f"Historique de {target.mention} — `{tournament.code}`"
+            ),
             color=discord.Color.blurple(),
         )
+        chunks: list[str] = []
+        current = ""
+        for line in lines[:10]:
+            candidate = f"{current}\n\n{line}" if current else line
+            if len(candidate) > 1000:
+                if current:
+                    chunks.append(current)
+                current = line
+            else:
+                current = candidate
+        if current:
+            chunks.append(current)
 
-        embed.add_field(
-            name="Derniers matchs",
-            value="\n\n".join(lines),
-            inline=False,
-        )
-
-        embed.set_footer(
-            text="Historique basé sur les matchs enregistrés par Hamtaro."
-        )
-
-        await interaction.followup.send(
-            embed=embed,
-            ephemeral=True,
-        )
+        for index, chunk in enumerate(chunks, start=1):
+            embed.add_field(
+                name="Derniers matchs" if index == 1 else "Suite",
+                value=chunk,
+                inline=False,
+            )
+        embed.set_footer(text="Historique basé sur les matchs enregistrés par Hamtaro.")
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(
-        MatchHistoryCog(bot)
-    )
+    await bot.add_cog(MatchHistoryCog(bot))
