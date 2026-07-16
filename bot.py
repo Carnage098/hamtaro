@@ -29,8 +29,6 @@ COGS = [
     "cogs.bracket_full",
     "cogs.end_tournament",
     "cogs.help",
-    "cogs.graphics_preview",
-    "cogs.swiss_graphics.preview",
     "cogs.swiss_graphics",
 ]
 
