@@ -6,6 +6,11 @@ from discord.ext import commands
 from discord import app_commands
 
 from services.bracket_service import BracketService
+from utils.tournament_resolver import (
+    active_tournament_code_autocomplete,
+    tournament_code_autocomplete,
+    resolve_tournament,
+)
 
 
 FORMATS = [
@@ -37,6 +42,20 @@ class TournamentCog(commands.Cog):
             )
 
         return str(interaction.guild.id)
+
+    async def _resolve_tournament(
+        self,
+        interaction: discord.Interaction,
+        code: str | None = None,
+        *,
+        require_active: bool = True,
+    ):
+        return await resolve_tournament(
+            interaction,
+            self.db,
+            code=code,
+            require_active=require_active,
+        )
 
     # ==========================================================
     # CRÉATION TOURNOI
@@ -85,6 +104,14 @@ class TournamentCog(commands.Cog):
                 created_by=str(interaction.user.id),
             )
 
+            if interaction.channel_id is not None:
+                await self.db.select_tournament_for_channel(
+                    guild_id=guild_id,
+                    channel_id=str(interaction.channel_id),
+                    tournament_id=int(tournament.id),
+                    selected_by=str(interaction.user.id),
+                )
+
         except ValueError as error:
             await interaction.followup.send(
                 f"❌ {error}",
@@ -94,7 +121,10 @@ class TournamentCog(commands.Cog):
 
         embed = discord.Embed(
             title="🏆 Tournoi créé",
-            description="Les inscriptions sont maintenant ouvertes.",
+            description=(
+                "Les inscriptions sont maintenant ouvertes.\n"
+                "Ce tournoi a été sélectionné automatiquement dans ce salon."
+            ),
             color=discord.Color.gold(),
         )
 
@@ -142,21 +172,28 @@ class TournamentCog(commands.Cog):
 
     @app_commands.command(
         name="tournament",
-        description="Voir le tournoi actif"
+        description="Voir le tournoi sélectionné dans ce salon"
+    )
+    @app_commands.describe(
+        code="Code facultatif du tournoi à afficher"
+    )
+    @app_commands.autocomplete(
+        code=tournament_code_autocomplete
     )
     async def tournament(
         self,
         interaction: discord.Interaction,
+        code: str | None = None,
     ):
         await interaction.response.defer(
             ephemeral=False
         )
 
         try:
-            guild_id = self._guild_id(interaction)
-
-            tournament = await self.db.get_active_tournament(
-                guild_id
+            tournament = await self._resolve_tournament(
+                interaction,
+                code,
+                require_active=False,
             )
 
         except ValueError as error:
@@ -178,7 +215,7 @@ class TournamentCog(commands.Cog):
         )
 
         embed = discord.Embed(
-            title="🏆 Tournoi actif",
+            title="🏆 Tournoi sélectionné",
             color=discord.Color.gold(),
         )
 
@@ -228,7 +265,13 @@ class TournamentCog(commands.Cog):
 
     @app_commands.command(
         name="start_tournament",
-        description="Lancer le tournoi actif"
+        description="Lancer le tournoi sélectionné"
+    )
+    @app_commands.describe(
+        code="Code facultatif du tournoi à lancer"
+    )
+    @app_commands.autocomplete(
+        code=active_tournament_code_autocomplete
     )
     @app_commands.default_permissions(
         manage_guild=True
@@ -236,16 +279,16 @@ class TournamentCog(commands.Cog):
     async def start_tournament(
         self,
         interaction: discord.Interaction,
+        code: str | None = None,
     ):
         await interaction.response.defer(
             ephemeral=True
         )
 
         try:
-            guild_id = self._guild_id(interaction)
-
-            tournament = await self.db.get_active_tournament(
-                guild_id
+            tournament = await self._resolve_tournament(
+                interaction,
+                code,
             )
 
             if tournament is None:
@@ -295,58 +338,7 @@ class TournamentCog(commands.Cog):
             return
 
         await interaction.followup.send(
-            "✅ Tournoi lancé avec succès.",
-            ephemeral=True,
-        )
-
-    # ==========================================================
-    # LISTE DES TOURNOIS
-    # ==========================================================
-
-    @app_commands.command(
-        name="tournament_list",
-        description="Lister les tournois du serveur"
-    )
-    async def tournament_list(
-        self,
-        interaction: discord.Interaction,
-    ):
-        await interaction.response.defer(
-            ephemeral=True
-        )
-
-        try:
-            guild_id = self._guild_id(interaction)
-
-            tournaments = await self.db.list_tournaments(
-                guild_id,
-                include_finished=True,
-            )
-
-        except ValueError as error:
-            await interaction.followup.send(
-                f"❌ {error}",
-                ephemeral=True,
-            )
-            return
-
-        if not tournaments:
-            await interaction.followup.send(
-                "❌ Aucun tournoi trouvé.",
-                ephemeral=True,
-            )
-            return
-
-        lines = []
-
-        for tournament in tournaments[:10]:
-            lines.append(
-                f"🏆 **{tournament.name}** — `{tournament.code}` "
-                f"({tournament.format}) — `{tournament.status.value}`"
-            )
-
-        await interaction.followup.send(
-            "\n".join(lines),
+            f"✅ Tournoi `{tournament.code}` lancé avec succès.",
             ephemeral=True,
         )
 
@@ -356,7 +348,13 @@ class TournamentCog(commands.Cog):
 
     @app_commands.command(
         name="cancel_tournament",
-        description="Annuler le tournoi actif"
+        description="Annuler le tournoi sélectionné"
+    )
+    @app_commands.describe(
+        code="Code facultatif du tournoi à annuler"
+    )
+    @app_commands.autocomplete(
+        code=active_tournament_code_autocomplete
     )
     @app_commands.default_permissions(
         manage_guild=True
@@ -364,16 +362,16 @@ class TournamentCog(commands.Cog):
     async def cancel_tournament(
         self,
         interaction: discord.Interaction,
+        code: str | None = None,
     ):
         await interaction.response.defer(
             ephemeral=True
         )
 
         try:
-            guild_id = self._guild_id(interaction)
-
-            tournament = await self.db.get_active_tournament(
-                guild_id
+            tournament = await self._resolve_tournament(
+                interaction,
+                code,
             )
 
             if tournament is None:
@@ -395,7 +393,7 @@ class TournamentCog(commands.Cog):
             return
 
         await interaction.followup.send(
-            "✅ Tournoi annulé.",
+            f"✅ Tournoi `{tournament.code}` annulé.",
             ephemeral=True,
         )
 
