@@ -10,7 +10,7 @@ Color = tuple[int, int, int]
 @dataclass(slots=True)
 class HamtaroBracketTheme:
     """
-    Thème graphique officiel du bracket Hamtaro.
+    Thème graphique officiel du bracket Hamtaro — version V14.
 
     Objectifs visuels :
 
@@ -133,7 +133,7 @@ class HamtaroBracketTheme:
     # ==========================================================
 
     header_height: int = 176
-    footer_height: int = 86
+    footer_height: int = 90
 
     horizontal_margin: int = 24
     vertical_margin: int = 14
@@ -189,24 +189,24 @@ class HamtaroBracketTheme:
     # FOOTER
     # ==========================================================
 
-    footer_title_font_size: int = 24
-    footer_information_font_size: int = 20
-    footer_center_font_size: int = 22
-    footer_server_name_font_size: int = 27
+    footer_title_font_size: int = 26
+    footer_information_font_size: int = 22
+    footer_center_font_size: int = 24
+    footer_server_name_font_size: int = 29
 
-    footer_icon_size: int = 46
+    footer_icon_size: int = 48
     footer_discord_logo_size: int = 36
     footer_bot_avatar_size: int = 54
     footer_bot_avatar_border_width: int = 3
 
     # Carte de profil du serveur affichee en bas a droite.
-    footer_server_profile_width: int = 286
-    footer_server_profile_height: int = 64
+    footer_server_profile_width: int = 300
+    footer_server_profile_height: int = 68
     footer_server_profile_radius: int = 9
     footer_server_profile_border_width: int = 2
-    footer_server_avatar_size: int = 52
+    footer_server_avatar_size: int = 56
     footer_server_avatar_border_width: int = 2
-    footer_server_subtitle_font_size: int = 14
+    footer_server_subtitle_font_size: int = 15
     footer_server_subtitle: str = "SERVEUR DISCORD"
     footer_server_profile_background: Color = (11, 18, 31)
     footer_server_profile_border: Color = (42, 145, 255)
@@ -321,28 +321,29 @@ class HamtaroBracketTheme:
     # Profil Discord du bot placé à droite du champion.
     champion_bot_avatar_size: int = 136
     champion_bot_avatar_border_width: int = 4
-    champion_bot_profile_label_width: int = 128
-    champion_bot_profile_label_height: int = 27
-    champion_bot_profile_label_font_size: int = 14
+    champion_bot_profile_label_width: int = 138
+    champion_bot_profile_label_height: int = 30
+    champion_bot_profile_label_font_size: int = 16
     champion_bot_profile_background: Color = (22, 30, 51)
     champion_bot_profile_border: Color = (88, 101, 242)
     champion_bot_status_color: Color = (35, 165, 90)
 
     # Trophée de remise placé entre le champion et le bot.
-    champion_handoff_trophy_width: int = 104
-    champion_handoff_trophy_height: int = 104
-    champion_visual_gap: int = 15
+    champion_handoff_trophy_width: int = 114
+    champion_handoff_trophy_height: int = 114
+    champion_visual_gap: int = 14
+    champion_bot_horizontal_shift: int = 10
 
-    champion_card_width: int = 480
-    champion_card_height: int = 510
-    champion_card_gap: int = 12
+    champion_card_width: int = 492
+    champion_card_height: int = 528
+    champion_card_gap: int = 6
     champion_card_radius: int = 8
     champion_card_border_width: int = 2
 
     champion_card_background: Color = (5, 10, 20)
 
-    champion_trophy_width: int = 94
-    champion_trophy_height: int = 94
+    champion_trophy_width: int = 98
+    champion_trophy_height: int = 98
 
     champion_image_width: int = 82
     champion_image_height: int = 82
@@ -361,15 +362,15 @@ class HamtaroBracketTheme:
     champion_particle_radius: int = 2
 
     # Deuxième place / finaliste
-    runner_up_card_width: int = 350
-    runner_up_card_height: int = 82
+    runner_up_card_width: int = 366
+    runner_up_card_height: int = 94
     runner_up_card_radius: int = 8
-    runner_up_avatar_size: int = 44
-    runner_up_trophy_width: int = 31
-    runner_up_trophy_height: int = 31
-    runner_up_title_font_size: int = 17
-    runner_up_name_font_size: int = 20
-    runner_up_information_font_size: int = 15
+    runner_up_avatar_size: int = 48
+    runner_up_trophy_width: int = 34
+    runner_up_trophy_height: int = 34
+    runner_up_title_font_size: int = 18
+    runner_up_name_font_size: int = 22
+    runner_up_information_font_size: int = 16
     runner_up_platinum: Color = (184, 218, 255)
     runner_up_background: Color = (9, 31, 62)
 
@@ -377,18 +378,18 @@ class HamtaroBracketTheme:
     # STATISTIQUES
     # ==========================================================
 
-    statistics_card_width: int = 510
-    statistics_card_height: int = 142
-    statistics_card_gap: int = 10
+    statistics_card_width: int = 522
+    statistics_card_height: int = 154
+    statistics_card_gap: int = 8
     statistics_card_radius: int = 5
     statistics_card_border_width: int = 1
 
-    statistics_title_font_size: int = 19
-    statistics_value_font_size: int = 26
-    statistics_label_font_size: int = 15
+    statistics_title_font_size: int = 20
+    statistics_value_font_size: int = 28
+    statistics_label_font_size: int = 17
 
     statistics_title_color: Color = (255, 75, 55)
-    statistics_icon_size: int = 22
+    statistics_icon_size: int = 24
 
     statistics_column_count: int = 4
     statistics_separator_width: int = 1
@@ -533,7 +534,7 @@ class HamtaroBracketTheme:
             8: 230,
             16: 188,
             32: 172,
-            64: 170,
+            64: 174,
             128: 150,
         }
 
@@ -555,7 +556,7 @@ class HamtaroBracketTheme:
         widths_by_capacity = {
             16: (190, 198, 210),
             32: (172, 178, 184, 192),
-            64: (170, 178, 188, 198, 214),
+            64: (174, 182, 192, 202, 218),
             128: (150, 156, 162, 168, 174, 180),
         }
 
@@ -579,7 +580,7 @@ class HamtaroBracketTheme:
             8: 78,
             16: 68,
             32: 58,
-            64: 58,
+            64: 62,
             128: 42,
         }
 
@@ -602,7 +603,7 @@ class HamtaroBracketTheme:
         heights_by_capacity = {
             16: (68, 72, 76),
             32: (58, 62, 66, 70),
-            64: (58, 62, 66, 70, 74),
+            64: (62, 66, 70, 74, 78),
             128: (42, 44, 46, 48, 50, 52),
         }
 
@@ -698,7 +699,7 @@ class HamtaroBracketTheme:
             8: 36,
             16: 31,
             32: 27,
-            64: 27,
+            64: 29,
             128: 18,
         }
 
@@ -720,7 +721,7 @@ class HamtaroBracketTheme:
         sizes_by_capacity = {
             16: (31, 33, 35),
             32: (27, 29, 31, 33),
-            64: (25, 26, 27, 29, 31),
+            64: (27, 28, 29, 31, 33),
             128: (18, 19, 20, 21, 22, 23),
         }
 
@@ -821,7 +822,7 @@ class HamtaroBracketTheme:
             8: 96,
             16: 83,
             32: 75,
-            64: 62,
+            64: 66,
             128: 46,
         }
 
@@ -844,7 +845,7 @@ class HamtaroBracketTheme:
             8: 18,
             16: 16,
             32: 14,
-            64: 16,
+            64: 17,
             128: 11,
         }
 
@@ -865,7 +866,7 @@ class HamtaroBracketTheme:
 
         sizes_by_capacity = {
             32: (14, 14, 15, 16),
-            64: (16, 16, 17, 18, 19),
+            64: (17, 17, 18, 19, 20),
             128: (11, 11, 12, 12, 13, 14),
         }
 
@@ -902,7 +903,7 @@ class HamtaroBracketTheme:
 
         sizes_by_capacity = {
             32: (15, 15, 16, 17),
-            64: (16, 16, 17, 18, 19),
+            64: (17, 17, 18, 19, 20),
             128: (12, 12, 13, 13, 14, 15),
         }
 
@@ -922,7 +923,7 @@ class HamtaroBracketTheme:
             8: 14,
             16: 13,
             32: 11,
-            64: 12,
+            64: 13,
             128: 9,
         }
 
@@ -937,7 +938,7 @@ class HamtaroBracketTheme:
             8: 26,
             16: 24,
             32: 22,
-            64: 27,
+            64: 29,
             128: 18,
         }
 
