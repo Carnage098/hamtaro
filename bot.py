@@ -31,7 +31,7 @@ COGS = [
     "cogs.help",
     "cogs.graphics_preview",
     "cogs.swiss.graphics.preview",
-    "cogs.swiss.graphics",
+    "cogs.swiss_graphics",
 ]
 
 
