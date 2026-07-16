@@ -3671,11 +3671,11 @@ class BracketImageService:
             int(165 * display_scale),
             int(getattr(self.theme, "tournament_id_box_width", 165)),
         )
-        organizer_width = max(
-            int(235 * display_scale),
-            int(getattr(self.theme, "organizer_box_width", 235)),
+        server_promo_width = max(
+            int(385 * display_scale),
+            int(getattr(self.theme, "header_server_promo_width", 430)),
         )
-        total_width = date_width + id_width + organizer_width + box_gap * 2
+        total_width = date_width + id_width + server_promo_width + box_gap * 2
         margin = int(getattr(self.theme, "horizontal_margin", 24))
         info_x = width - margin - total_width
         info_y = max(10, (header_height - box_height) // 2)
@@ -3684,11 +3684,6 @@ class BracketImageService:
             getattr(tournament, "date", None)
             or getattr(tournament, "start_date", None)
             or "DATE A DEFINIR"
-        )
-        organizer = str(
-            getattr(tournament, "organizer_name", None)
-            or getattr(tournament, "organizer", None)
-            or "HAMTARO BOT"
         )
 
         self._draw_information_card(draw, info_x, info_y, date_width, box_height, "Date", date_value)
@@ -3702,14 +3697,106 @@ class BracketImageService:
             f"#{tournament_id}",
             self.RED,
         )
-        self._draw_information_card(
+
+        # Carte promo du serveur a la place de "Organise par".
+        promo_x = info_x + date_width + id_width + box_gap * 2
+        promo_y = info_y
+        promo_radius = int(getattr(self.theme, "header_information_box_radius", 6))
+        promo_border_width = int(getattr(self.theme, "header_information_box_border_width", 2))
+        promo_background = getattr(self.theme, "header_server_promo_background", self.PANEL)
+        promo_border = getattr(self.theme, "header_server_promo_border", self.BLUE)
+        draw.rounded_rectangle(
+            (
+                promo_x,
+                promo_y,
+                promo_x + server_promo_width,
+                promo_y + box_height,
+            ),
+            radius=promo_radius,
+            fill=(*promo_background, 255),
+            outline=promo_border,
+            width=promo_border_width,
+        )
+
+        server_avatar_size = min(
+            box_height - 16,
+            int(getattr(self.theme, "header_server_promo_avatar_size", 72)),
+        )
+        server_avatar_x = promo_x + 10
+        server_avatar_y = promo_y + (box_height - server_avatar_size) // 2
+        server_avatar = self._load_server_avatar_asset()
+        if server_avatar is not None:
+            self._paste_avatar(
+                image,
+                server_avatar,
+                server_avatar_x,
+                server_avatar_y,
+                server_avatar_size,
+                promo_border,
+                2,
+            )
+        else:
+            draw.ellipse(
+                (
+                    server_avatar_x,
+                    server_avatar_y,
+                    server_avatar_x + server_avatar_size,
+                    server_avatar_y + server_avatar_size,
+                ),
+                fill=(*self.PANEL_ALT, 255),
+                outline=promo_border,
+                width=2,
+            )
+            draw.text(
+                (
+                    server_avatar_x + server_avatar_size // 2,
+                    server_avatar_y + server_avatar_size // 2,
+                ),
+                "FR",
+                font=self._font(max(14, server_avatar_size // 3), bold=True),
+                fill=self.TEXT,
+                anchor="mm",
+            )
+
+        draw = ImageDraw.Draw(image)
+        text_x = server_avatar_x + server_avatar_size + int(getattr(self.theme, "header_server_promo_gap", 14))
+        available_text_width = promo_x + server_promo_width - text_x - 12
+        promo_title_font = self._font(
+            int(getattr(self.theme, "header_server_promo_title_font_size", 28)),
+            bold=True,
+            italic=True,
+        )
+        promo_text_font = self._font(
+            int(getattr(self.theme, "header_server_promo_text_font_size", 18)),
+            bold=True,
+        )
+        promo_title = self._fit_text(
             draw,
-            info_x + date_width + id_width + box_gap * 2,
-            info_y,
-            organizer_width,
-            box_height,
-            "Organise par",
-            organizer,
+            str(getattr(self.theme, "server_name", "FUN ROW")).upper(),
+            promo_title_font,
+            available_text_width,
+        )
+        promo_text = self._fit_text(
+            draw,
+            str(getattr(self.theme, "header_server_promo_text", "ABONNEZ VOUS A JJETGAMES !")).upper(),
+            promo_text_font,
+            available_text_width,
+        )
+        title_y = promo_y + 18
+        subtitle_y = promo_y + box_height - 24
+        draw.text(
+            (text_x, title_y),
+            promo_title,
+            font=promo_title_font,
+            fill=getattr(self.theme, "header_server_promo_title_color", self.TEXT),
+            anchor="la",
+        )
+        draw.text(
+            (text_x, subtitle_y),
+            promo_text,
+            font=promo_text_font,
+            fill=getattr(self.theme, "header_server_promo_text_color", self.BLUE),
+            anchor="ld",
         )
 
         separator_height = max(3, int(getattr(self.theme, "header_separator_height", 3)))
