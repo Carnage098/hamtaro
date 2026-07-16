@@ -5633,40 +5633,27 @@ class BracketImageService:
             max(104, int(getattr(self.theme, "champion_bot_avatar_size", avatar_size))),
             140,
         )
-        handoff_trophy_width = max(
-            44,
-            int(getattr(self.theme, "champion_handoff_trophy_width", 60)),
-        )
-        handoff_trophy_height = max(
-            44,
-            int(getattr(self.theme, "champion_handoff_trophy_height", 60)),
-        )
-        visual_gap = max(10, int(getattr(self.theme, "champion_visual_gap", 15)))
+        profile_gap = max(28, int(getattr(self.theme, "champion_profile_gap", 48)))
         bot_horizontal_shift = max(
             0,
             int(getattr(self.theme, "champion_bot_horizontal_shift", 0)),
         )
 
-        # La largeur inclut le décalage du profil du bot. Le groupe reste
-        # centré dans la carte, mais le bot respire davantage à droite et
-        # laisse au trophée une vraie place entre les deux profils.
+        # Le champion et le bot forment maintenant un duo visuel simple.
+        # Le trophee intermediaire a ete supprime pour alleger le centre.
         visual_group_width = (
             avatar_size
-            + visual_gap
-            + handoff_trophy_width
-            + visual_gap
+            + profile_gap
             + bot_horizontal_shift
             + bot_avatar_size
         )
         avatar_top = title_y + champion_title_size + 22
         visual_left = center_x - visual_group_width // 2
         avatar_left = visual_left
-        handoff_left = avatar_left + avatar_size + visual_gap
-        handoff_center_x = handoff_left + handoff_trophy_width // 2
         bot_avatar_left = (
-            handoff_left
-            + handoff_trophy_width
-            + visual_gap
+            avatar_left
+            + avatar_size
+            + profile_gap
             + bot_horizontal_shift
         )
         bot_avatar_top = avatar_top + (avatar_size - bot_avatar_size) // 2
@@ -5793,19 +5780,6 @@ class BracketImageService:
             font=bot_name_font,
             fill=self.TEXT,
             anchor="mm",
-        )
-
-        # Le trophée est dessiné en dernier afin de rester parfaitement visible
-        # entre le champion et le profil Discord du bot.
-        handoff_y = avatar_center_y - handoff_trophy_height // 2
-        handoff_color = self._blend_color(self.GOLD, self.TEXT, 0.10)
-        draw_colored_trophy(
-            draw,
-            handoff_center_x,
-            handoff_y,
-            handoff_trophy_width,
-            handoff_trophy_height,
-            handoff_color,
         )
 
         name_plate_width = min(
