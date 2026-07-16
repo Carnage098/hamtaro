@@ -1,7 +1,7 @@
 import aiosqlite
 
 DATABASE = "database.db"
-DB_VERSION = 3
+DB_VERSION = 5
 
 
 async def table_exists(
@@ -153,6 +153,24 @@ async def run_migrations(
     await ensure_column(db, "swiss_matches", "result", "TEXT NOT NULL DEFAULT 'none'")
     await ensure_column(db, "swiss_matches", "finished_at", "TIMESTAMP")
 
+    # Les anciennes égalités deviennent des double losses.
+    if await table_exists(db, "swiss_matches"):
+        await db.execute(
+            """
+            UPDATE swiss_matches
+            SET
+                is_draw = 0,
+                is_double_loss = 1,
+                result = 'double_loss',
+                winner_id = NULL,
+                winner_name = NULL,
+                player1_score = 0,
+                player2_score = 0,
+                finished_at = COALESCE(finished_at, reported_at, CURRENT_TIMESTAMP)
+            WHERE is_draw = 1 OR result = 'draw'
+            """
+        )
+
     # ==========================================================
     # MIGRATIONS RONDES SUISSES - CLASSEMENT
     # ==========================================================
@@ -221,6 +239,25 @@ async def init_db() -> None:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             started_at TIMESTAMP,
             finished_at TIMESTAMP
+        )
+        """)
+
+        # ==========================================================
+        # CONTEXTE DE TOURNOI PAR SALON
+        # ==========================================================
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS tournament_contexts (
+            guild_id TEXT NOT NULL,
+            channel_id TEXT NOT NULL,
+            tournament_id INTEGER NOT NULL,
+            selected_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (guild_id, channel_id),
+            FOREIGN KEY (tournament_id)
+                REFERENCES tournaments(id)
+                ON DELETE CASCADE
         )
         """)
 
@@ -458,6 +495,16 @@ async def init_db() -> None:
         await db.execute("""
         CREATE INDEX IF NOT EXISTS idx_tournament_status
         ON tournaments(status)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_tournament_context_tournament
+        ON tournament_contexts(tournament_id)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_tournament_context_channel
+        ON tournament_contexts(guild_id, channel_id)
         """)
 
         await db.execute("""
