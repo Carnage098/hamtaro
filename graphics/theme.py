@@ -50,6 +50,7 @@ class HamtaroBracketTheme:
     background_filename: str = "bracket_background.png"
     header_mascot_filename: str = "hamtaro_header.png"
     trophy_filename: str = "trophy.png"
+    # Conservé pour compatibilité avec les anciennes versions du renderer.
     champion_filename: str = "champion_hamtaro.png"
     champion_laurel_filename: str = "champion_laurel.png"
     footer_icon_filename: str = "hamtaro_footer.png"
@@ -148,6 +149,8 @@ class HamtaroBracketTheme:
 
     title_font_size: int = 76
     title_number_font_size: int = 56
+    # Le titre HAMTARO CUP sous le blason central est désactivé en V6.
+    center_title_enabled: bool = False
     center_title_font_size: int = 27
 
     subtitle_font_size: int = 23
@@ -199,6 +202,8 @@ class HamtaroBracketTheme:
     footer_top_separator_height: int = 2
 
     server_name: str = "FONT ROW"
+    footer_left_brand_text: str = "HAMTARO"
+    bot_display_name: str = "HAMTARO BOT"
     discord_invite_text: str = "HTTPS://DISCORD.GG/HAMTARO"
     footer_center_text: str = "MERCI A TOUS LES PARTICIPANTS !"
 
@@ -294,14 +299,25 @@ class HamtaroBracketTheme:
     champion_deck_label_color: Color = (255, 226, 125)
     champion_seed_badge_width: int = 58
 
-    champion_avatar_size: int = 126
-    champion_mascot_size: int = 82
-    champion_handoff_trophy_width: int = 36
-    champion_handoff_trophy_height: int = 36
-    champion_visual_gap: int = 18
+    champion_avatar_size: int = 120
 
-    champion_card_width: int = 370
-    champion_card_height: int = 470
+    # Profil Discord du bot placé à droite du champion.
+    champion_bot_avatar_size: int = 120
+    champion_bot_avatar_border_width: int = 4
+    champion_bot_profile_label_width: int = 112
+    champion_bot_profile_label_height: int = 23
+    champion_bot_profile_label_font_size: int = 12
+    champion_bot_profile_background: Color = (22, 30, 51)
+    champion_bot_profile_border: Color = (88, 101, 242)
+    champion_bot_status_color: Color = (35, 165, 90)
+
+    # Trophée de remise placé entre le champion et le bot.
+    champion_handoff_trophy_width: int = 60
+    champion_handoff_trophy_height: int = 60
+    champion_visual_gap: int = 15
+
+    champion_card_width: int = 410
+    champion_card_height: int = 480
     champion_card_radius: int = 8
     champion_card_border_width: int = 2
 
