@@ -27,7 +27,7 @@ class SwissPlayer:
     points: int = 0
     played: int = 0
     wins: int = 0
-    draws: int = 0
+    double_losses: int = 0
     losses: int = 0
     byes: int = 0
     seed: int | None = None
@@ -113,7 +113,7 @@ class SwissService:
                     points=int(row["points"] or 0),
                     played=int(row["played"] or 0),
                     wins=int(row["wins"] or 0),
-                    draws=int(row["draws"] or 0),
+                    double_losses=int(row["double_losses"] or 0),
                     losses=int(row["losses"] or 0),
                     byes=int(row["byes"] or 0),
                 )
@@ -374,9 +374,10 @@ class SwissService:
         players.sort(
             key=lambda player: (
                 -player.points,
+                player.double_losses,
                 -player.wins,
-                player.byes,
                 player.losses,
+                player.byes,
                 player.username.lower(),
             )
         )
@@ -457,7 +458,7 @@ class SwissService:
             key=lambda player: (
                 player.points,
                 player.wins,
-                player.draws,
+                player.double_losses,
                 player.username.lower(),
             )
         )
@@ -520,89 +521,55 @@ class SwissService:
         *,
         reported_by: str | None = None,
     ) -> None:
-        """
-        Enregistre le résultat d'un match suisse.
+        """Enregistre une victoire ou un double loss en ronde suisse."""
 
-        result peut être :
-        - "player1"
-        - "player2"
-        - "draw"
-        """
-
-        match = await self.db.get_swiss_match(
-            match_id
-        )
+        match = await self.db.get_swiss_match(match_id)
 
         if match is None:
+            raise ValueError("Match suisse introuvable.")
 
-            raise ValueError(
-                "Match suisse introuvable."
-            )
+        if str(match["status"]).lower() != "pending":
+            raise ValueError("Ce match est déjà terminé.")
 
-        if match["status"] != "pending":
-
-            raise ValueError(
-                "Ce match est déjà terminé."
-            )
-
-        if match["is_bye"] == 1:
-
-            raise ValueError(
-                "Un BYE est déjà automatiquement validé."
-            )
+        if int(match["is_bye"] or 0) == 1:
+            raise ValueError("Un BYE est déjà automatiquement validé.")
 
         result = result.lower().strip()
 
-        if result == "player1":
-
-            await self.db.report_swiss_result(
+        if result == "double_loss":
+            await self.db.report_swiss_double_loss(
                 match_id=match_id,
-                winner_id=match["player1_id"],
-                winner_name=match["player1_name"],
-                player1_score=1,
-                player2_score=0,
-                is_draw=False,
                 reported_by=reported_by,
             )
+            return
 
+        if result == "player1":
+            await self.db.report_swiss_result(
+                match_id=match_id,
+                winner_id=str(match["player1_id"]),
+                winner_name=str(match["player1_name"]),
+                player1_score=1,
+                player2_score=0,
+                reported_by=reported_by,
+            )
             return
 
         if result == "player2":
-
             if match["player2_id"] is None:
-
-                raise ValueError(
-                    "Ce match n'a pas de joueur 2."
-                )
+                raise ValueError("Ce match n'a pas de joueur 2.")
 
             await self.db.report_swiss_result(
                 match_id=match_id,
-                winner_id=match["player2_id"],
-                winner_name=match["player2_name"],
+                winner_id=str(match["player2_id"]),
+                winner_name=str(match["player2_name"]),
                 player1_score=0,
                 player2_score=1,
-                is_draw=False,
                 reported_by=reported_by,
             )
-
-            return
-
-        if result == "draw":
-
-            await self.db.report_swiss_result(
-                match_id=match_id,
-                winner_id=None,
-                winner_name=None,
-                player1_score=1,
-                player2_score=1,
-                is_draw=True,
-                reported_by=reported_by,
-            )
-
             return
 
         raise ValueError(
-            "Résultat invalide. Utilise : player1, player2 ou draw."
+            "Résultat invalide. Utilise : player1, player2 ou double_loss."
         )
 
     # ==========================================================
@@ -639,9 +606,7 @@ class SwissService:
         tournament_id: int,
         round_number: int,
     ) -> str:
-        """
-        Affiche une ronde suisse.
-        """
+        """Affiche une ronde suisse sans match nul."""
 
         matches = await self.db.list_swiss_matches(
             tournament_id=tournament_id,
@@ -649,54 +614,37 @@ class SwissService:
         )
 
         if not matches:
+            return f"📭 Aucun match trouvé pour la ronde {round_number}."
 
-            return (
-                f"📭 Aucun match trouvé pour la ronde {round_number}."
-            )
-
-        lines: list[str] = []
-
-        lines.append(
-            f"🐹 **Ronde suisse {round_number}**"
-        )
-
-        lines.append("")
+        lines = [f"🐹 **Ronde suisse {round_number}**", ""]
 
         for match in matches:
+            table = match["table_number"]
 
-            status = match["status"]
-
-            if match["is_bye"] == 1:
-
+            if int(match["is_bye"] or 0) == 1:
                 lines.append(
-                    f"**Table {match['table_number']}** — "
-                    f"{match['player1_name']} reçoit un **BYE** ✅"
+                    f"**Table {table}** — {match['player1_name']} reçoit un **BYE** ✅"
                 )
-
                 continue
 
-            if status == "completed":
+            if str(match["status"]).lower() == "completed":
+                is_double_loss = int(match["is_double_loss"] or 0) == 1
+                legacy_draw = int(match["is_draw"] or 0) == 1
+                result = str(match["result"] or "none").lower()
 
-                if match["is_draw"] == 1:
-
-                    result_text = "Égalité"
-
+                if is_double_loss or legacy_draw or result in {"double_loss", "draw"}:
+                    result_text = "Double loss — 0 point pour les deux joueurs"
                 else:
-
                     result_text = f"Victoire : {match['winner_name']}"
 
                 lines.append(
-                    f"**Table {match['table_number']}** — "
-                    f"{match['player1_name']} vs {match['player2_name']} "
-                    f"✅ `{result_text}`"
+                    f"**Table {table}** — {match['player1_name']} vs "
+                    f"{match['player2_name']} ✅ `{result_text}`"
                 )
-
             else:
-
                 lines.append(
-                    f"**Table {match['table_number']}** — "
-                    f"{match['player1_name']} vs {match['player2_name']} "
-                    f"🕒 En attente"
+                    f"**Table {table}** — {match['player1_name']} vs "
+                    f"{match['player2_name']} 🕒 En attente"
                 )
 
         return "\n".join(lines)
@@ -705,39 +653,27 @@ class SwissService:
         self,
         tournament_id: int,
     ) -> str:
-        """
-        Affiche le classement suisse.
-        """
+        """Affiche le classement suisse avec les double losses."""
 
-        standings = await self.db.get_swiss_standings(
-            tournament_id
-        )
+        standings = await self.db.get_swiss_standings(tournament_id)
 
         if not standings:
-
             return "📭 Aucun classement disponible."
 
-        lines: list[str] = []
+        lines = ["🏆 **Classement suisse**", "", "```"]
 
-        lines.append(
-            "🏆 **Classement suisse**"
-        )
-
-        lines.append("")
-
-        rank = 1
-
-        for row in standings:
-
+        for rank, row in enumerate(standings, start=1):
             lines.append(
-                f"**{rank}.** {row['username']} — "
-                f"**{row['points']} pts** "
-                f"({row['wins']}V / {row['draws']}N / {row['losses']}D, "
-                f"{row['byes']} BYE)"
+                f"{rank:>2}. {row['username']} — {row['points']} pts | "
+                f"{row['wins']}V / {row['losses']}D / "
+                f"{row['double_losses']}DL / {row['byes']}BYE"
             )
 
-            rank += 1
-
+        lines.extend([
+            "```",
+            "",
+            "`DL` = double loss : 0 point pour les deux joueurs.",
+        ])
         return "\n".join(lines)
 
     async def format_status(
