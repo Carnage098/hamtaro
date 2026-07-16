@@ -10,6 +10,7 @@ from services.match_history_service import MatchHistoryService
 
 from utils.embeds import success_embed, error_embed, info_embed
 from utils.permissions import staff_only, is_staff_member
+from utils.tournament_resolver import resolve_tournament
 
 
 class ResultsCog(commands.Cog):
@@ -50,10 +51,9 @@ class ResultsCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-        guild_id = self._guild_id(interaction)
-
-        return await self.db.get_active_tournament(
-            guild_id
+        return await resolve_tournament(
+            interaction,
+            self.db,
         )
 
     async def _send_error(
@@ -250,8 +250,8 @@ class ResultsCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
@@ -562,8 +562,8 @@ class ResultsCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
