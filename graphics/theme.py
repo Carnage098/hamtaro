@@ -56,7 +56,7 @@ class HamtaroBracketTheme:
     footer_icon_filename: str = "hamtaro_footer.png"
     discord_logo_filename: str = "discord_logo.png"
     bot_avatar_filename: str = "hamtaro_bot_avatar.png"
-    server_avatar_filename: str = "fun_row_server_avatar.png"
+    server_avatar_filename: str = "fun_row_server_avatar.png"  # Logo JG de Fun Row
 
     # ==========================================================
     # COULEURS GÉNÉRALES
