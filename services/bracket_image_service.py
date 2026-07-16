@@ -2764,30 +2764,6 @@ class BracketImageService:
                 logo_height - 4,
             )
 
-        center_title_font = self._font(
-            max(
-                int(24 * display_scale),
-                int(getattr(self.theme, "center_title_font_size", 24)),
-            ),
-            bold=True,
-            italic=True,
-        )
-        center_title_y = min(header_height - 18, logo_y + logo_height - 16)
-        draw.text(
-            (width // 2 + 1, center_title_y + 1),
-            "HAMTARO CUP",
-            font=center_title_font,
-            fill=(0, 0, 0, 170),
-            anchor="mm",
-        )
-        draw.text(
-            (width // 2, center_title_y),
-            "HAMTARO CUP",
-            font=center_title_font,
-            fill=self.TEXT,
-            anchor="mm",
-        )
-
         box_height = min(
             header_height - 24,
             max(
@@ -4605,10 +4581,11 @@ class BracketImageService:
         """
         Dessine la carte du champion.
 
-        Le grand gagnant apparaît avec son avatar Discord en visuel principal,
-        les lauriers au-dessus et Hamtaro placé à côté de lui avec un trophée.
-        Une seconde carte plus compacte met également en avant le finaliste
-        battu à la deuxième place.
+        Le grand gagnant apparaît avec son avatar Discord en visuel principal.
+        Les lauriers restent au-dessus de lui. Le profil Discord du bot se place
+        à la même hauteur sur la droite et un grand trophée doré sépare les deux,
+        comme si le bot remettait la coupe au vainqueur. Une carte plus compacte
+        met également en avant le finaliste battu à la deuxième place.
         """
 
         champion_name = getattr(final_match, "winner_name", None)
@@ -4741,25 +4718,43 @@ class BracketImageService:
         )
 
         avatar_size = min(
-            max(110, int(getattr(self.theme, "champion_avatar_size", 126))),
-            140,
+            max(104, int(getattr(self.theme, "champion_avatar_size", 120))),
+            132,
         )
-        mascot_size = max(
-            66,
-            min(
-                int(getattr(self.theme, "champion_mascot_size", 82)),
-                avatar_size - 24,
-            ),
+        bot_avatar_size = min(
+            max(104, int(getattr(self.theme, "champion_bot_avatar_size", avatar_size))),
+            132,
         )
-        visual_gap = int(getattr(self.theme, "champion_visual_gap", 18))
-        visual_group_width = avatar_size + mascot_size + visual_gap
+        handoff_trophy_width = max(
+            44,
+            int(getattr(self.theme, "champion_handoff_trophy_width", 60)),
+        )
+        handoff_trophy_height = max(
+            44,
+            int(getattr(self.theme, "champion_handoff_trophy_height", 60)),
+        )
+        visual_gap = max(10, int(getattr(self.theme, "champion_visual_gap", 15)))
+
+        visual_group_width = (
+            avatar_size
+            + visual_gap
+            + handoff_trophy_width
+            + visual_gap
+            + bot_avatar_size
+        )
         avatar_top = title_y + champion_title_size + 22
-        avatar_left = center_x - visual_group_width // 2
-        mascot_left = avatar_left + avatar_size + visual_gap
-        mascot_top = avatar_top + max(10, avatar_size - mascot_size - 8)
+        visual_left = center_x - visual_group_width // 2
+        avatar_left = visual_left
+        handoff_left = avatar_left + avatar_size + visual_gap
+        handoff_center_x = handoff_left + handoff_trophy_width // 2
+        bot_avatar_left = handoff_left + handoff_trophy_width + visual_gap
+        bot_avatar_top = avatar_top + (avatar_size - bot_avatar_size) // 2
         avatar_center_y = avatar_top + avatar_size // 2
 
-        laurel_width = min(int(getattr(self.theme, "champion_laurel_width", 212)), card_width - 50)
+        laurel_width = min(
+            int(getattr(self.theme, "champion_laurel_width", 212)),
+            card_width // 2 + 18,
+        )
         laurel_height = int(getattr(self.theme, "champion_laurel_height", 164))
         laurel_path = self._theme_path("champion_laurel_path", "champion_laurel.png")
         avatar_center_x = avatar_left + avatar_size // 2
@@ -4772,7 +4767,13 @@ class BracketImageService:
             laurel_height,
         )
         if laurel is None:
-            self._draw_laurel_fallback(draw, avatar_center_x, avatar_center_y, laurel_width, laurel_height)
+            self._draw_laurel_fallback(
+                draw,
+                avatar_center_x,
+                avatar_center_y,
+                laurel_width,
+                laurel_height,
+            )
 
         champion_key = self._player_key(champion_id, champion_name)
         champion_avatar = avatars.get(champion_key)
@@ -4788,34 +4789,98 @@ class BracketImageService:
             4,
         )
 
-        champion_path = self._theme_path("champion_path", "champion_hamtaro.png")
-        mascot = self._draw_asset_centered(
-            image,
-            champion_path,
-            mascot_left + mascot_size // 2,
-            mascot_top,
-            mascot_size,
-            mascot_size,
-        )
-        if mascot is None:
-            self._draw_hamster_fallback(
-                image,
-                mascot_left + mascot_size // 2,
-                mascot_top + mascot_size // 2,
-                mascot_size,
+        # Profil Discord du bot : avatar principal, anneau Discord et statut en ligne.
+        bot_avatar_path = self._theme_path("bot_avatar_path", "hamtaro_bot_avatar.png")
+        bot_avatar = self._load_asset(bot_avatar_path)
+        if bot_avatar is None:
+            bot_avatar = self._load_asset(
+                self._theme_path("footer_icon_path", "hamtaro_footer.png")
+            )
+        if bot_avatar is None:
+            bot_avatar = self._create_fallback_avatar(
+                str(getattr(self.theme, "bot_display_name", "HAMTARO BOT"))
             )
 
-        handoff_trophy_width = max(
-            28,
-            int(getattr(self.theme, "champion_handoff_trophy_width", 36)),
+        bot_border = getattr(self.theme, "champion_bot_profile_border", (88, 101, 242))
+        self._paste_avatar(
+            image,
+            bot_avatar,
+            bot_avatar_left,
+            bot_avatar_top,
+            bot_avatar_size,
+            bot_border,
+            int(getattr(self.theme, "champion_bot_avatar_border_width", 4)),
         )
-        handoff_trophy_height = max(
-            28,
-            int(getattr(self.theme, "champion_handoff_trophy_height", 36)),
+
+        draw = ImageDraw.Draw(image)
+        status_radius = max(7, bot_avatar_size // 13)
+        status_center_x = bot_avatar_left + bot_avatar_size - status_radius
+        status_center_y = bot_avatar_top + bot_avatar_size - status_radius
+        draw.ellipse(
+            (
+                status_center_x - status_radius - 3,
+                status_center_y - status_radius - 3,
+                status_center_x + status_radius + 3,
+                status_center_y + status_radius + 3,
+            ),
+            fill=getattr(self.theme, "champion_card_background", self.PANEL),
         )
-        handoff_center_x = avatar_left + avatar_size + visual_gap // 2 + 6
-        handoff_y = avatar_top + avatar_size // 2 - handoff_trophy_height // 2 - 2
-        handoff_color = self._blend_color(self.GOLD, self.TEXT, 0.12)
+        draw.ellipse(
+            (
+                status_center_x - status_radius,
+                status_center_y - status_radius,
+                status_center_x + status_radius,
+                status_center_y + status_radius,
+            ),
+            fill=getattr(self.theme, "champion_bot_status_color", (35, 165, 90)),
+        )
+
+        bot_label_width = min(
+            bot_avatar_size + 8,
+            int(getattr(self.theme, "champion_bot_profile_label_width", 112)),
+        )
+        bot_label_height = int(
+            getattr(self.theme, "champion_bot_profile_label_height", 23)
+        )
+        bot_label_x = bot_avatar_left + bot_avatar_size // 2 - bot_label_width // 2
+        bot_label_y = bot_avatar_top + bot_avatar_size - bot_label_height + 7
+        draw.rounded_rectangle(
+            (
+                bot_label_x,
+                bot_label_y,
+                bot_label_x + bot_label_width,
+                bot_label_y + bot_label_height,
+            ),
+            radius=max(4, bot_label_height // 3),
+            fill=getattr(self.theme, "champion_bot_profile_background", (22, 30, 51)),
+            outline=bot_border,
+            width=1,
+        )
+        bot_name_font = self._font(
+            int(getattr(self.theme, "champion_bot_profile_label_font_size", 12)),
+            bold=True,
+        )
+        bot_name = self._fit_text(
+            draw,
+            str(getattr(self.theme, "bot_display_name", "HAMTARO BOT")),
+            bot_name_font,
+            bot_label_width - 10,
+        )
+        draw.text(
+            (
+                bot_label_x + bot_label_width // 2,
+                bot_label_y + bot_label_height // 2,
+            ),
+            bot_name,
+            font=bot_name_font,
+            fill=self.TEXT,
+            anchor="mm",
+        )
+
+        # Le trophée est dessiné en dernier afin de rester parfaitement visible
+        # entre le champion et le profil Discord du bot.
+        handoff_y = avatar_center_y - handoff_trophy_height // 2
+        handoff_color = self._blend_color(self.GOLD, self.TEXT, 0.10)
         draw_colored_trophy(
             draw,
             handoff_center_x,
@@ -4825,9 +4890,16 @@ class BracketImageService:
             handoff_color,
         )
 
-        name_plate_width = min(card_width - 34, int(getattr(self.theme, "champion_name_plate_width", 220)) + 20)
+        name_plate_width = min(
+            card_width - 34,
+            int(getattr(self.theme, "champion_name_plate_width", 220)) + 20,
+        )
         name_plate_height = int(getattr(self.theme, "champion_name_plate_height", 43))
-        name_plate_y = avatar_top + avatar_size + 18
+        visual_bottom = max(
+            avatar_top + avatar_size,
+            bot_label_y + bot_label_height,
+        )
+        name_plate_y = visual_bottom + 18
         draw.rounded_rectangle(
             (
                 center_x - name_plate_width // 2,
@@ -5058,7 +5130,10 @@ class BracketImageService:
         for _ in range(particle_count):
             px = randomizer.randint(card_x + 14, card_x + card_width - 14)
             py = randomizer.randint(title_y + 16, card_y + card_height - 14)
-            if avatar_left - 16 <= px <= mascot_left + mascot_size + 10 and avatar_top - 12 <= py <= avatar_top + avatar_size + 14:
+            if (
+                avatar_left - 16 <= px <= bot_avatar_left + bot_avatar_size + 16
+                and avatar_top - 12 <= py <= visual_bottom + 10
+            ):
                 continue
             radius = randomizer.choice((1, 1, 2))
             particle_draw.ellipse(
@@ -5682,7 +5757,7 @@ class BracketImageService:
         prefix_width = self._text_width(draw, prefix, normal_font)
         draw.text(
             (left_x + prefix_width + 14, baseline),
-            "HAMTARO TOURNAMENT BOT",
+            str(getattr(self.theme, "footer_left_brand_text", "HAMTARO")),
             font=emphasis_font,
             fill=self.RED,
             anchor="lm",
