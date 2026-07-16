@@ -211,16 +211,29 @@ class HamtaroBracketTheme:
     footer_server_profile_background: Color = (11, 18, 31)
     footer_server_profile_border: Color = (42, 145, 255)
 
-    footer_callout_width: int = 620
+    # Rectangle d'appel a l'action, a gauche de la carte Fun Row.
+    footer_callout_width: int = 700
     footer_callout_height: int = 68
     footer_callout_gap: int = 16
     footer_callout_radius: int = 9
     footer_callout_border_width: int = 2
-    footer_callout_font_size: int = 18
-    footer_callout_line_gap: int = 6
+    footer_callout_line_gap: int = 2
+    footer_callout_horizontal_padding: int = 24
+
+    # Hierarchie V17 : une accroche forte, puis une seconde ligne descriptive.
+    footer_callout_title_font_size: int = 27
+    footer_callout_subtitle_font_size: int = 18
+    footer_callout_title: str = "REJOINS NOUS"
+    footer_callout_subtitle: str = "POUR PARTICIPER A DE NOUVELLES AVENTURES !"
+
     footer_callout_background: Color = (11, 18, 31)
     footer_callout_border: Color = (42, 145, 255)
-    footer_callout_text: str = "REJOINS NOUS POUR PARTICIPER A DE NOUVELLES AVENTURES !"
+    footer_callout_title_color: Color = (245, 247, 252)
+    footer_callout_subtitle_color: Color = (104, 183, 255)
+
+    # Le message central est legerement decale vers la gauche pour compenser
+    # le poids visuel du bloc Fun Row + appel a l'action a droite.
+    footer_center_offset_x: int = -90
 
     footer_horizontal_padding: int = 26
     footer_top_separator_height: int = 2
