@@ -9,6 +9,7 @@ from discord.ext import commands
 
 from services.bracket_image_service import BracketImageService
 from services.bracket_service import BracketService
+from utils.tournament_resolver import resolve_tournament as resolve_selected_tournament
 
 
 class BracketCog(commands.Cog):
@@ -87,16 +88,11 @@ class BracketCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-        """
-        Retourne le tournoi actif du serveur.
-        """
+        """Retourne le tournoi sélectionné dans le salon."""
 
-        guild_id = self._guild_id(
-            interaction
-        )
-
-        return await self.db.get_active_tournament(
-            guild_id
+        return await resolve_selected_tournament(
+            interaction,
+            self.db,
         )
 
     async def _get_tournament_for_guild(
@@ -145,7 +141,7 @@ class BracketCog(commands.Cog):
         """
         Si un ID est fourni, récupère ce tournoi.
 
-        Sinon, retourne le tournoi actif du serveur.
+        Sinon, retourne le tournoi sélectionné dans le salon.
         """
 
         if tournament_id is not None:
@@ -489,7 +485,7 @@ class BracketCog(commands.Cog):
     @app_commands.describe(
         tournament_id=(
             "ID du tournoi à afficher. "
-            "Laisse vide pour utiliser le tournoi actif."
+            "Laisse vide pour utiliser le tournoi sélectionné."
         )
     )
     async def bracket(
@@ -501,7 +497,7 @@ class BracketCog(commands.Cog):
         Affiche le bracket graphique en direct.
 
         Sans ID :
-            tournoi actif du serveur.
+            tournoi sélectionné dans le salon.
 
         Avec ID :
             tournoi précis du serveur.
