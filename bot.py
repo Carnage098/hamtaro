@@ -30,7 +30,7 @@ COGS = [
     "cogs.end_tournament",
     "cogs.help",
     "cogs.graphics_preview",
-    "cogs.swiss.graphics_preview",
+    "cogs.swiss_graphics",
 ]
 
 
