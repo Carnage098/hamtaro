@@ -56,6 +56,7 @@ class HamtaroBracketTheme:
     footer_icon_filename: str = "hamtaro_footer.png"
     discord_logo_filename: str = "discord_logo.png"
     bot_avatar_filename: str = "hamtaro_bot_avatar.png"
+    server_avatar_filename: str = "font_row_server_avatar.png"
 
     # ==========================================================
     # COULEURS GÉNÉRALES
@@ -198,6 +199,18 @@ class HamtaroBracketTheme:
     footer_bot_avatar_size: int = 54
     footer_bot_avatar_border_width: int = 3
 
+    # Carte de profil du serveur affichee en bas a droite.
+    footer_server_profile_width: int = 246
+    footer_server_profile_height: int = 54
+    footer_server_profile_radius: int = 9
+    footer_server_profile_border_width: int = 2
+    footer_server_avatar_size: int = 42
+    footer_server_avatar_border_width: int = 2
+    footer_server_subtitle_font_size: int = 12
+    footer_server_subtitle: str = "SERVEUR DISCORD"
+    footer_server_profile_background: Color = (11, 18, 31)
+    footer_server_profile_border: Color = (42, 145, 255)
+
     footer_horizontal_padding: int = 26
     footer_top_separator_height: int = 2
 
@@ -261,6 +274,7 @@ class HamtaroBracketTheme:
 
     round_title_background_enabled: bool = True
     round_title_background_radius: int = 3
+    round_title_inner_shift: int = 24
 
     # ==========================================================
     # FINALE
@@ -312,11 +326,11 @@ class HamtaroBracketTheme:
     champion_bot_status_color: Color = (35, 165, 90)
 
     # Trophée de remise placé entre le champion et le bot.
-    champion_handoff_trophy_width: int = 60
-    champion_handoff_trophy_height: int = 60
-    champion_visual_gap: int = 15
+    champion_handoff_trophy_width: int = 74
+    champion_handoff_trophy_height: int = 74
+    champion_visual_gap: int = 8
 
-    champion_card_width: int = 410
+    champion_card_width: int = 418
     champion_card_height: int = 480
     champion_card_radius: int = 8
     champion_card_border_width: int = 2
@@ -439,6 +453,10 @@ class HamtaroBracketTheme:
     @property
     def bot_avatar_path(self) -> Path:
         return self.assets_directory / self.bot_avatar_filename
+
+    @property
+    def server_avatar_path(self) -> Path:
+        return self.assets_directory / self.server_avatar_filename
 
     # ==========================================================
     # NORMALISATION DU NOMBRE DE JOUEURS
@@ -758,7 +776,7 @@ class HamtaroBracketTheme:
             8: 390,
             16: 340,
             32: 315,
-            64: 360,
+            64: 486,
             128: 370,
         }
 
