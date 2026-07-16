@@ -56,7 +56,7 @@ class HamtaroBracketTheme:
     footer_icon_filename: str = "hamtaro_footer.png"
     discord_logo_filename: str = "discord_logo.png"
     bot_avatar_filename: str = "hamtaro_bot_avatar.png"
-    server_avatar_filename: str = "font_row_server_avatar.png"
+    server_avatar_filename: str = "fun_row_server_avatar.png"
 
     # ==========================================================
     # COULEURS GÉNÉRALES
@@ -214,7 +214,7 @@ class HamtaroBracketTheme:
     footer_horizontal_padding: int = 26
     footer_top_separator_height: int = 2
 
-    server_name: str = "FONT ROW"
+    server_name: str = "FUN ROW"
     footer_left_brand_text: str = "HAMTARO"
     bot_display_name: str = "HAMTARO BOT"
     discord_invite_text: str = "HTTPS://DISCORD.GG/HAMTARO"
