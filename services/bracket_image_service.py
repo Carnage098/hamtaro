@@ -2502,13 +2502,18 @@ class BracketImageService:
         )
     
         if final_mode:
+            configured_final_ratio = float(
+                getattr(
+                    self.theme,
+                    "final_mode_vertical_ratio_64",
+                    0.275 if player_capacity == 64 else 0.285,
+                )
+            )
+            configured_final_ratio = max(0.22, min(0.36, configured_final_ratio))
             final_y = max(
                 content_top + 105,
                 min(
-                    int(
-                        height
-                        * 0.285
-                    ),
+                    int(height * configured_final_ratio),
                     (
                         content_bottom
                         - final_geometry.height
@@ -3990,6 +3995,8 @@ class BracketImageService:
                 player_capacity
             )
         )
+        if player_capacity == 64 and image.width >= 2560:
+            main_width = max(3, main_width)
     
         middle_method = getattr(
             self.theme,
@@ -6414,10 +6421,15 @@ class BracketImageService:
             bold=True,
         )
     
+        title_y = y + max(12, round(height * 0.09))
+        icon_y = y + round(height * 0.39)
+        value_y = y + round(height * 0.61)
+        label_y = y + height - max(12, round(height * 0.10))
+
         draw.text(
             (
                 image.width // 2,
-                y + 12,
+                title_y,
             ),
             "STATISTIQUES DU TOURNOI",
             font=title_font,
@@ -6520,7 +6532,7 @@ class BracketImageService:
             self._draw_stat_icon(
                 draw,
                 center_x,
-                y + 50,
+                icon_y,
                 index,
                 icon_size,
             )
@@ -6528,7 +6540,7 @@ class BracketImageService:
             draw.text(
                 (
                     center_x,
-                    y + 77,
+                    value_y,
                 ),
                 value,
                 font=value_font,
@@ -6539,9 +6551,7 @@ class BracketImageService:
             draw.text(
                 (
                     center_x,
-                    y
-                    + height
-                    - 14,
+                    label_y,
                 ),
                 label,
                 font=label_font,
