@@ -5,6 +5,10 @@ from discord import app_commands
 from discord.ext import commands
 
 from services.swiss_image_service import SwissImageService
+from utils.tournament_resolver import (
+    tournament_code_autocomplete,
+    resolve_tournament,
+)
 
 
 class SwissGraphicsCog(commands.Cog):
@@ -15,14 +19,19 @@ class SwissGraphicsCog(commands.Cog):
         self.db = bot.db
         self.renderer = SwissImageService(self.db)
 
-    async def _required_tournament(self, interaction: discord.Interaction):
-        if interaction.guild is None:
-            raise ValueError("Cette commande doit être utilisée dans un serveur.")
-
-        tournament = await self.db.get_active_tournament(str(interaction.guild.id))
-        if tournament is None:
-            raise ValueError("Aucun tournoi actif.")
-        return tournament
+    async def _required_tournament(
+        self,
+        interaction: discord.Interaction,
+        code: str | None = None,
+        *,
+        require_active: bool = True,
+    ):
+        return await resolve_tournament(
+            interaction,
+            self.db,
+            code=code,
+            require_active=require_active,
+        )
 
     async def _send_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.followup.send(f"❌ {error}", ephemeral=True)
@@ -33,18 +42,23 @@ class SwissGraphicsCog(commands.Cog):
     )
     @app_commands.describe(
         ronde="Numéro de ronde à afficher, sinon la ronde actuelle",
+        code="Code facultatif du tournoi",
         visible="Publier l'image pour tout le serveur",
+    )
+    @app_commands.autocomplete(
+        code=tournament_code_autocomplete
     )
     async def swiss_round_image(
         self,
         interaction: discord.Interaction,
         ronde: int | None = None,
+        code: str | None = None,
         visible: bool = True,
     ) -> None:
         await interaction.response.defer(ephemeral=not visible)
 
         try:
-            tournament = await self._required_tournament(interaction)
+            tournament = await self._required_tournament(interaction, code)
             if ronde is not None and ronde < 1:
                 raise ValueError("Le numéro de ronde doit être supérieur ou égal à 1.")
 
@@ -66,16 +80,23 @@ class SwissGraphicsCog(commands.Cog):
         name="swiss_standings_image",
         description="Générer l'image du classement suisse actuel",
     )
-    @app_commands.describe(visible="Publier l'image pour tout le serveur")
+    @app_commands.describe(
+        code="Code facultatif du tournoi",
+        visible="Publier l'image pour tout le serveur"
+    )
+    @app_commands.autocomplete(
+        code=tournament_code_autocomplete
+    )
     async def swiss_standings_image(
         self,
         interaction: discord.Interaction,
+        code: str | None = None,
         visible: bool = True,
     ) -> None:
         await interaction.response.defer(ephemeral=not visible)
 
         try:
-            tournament = await self._required_tournament(interaction)
+            tournament = await self._required_tournament(interaction, code)
             output = await self.renderer.render_standings(tournament)
         except (ValueError, RuntimeError) as error:
             await self._send_error(interaction, error)
@@ -91,16 +112,27 @@ class SwissGraphicsCog(commands.Cog):
         name="swiss_final_image",
         description="Générer l'image du classement final suisse",
     )
-    @app_commands.describe(visible="Publier l'image pour tout le serveur")
+    @app_commands.describe(
+        code="Code facultatif du tournoi",
+        visible="Publier l'image pour tout le serveur"
+    )
+    @app_commands.autocomplete(
+        code=tournament_code_autocomplete
+    )
     async def swiss_final_image(
         self,
         interaction: discord.Interaction,
+        code: str | None = None,
         visible: bool = True,
     ) -> None:
         await interaction.response.defer(ephemeral=not visible)
 
         try:
-            tournament = await self._required_tournament(interaction)
+            tournament = await self._required_tournament(
+                interaction,
+                code,
+                require_active=False,
+            )
             settings = await self.db.get_swiss_settings(tournament.id)
             if settings is None:
                 raise ValueError("Les rondes suisses ne sont pas lancées.")
@@ -124,7 +156,13 @@ class SwissGraphicsCog(commands.Cog):
         name="swiss_preview",
         description="Prévisualiser un rendu graphique suisse",
     )
-    @app_commands.describe(mode="Type de rendu à prévisualiser")
+    @app_commands.describe(
+        mode="Type de rendu à prévisualiser",
+        code="Code facultatif du tournoi"
+    )
+    @app_commands.autocomplete(
+        code=tournament_code_autocomplete
+    )
     @app_commands.choices(
         mode=[
             app_commands.Choice(name="Ronde actuelle", value="round"),
@@ -137,11 +175,16 @@ class SwissGraphicsCog(commands.Cog):
         self,
         interaction: discord.Interaction,
         mode: app_commands.Choice[str],
+        code: str | None = None,
     ) -> None:
         await interaction.response.defer(ephemeral=True)
 
         try:
-            tournament = await self._required_tournament(interaction)
+            tournament = await self._required_tournament(
+                interaction,
+                code,
+                require_active=mode.value != "final",
+            )
             if mode.value == "round":
                 output = await self.renderer.render_round(tournament)
                 filename = "preview_swiss_round.png"
