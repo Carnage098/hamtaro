@@ -256,13 +256,9 @@ class DatabaseService:
                 "Le tournoi doit contenir 4, 8, 16, 32 ou 64 joueurs."
             )
 
-        active = await self.get_active_tournament(guild_id)
-
-        if active is not None:
-            raise ValueError(
-                "Un tournoi est déjà actif sur ce serveur."
-            )
-
+        # Plusieurs tournois peuvent désormais être actifs sur un même serveur.
+        # Le tournoi utilisé par les commandes est résolu par code, par salon,
+        # ou automatiquement lorsqu'il n'existe qu'un seul tournoi actif.
         code = await self.generate_unique_tournament_code(format)
 
         tournament_id = await self.insert(
@@ -343,33 +339,159 @@ class DatabaseService:
 
         return Tournament.from_row(row)
 
-    async def get_active_tournament(
+    async def list_active_tournaments(
         self,
         guild_id: str,
-    ) -> Tournament | None:
-        """
-        Récupère le tournoi actif d'un serveur.
+    ) -> list[Tournament]:
+        """Liste tous les tournois actifs d'un serveur."""
 
-        Un tournoi actif est un tournoi qui n'est pas terminé
-        et qui n'est pas annulé.
-        """
-
-        row = await self.fetchone(
+        rows = await self.fetchall(
             """
             SELECT *
             FROM tournaments
             WHERE guild_id = ?
             AND status NOT IN ('finished', 'cancelled')
-            ORDER BY created_at DESC
-            LIMIT 1
+            ORDER BY created_at DESC, id DESC
             """,
             (guild_id,),
+        )
+
+        return [Tournament.from_row(row) for row in rows]
+
+    async def get_active_tournament(
+        self,
+        guild_id: str,
+    ) -> Tournament | None:
+        """
+        Compatibilité avec les anciennes commandes.
+
+        Retourne le tournoi actif seulement lorsqu'il est unique.
+        En présence de plusieurs tournois, une sélection par salon ou un code
+        est obligatoire afin d'éviter d'agir sur le mauvais événement.
+        """
+
+        active = await self.list_active_tournaments(guild_id)
+
+        if not active:
+            return None
+
+        if len(active) > 1:
+            codes = ", ".join(str(tournament.code) for tournament in active[:6])
+            raise ValueError(
+                "Plusieurs tournois sont actifs sur ce serveur "
+                f"({codes}). Sélectionne un tournoi dans ce salon avec "
+                "/tournament_select ou indique son code."
+            )
+
+        return active[0]
+
+    async def get_guild_tournament_by_code(
+        self,
+        guild_id: str,
+        code: str,
+    ) -> Tournament | None:
+        """Récupère un tournoi par code en vérifiant le serveur Discord."""
+
+        normalized_code = code.strip().upper()
+        row = await self.fetchone(
+            """
+            SELECT *
+            FROM tournaments
+            WHERE guild_id = ?
+            AND UPPER(code) = ?
+            LIMIT 1
+            """,
+            (guild_id, normalized_code),
         )
 
         if row is None:
             return None
 
         return Tournament.from_row(row)
+
+    async def select_tournament_for_channel(
+        self,
+        guild_id: str,
+        channel_id: str,
+        tournament_id: int,
+        selected_by: str | None = None,
+    ) -> Tournament:
+        """Associe un tournoi du serveur au salon Discord courant."""
+
+        tournament = await self.get_tournament(tournament_id)
+        if tournament is None:
+            raise ValueError("Tournoi introuvable.")
+
+        if str(tournament.guild_id) != str(guild_id):
+            raise ValueError("Ce tournoi n'appartient pas à ce serveur Discord.")
+
+        await self.update(
+            """
+            INSERT INTO tournament_contexts (
+                guild_id,
+                channel_id,
+                tournament_id,
+                selected_by,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(guild_id, channel_id)
+            DO UPDATE SET
+                tournament_id = excluded.tournament_id,
+                selected_by = excluded.selected_by,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                str(guild_id),
+                str(channel_id),
+                int(tournament_id),
+                str(selected_by) if selected_by is not None else None,
+            ),
+        )
+
+        return tournament
+
+    async def get_selected_tournament(
+        self,
+        guild_id: str,
+        channel_id: str,
+    ) -> Tournament | None:
+        """Retourne le tournoi actuellement sélectionné dans un salon."""
+
+        row = await self.fetchone(
+            """
+            SELECT tournaments.*
+            FROM tournament_contexts
+            INNER JOIN tournaments
+                ON tournaments.id = tournament_contexts.tournament_id
+            WHERE tournament_contexts.guild_id = ?
+            AND tournament_contexts.channel_id = ?
+            LIMIT 1
+            """,
+            (str(guild_id), str(channel_id)),
+        )
+
+        if row is None:
+            return None
+
+        return Tournament.from_row(row)
+
+    async def unselect_tournament_for_channel(
+        self,
+        guild_id: str,
+        channel_id: str,
+    ) -> bool:
+        """Retire la sélection de tournoi du salon et indique si elle existait."""
+
+        changed = await self.update(
+            """
+            DELETE FROM tournament_contexts
+            WHERE guild_id = ?
+            AND channel_id = ?
+            """,
+            (str(guild_id), str(channel_id)),
+        )
+        return changed > 0
 
     async def list_tournaments(
         self,
@@ -3841,5 +3963,3 @@ class DatabaseService:
         )
 
         return value == 1
-
-
