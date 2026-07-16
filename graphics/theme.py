@@ -150,7 +150,7 @@ class HamtaroBracketTheme:
 
     title_font_size: int = 76
     title_number_font_size: int = 56
-    # Le titre HAMTARO CUP sous le blason central est désactivé en V6.
+    # Le titre HAMTARO CUP sous le blason central reste désactivé en V8.
     center_title_enabled: bool = False
     center_title_font_size: int = 27
 
@@ -274,7 +274,9 @@ class HamtaroBracketTheme:
 
     round_title_background_enabled: bool = True
     round_title_background_radius: int = 3
-    round_title_inner_shift: int = 24
+    round_title_inner_shift: int = 38
+    round_title_quarter_outer_shift: int = 16
+    round_title_maximum_margin: int = 22
 
     # ==========================================================
     # FINALE
@@ -326,11 +328,11 @@ class HamtaroBracketTheme:
     champion_bot_status_color: Color = (35, 165, 90)
 
     # Trophée de remise placé entre le champion et le bot.
-    champion_handoff_trophy_width: int = 74
-    champion_handoff_trophy_height: int = 74
-    champion_visual_gap: int = 8
+    champion_handoff_trophy_width: int = 92
+    champion_handoff_trophy_height: int = 92
+    champion_visual_gap: int = 12
 
-    champion_card_width: int = 418
+    champion_card_width: int = 444
     champion_card_height: int = 480
     champion_card_radius: int = 8
     champion_card_border_width: int = 2
@@ -343,8 +345,8 @@ class HamtaroBracketTheme:
     champion_image_width: int = 82
     champion_image_height: int = 82
 
-    champion_laurel_width: int = 218
-    champion_laurel_height: int = 168
+    champion_laurel_width: int = 198
+    champion_laurel_height: int = 154
 
     champion_name_plate_width: int = 248
     champion_name_plate_height: int = 43
@@ -776,7 +778,7 @@ class HamtaroBracketTheme:
             8: 390,
             16: 340,
             32: 315,
-            64: 486,
+            64: 520,
             128: 370,
         }
 
