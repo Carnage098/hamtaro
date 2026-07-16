@@ -5568,7 +5568,8 @@ class BracketImageService:
         card_width = max(356, int(getattr(self.theme, "champion_card_width", 370)))
         card_height = max(430, int(getattr(self.theme, "champion_card_height", 440)))
         card_x = image.width // 2 - card_width // 2
-        card_y = final_position[1] + final_geometry.height + 18
+        card_gap = max(6, int(getattr(self.theme, "champion_card_gap", 18)))
+        card_y = final_position[1] + final_geometry.height + card_gap
 
         footer_top = image.height - self._effective_footer_height(canvas_height=image.height)
         maximum_bottom = footer_top - int(getattr(self.theme, "statistics_card_height", 104)) - 26
@@ -5626,11 +5627,11 @@ class BracketImageService:
 
         avatar_size = min(
             max(104, int(getattr(self.theme, "champion_avatar_size", 120))),
-            132,
+            140,
         )
         bot_avatar_size = min(
             max(104, int(getattr(self.theme, "champion_bot_avatar_size", avatar_size))),
-            132,
+            140,
         )
         handoff_trophy_width = max(
             44,
@@ -6001,15 +6002,24 @@ class BracketImageService:
             int(getattr(self.theme, "runner_up_information_font_size", 13)),
             bold=True,
         )
+        runner_text_x = runner_card_x + int(getattr(self.theme, "runner_up_avatar_size", 36)) + 22
+        runner_title_y = runner_card_y + max(9, round(runner_card_height * 0.13))
+        runner_name_y = runner_card_y + max(31, round(runner_card_height * 0.44))
+        runner_info_y = runner_card_y + max(51, round(runner_card_height * 0.72))
         draw.text(
-            (runner_card_x + 54, runner_card_y + 10),
+            (runner_text_x, runner_title_y),
             "2E PLACE - FINALISTE",
             font=runner_title_font,
             fill=platinum,
         )
-        fitted_runner_name = self._fit_text(draw, runner_name, runner_name_font, runner_card_width - 120)
+        fitted_runner_name = self._fit_text(
+            draw,
+            runner_name,
+            runner_name_font,
+            runner_card_width - (runner_text_x - runner_card_x) - 62,
+        )
         draw.text(
-            (runner_card_x + 54, runner_card_y + 31),
+            (runner_text_x, runner_name_y),
             fitted_runner_name,
             font=runner_name_font,
             fill=self.TEXT,
@@ -6018,10 +6028,10 @@ class BracketImageService:
             draw,
             f"DECK | {str(runner_deck).upper()}   |   SEED #{runner_seed or '?'}",
             runner_info_font,
-            runner_card_width - 120,
+            runner_card_width - (runner_text_x - runner_card_x) - 62,
         )
         draw.text(
-            (runner_card_x + 54, runner_card_y + 51),
+            (runner_text_x, runner_info_y),
             runner_info,
             font=runner_info_font,
             fill=self.MUTED,
@@ -6360,9 +6370,10 @@ class BracketImageService:
             - width // 2
         )
     
+        statistics_gap = max(6, int(getattr(self.theme, "statistics_card_gap", 14)))
         preferred_y = (
             champion_bounds[3]
-            + 14
+            + statistics_gap
             if champion_bounds
             is not None
             else footer_top
