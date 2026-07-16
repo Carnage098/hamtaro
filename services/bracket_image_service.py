@@ -2608,82 +2608,137 @@ class BracketImageService:
             left_x_by_round = {
                 2: left_inner_start,
             }
-    
+
             right_x_by_round = {
                 2: right_inner_start,
             }
-    
+
         else:
-            left_x_by_round: dict[
-                int,
-                int,
-            ] = {}
-    
-            right_x_by_round: dict[
-                int,
-                int,
-            ] = {}
-    
-            for (
-                depth,
-                round_number,
-            ) in enumerate(
+            left_x_by_round: dict[int, int] = {}
+            right_x_by_round: dict[int, int] = {}
+
+            round_order = list(
                 range(
                     total_rounds,
                     1,
                     -1,
                 )
-            ):
-                ratio = (
-                    depth
-                    / max(
-                        1,
-                        side_round_count - 1,
-                    )
+            )
+
+            # En mode final, on espace toutes les colonnes selon leurs bords
+            # réels, et non uniquement selon leur coin gauche. Cela évite que
+            # les 16EMES soient collés aux 32EMES et répartit de façon régulière
+            # les 32EMES, 16EMES, 8EMES, quarts et demi-finales.
+            spread_all_columns = bool(
+                getattr(
+                    self.theme,
+                    "spread_all_columns_in_final",
+                    True,
                 )
-    
-                geometry = geometries[
-                    round_number
-                ]
-    
-                left_x = round(
-                    left_outer_start
-                    + (
-                        left_inner_start
-                        - left_outer_start
+            )
+            usable_left_end = center_left_edge - center_gap
+            usable_left_width = max(
+                0,
+                usable_left_end - left_outer_start,
+            )
+            total_card_width = sum(
+                geometries[round_number].width
+                for round_number in round_order
+            )
+            minimum_gap = max(
+                0,
+                int(
+                    getattr(
+                        self.theme,
+                        "final_round_column_minimum_gap",
+                        18,
                     )
-                    * ratio
+                ),
+            )
+            required_width = (
+                total_card_width
+                + minimum_gap
+                * max(0, len(round_order) - 1)
+            )
+
+            use_edge_aware_spacing = (
+                final_mode
+                and spread_all_columns
+                and usable_left_width >= required_width
+            )
+
+            if use_edge_aware_spacing:
+                free_space = max(
+                    0,
+                    usable_left_width - total_card_width,
                 )
-    
-                right_x = round(
-                    right_outer_edge
-                    - geometry.width
-                    - (
+                edge_gap = (
+                    free_space
+                    / max(1, len(round_order) - 1)
+                )
+
+                current_x = float(left_outer_start)
+                for round_number in round_order:
+                    left_x = round(current_x)
+                    left_x_by_round[round_number] = left_x
+
+                    # La branche droite est le miroir exact de la gauche.
+                    right_x_by_round[round_number] = (
+                        width
+                        - left_x
+                        - geometries[round_number].width
+                    )
+
+                    current_x += (
+                        geometries[round_number].width
+                        + edge_gap
+                    )
+
+                # On verrouille les demi-finales contre la réserve centrale
+                # pour éviter une dérive due aux arrondis successifs.
+                left_x_by_round[2] = left_inner_start
+                right_x_by_round[2] = right_inner_start
+
+            else:
+                # Fallback historique pour les capacités où le canvas ne
+                # permet pas encore un écart positif entre toutes les cartes.
+                for depth, round_number in enumerate(round_order):
+                    ratio = (
+                        depth
+                        / max(
+                            1,
+                            side_round_count - 1,
+                        )
+                    )
+
+                    geometry = geometries[round_number]
+
+                    left_x = round(
+                        left_outer_start
+                        + (
+                            left_inner_start
+                            - left_outer_start
+                        )
+                        * ratio
+                    )
+
+                    right_x = round(
                         right_outer_edge
-                        - geometries[
-                            total_rounds
-                        ].width
-                        - right_inner_start
+                        - geometry.width
+                        - (
+                            right_outer_edge
+                            - geometries[total_rounds].width
+                            - right_inner_start
+                        )
+                        * ratio
                     )
-                    * ratio
-                )
-    
-                if round_number == 2:
-                    left_x = (
-                        left_inner_start
-                    )
-    
-                    right_x = (
-                        right_inner_start
-                    )
-    
-                left_x_by_round[
-                    round_number
-                ] = left_x
-    
-                right_x_by_round[
-                    round_number
-                ] = right_x
+
+                    if round_number == 2:
+                        left_x = left_inner_start
+                        right_x = right_inner_start
+
+                    left_x_by_round[round_number] = left_x
+                    right_x_by_round[round_number] = right_x
     
         first_round = bracket.get(
             total_rounds,
