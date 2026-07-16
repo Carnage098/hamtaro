@@ -6,6 +6,10 @@ from discord.ext import commands
 from discord import app_commands
 
 from utils.embeds import success_embed, error_embed, info_embed
+from utils.tournament_resolver import (
+    active_tournament_code_autocomplete,
+    resolve_tournament,
+)
 
 
 class RegistrationCog(commands.Cog):
@@ -35,14 +39,13 @@ class RegistrationCog(commands.Cog):
     async def _get_active_tournament(
         self,
         interaction: discord.Interaction,
+        code: str | None = None,
     ):
-        guild_id = self._guild_id(interaction)
-
-        tournament = await self.db.get_active_tournament(
-            guild_id
+        return await resolve_tournament(
+            interaction,
+            self.db,
+            code=code,
         )
-
-        return tournament
 
     def _display_name(
         self,
@@ -88,15 +91,20 @@ class RegistrationCog(commands.Cog):
 
     @app_commands.command(
         name="register",
-        description="S'inscrire au tournoi actif"
+        description="S'inscrire au tournoi sélectionné"
     )
     @app_commands.describe(
-        deck="Deck que tu joues pour ce tournoi"
+        deck="Deck que tu joues pour ce tournoi",
+        code="Code facultatif du tournoi"
+    )
+    @app_commands.autocomplete(
+        code=active_tournament_code_autocomplete
     )
     async def register(
         self,
         interaction: discord.Interaction,
         deck: str | None = None,
+        code: str | None = None,
     ):
         await interaction.response.defer(
             ephemeral=True
@@ -105,8 +113,9 @@ class RegistrationCog(commands.Cog):
         try:
             guild_id = self._guild_id(interaction)
 
-            tournament = await self.db.get_active_tournament(
-                guild_id
+            tournament = await self._get_active_tournament(
+                interaction,
+                code,
             )
 
             if tournament is None:
@@ -153,7 +162,7 @@ class RegistrationCog(commands.Cog):
 
         embed.add_field(
             name="🏆 Tournoi",
-            value=f"**{tournament.name}**",
+            value=f"**{tournament.name}** (`{tournament.code}`)",
             inline=False,
         )
 
@@ -184,11 +193,18 @@ class RegistrationCog(commands.Cog):
 
     @app_commands.command(
         name="unregister",
-        description="Se désinscrire du tournoi actif"
+        description="Se désinscrire du tournoi sélectionné"
+    )
+    @app_commands.describe(
+        code="Code facultatif du tournoi"
+    )
+    @app_commands.autocomplete(
+        code=active_tournament_code_autocomplete
     )
     async def unregister(
         self,
         interaction: discord.Interaction,
+        code: str | None = None,
     ):
         await interaction.response.defer(
             ephemeral=True
@@ -196,7 +212,8 @@ class RegistrationCog(commands.Cog):
 
         try:
             tournament = await self._get_active_tournament(
-                interaction
+                interaction,
+                code,
             )
 
             if tournament is None:
@@ -298,15 +315,20 @@ class RegistrationCog(commands.Cog):
 
     @app_commands.command(
         name="deck",
-        description="Modifier le deck déclaré pour le tournoi actif"
+        description="Modifier le deck déclaré pour le tournoi sélectionné"
     )
     @app_commands.describe(
-        deck="Nom du deck"
+        deck="Nom du deck",
+        code="Code facultatif du tournoi"
+    )
+    @app_commands.autocomplete(
+        code=active_tournament_code_autocomplete
     )
     async def deck(
         self,
         interaction: discord.Interaction,
         deck: str,
+        code: str | None = None,
     ):
         await interaction.response.defer(
             ephemeral=True
@@ -314,7 +336,8 @@ class RegistrationCog(commands.Cog):
 
         try:
             tournament = await self._get_active_tournament(
-                interaction
+                interaction,
+                code,
             )
 
             if tournament is None:
@@ -380,11 +403,18 @@ class RegistrationCog(commands.Cog):
 
     @app_commands.command(
         name="players",
-        description="Voir les joueurs inscrits au tournoi actif"
+        description="Voir les joueurs du tournoi sélectionné"
+    )
+    @app_commands.describe(
+        code="Code facultatif du tournoi"
+    )
+    @app_commands.autocomplete(
+        code=active_tournament_code_autocomplete
     )
     async def players(
         self,
         interaction: discord.Interaction,
+        code: str | None = None,
     ):
         await interaction.response.defer(
             ephemeral=False
@@ -392,7 +422,8 @@ class RegistrationCog(commands.Cog):
 
         try:
             tournament = await self._get_active_tournament(
-                interaction
+                interaction,
+                code,
             )
 
             if tournament is None:
