@@ -181,6 +181,16 @@ class HamtaroBracketTheme:
     date_box_width: int = 220
     tournament_id_box_width: int = 180
     organizer_box_width: int = 260
+    header_server_promo_width: int = 430
+    header_server_promo_avatar_size: int = 72
+    header_server_promo_gap: int = 14
+    header_server_promo_title_font_size: int = 28
+    header_server_promo_text_font_size: int = 18
+    header_server_promo_title_color: Color = (245, 247, 252)
+    header_server_promo_text_color: Color = (104, 183, 255)
+    header_server_promo_background: Color = (11, 18, 31)
+    header_server_promo_border: Color = (42, 145, 255)
+    header_server_promo_text: str = "ABONNEZ VOUS A JJETGAMES !"
 
     header_separator_height: int = 4
     header_red_separator_ratio: float = 0.5
