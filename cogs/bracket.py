@@ -9,18 +9,27 @@ from discord.ext import commands
 
 from services.bracket_image_service import BracketImageService
 from services.bracket_service import BracketService
-from utils.tournament_resolver import resolve_tournament as resolve_selected_tournament
+from services.tournament_service import TournamentService
+from utils.tournament_resolver import (
+    resolve_tournament as resolve_selected_tournament,
+)
 
 
 class BracketCog(commands.Cog):
     """
     Commandes liées aux tournois à élimination directe.
 
+    Référence de tournoi acceptée :
+    - ID interne : 12
+    - code public : TCG-4821
+    - aucune référence : tournoi sélectionné dans le salon,
+      puis tournoi actif du serveur en solution de secours.
+
     Commandes graphiques :
     - /bracket
     - /final_bracket
 
-    Commandes textuelles conservées :
+    Commandes textuelles :
     - /round
     - /round_show
     - /nextmatch
@@ -35,6 +44,8 @@ class BracketCog(commands.Cog):
     ):
         self.bot = bot
         self.db = bot.db
+
+        self.tournaments = TournamentService()
 
         self.brackets = BracketService(
             self.db
@@ -71,64 +82,63 @@ class BracketCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ) -> str:
-        """
-        Retourne l'identifiant du serveur Discord.
-        """
+        """Retourne l'identifiant du serveur Discord."""
 
         if interaction.guild is None:
             raise ValueError(
                 "Cette commande doit être utilisée dans un serveur."
             )
 
-        return str(
-            interaction.guild.id
-        )
+        return str(interaction.guild.id)
 
     async def _get_active_tournament(
         self,
         interaction: discord.Interaction,
     ):
-        """Retourne le tournoi sélectionné dans le salon."""
+        """
+        Retourne d'abord le tournoi sélectionné dans le salon.
 
-        return await resolve_selected_tournament(
+        Si aucun tournoi n'est sélectionné, retourne le tournoi actif
+        le plus récent du serveur.
+        """
+
+        tournament = await resolve_selected_tournament(
             interaction,
             self.db,
+        )
+
+        if tournament is not None:
+            return tournament
+
+        return await self.tournaments.get_active(
+            self._guild_id(interaction)
         )
 
     async def _get_tournament_for_guild(
         self,
         interaction: discord.Interaction,
-        tournament_id: int,
+        tournament_reference: str | int,
     ):
         """
-        Récupère un tournoi précis et vérifie qu'il appartient
-        bien au serveur dans lequel la commande est exécutée.
+        Récupère un tournoi par ID ou par code et vérifie
+        qu'il appartient au serveur actuel.
         """
 
         guild_id = self._guild_id(
             interaction
         )
 
-        tournament = await self.db.get_tournament(
-            tournament_id
+        tournament = await self.tournaments.resolve(
+            tournament_reference,
+            guild_id=guild_id,
+            allow_active=False,
         )
 
         if tournament is None:
             raise ValueError(
-                f"Aucun tournoi trouvé avec l'identifiant #{tournament_id}."
-            )
-
-        tournament_guild_id = str(
-            getattr(
-                tournament,
-                "guild_id",
-                "",
-            )
-        )
-
-        if tournament_guild_id != guild_id:
-            raise ValueError(
-                "Ce tournoi n'appartient pas à ce serveur."
+                "Tournoi introuvable.\n"
+                "Indique son ID numérique ou son code public, "
+                "par exemple `12` ou `TCG-4821`."
             )
 
         return tournament
@@ -136,20 +146,23 @@ class BracketCog(commands.Cog):
     async def _resolve_tournament(
         self,
         interaction: discord.Interaction,
-        tournament_id: int | None,
+        tournament_reference: str | int | None,
     ):
         """
-        Si un ID est fourni, récupère ce tournoi.
+        Avec une référence : recherche par ID ou par code.
 
-        Sinon, retourne le tournoi sélectionné dans le salon.
+        Sans référence : utilise le tournoi sélectionné dans le salon,
+        puis le tournoi actif du serveur.
         """
 
-        if tournament_id is not None:
+        if tournament_reference is not None:
+            value = str(tournament_reference).strip()
 
-            return await self._get_tournament_for_guild(
-                interaction,
-                tournament_id,
-            )
+            if value:
+                return await self._get_tournament_for_guild(
+                    interaction,
+                    value,
+                )
 
         tournament = await self._get_active_tournament(
             interaction
@@ -157,10 +170,57 @@ class BracketCog(commands.Cog):
 
         if tournament is None:
             raise ValueError(
-                "Aucun tournoi actif sur ce serveur."
+                "Aucun tournoi n'est sélectionné dans ce salon "
+                "et aucun tournoi actif n'a été trouvé sur ce serveur.\n"
+                "Indique l'ID ou le code du tournoi dans la commande."
             )
 
         return tournament
+
+    @staticmethod
+    def _tournament_code(
+        tournament: Any,
+    ) -> str:
+        """Retourne le code public ou une valeur de secours."""
+
+        code = getattr(
+            tournament,
+            "code",
+            None,
+        )
+
+        if code:
+            return str(code)
+
+        tournament_id = getattr(
+            tournament,
+            "id",
+            "inconnu",
+        )
+
+        return str(tournament_id)
+
+    @classmethod
+    def _tournament_reference_text(
+        cls,
+        tournament: Any,
+    ) -> str:
+        """Construit un texte affichant le code et l'ID du tournoi."""
+
+        tournament_id = getattr(
+            tournament,
+            "id",
+            "inconnu",
+        )
+
+        tournament_code = cls._tournament_code(
+            tournament
+        )
+
+        return (
+            f"Code : `{tournament_code}` • "
+            f"ID : `#{tournament_id}`"
+        )
 
     async def _send_text(
         self,
@@ -175,19 +235,16 @@ class BracketCog(commands.Cog):
         """
 
         if len(text) <= 1900:
-
             await interaction.followup.send(
                 text,
                 ephemeral=ephemeral,
             )
-
             return
 
         chunks: list[str] = []
         current = ""
 
         for line in text.splitlines():
-
             candidate = (
                 f"{current}\n{line}"
                 if current
@@ -195,26 +252,17 @@ class BracketCog(commands.Cog):
             )
 
             if len(candidate) > 1900:
-
                 if current:
-                    chunks.append(
-                        current
-                    )
+                    chunks.append(current)
 
                 current = line
-
             else:
-
                 current = candidate
 
         if current:
-
-            chunks.append(
-                current
-            )
+            chunks.append(current)
 
         for chunk in chunks:
-
             await interaction.followup.send(
                 chunk,
                 ephemeral=ephemeral,
@@ -226,22 +274,14 @@ class BracketCog(commands.Cog):
 
     @staticmethod
     def _collect_player_ids(
-        bracket: dict[
-            int,
-            list[Any],
-        ],
+        bracket: dict[int, list[Any]],
     ) -> set[str]:
-        """
-        Récupère tous les identifiants Discord présents
-        dans le bracket.
-        """
+        """Récupère tous les identifiants Discord du bracket."""
 
         player_ids: set[str] = set()
 
         for matches in bracket.values():
-
             for match in matches:
-
                 player1_id = getattr(
                     match,
                     "player1_id",
@@ -280,10 +320,7 @@ class BracketCog(commands.Cog):
     async def _build_avatar_urls(
         self,
         interaction: discord.Interaction,
-        bracket: dict[
-            int,
-            list[Any],
-        ],
+        bracket: dict[int, list[Any]],
     ) -> dict[str, str]:
         """
         Construit une table :
@@ -301,25 +338,16 @@ class BracketCog(commands.Cog):
         if guild is None:
             return {}
 
-        avatar_urls: dict[
-            str,
-            str,
-        ] = {}
+        avatar_urls: dict[str, str] = {}
 
         player_ids = self._collect_player_ids(
             bracket
         )
 
         for discord_id in player_ids:
-
             try:
-
-                numeric_id = int(
-                    discord_id
-                )
-
+                numeric_id = int(discord_id)
             except ValueError:
-
                 continue
 
             member = guild.get_member(
@@ -327,19 +355,15 @@ class BracketCog(commands.Cog):
             )
 
             if member is None:
-
                 try:
-
                     member = await guild.fetch_member(
                         numeric_id
                     )
-
                 except (
                     discord.NotFound,
                     discord.Forbidden,
                     discord.HTTPException,
                 ):
-
                     member = None
 
             if member is None:
@@ -410,6 +434,8 @@ class BracketCog(commands.Cog):
                 "Le moteur graphique n'a pas retourné une image valide."
             )
 
+        image_buffer.seek(0)
+
         filename = (
             f"hamtaro_final_bracket_{tournament_id}.png"
             if final_mode
@@ -433,34 +459,32 @@ class BracketCog(commands.Cog):
             "Format inconnu",
         )
 
-        if final_mode:
+        reference_text = self._tournament_reference_text(
+            tournament
+        )
 
+        if final_mode:
             message = (
                 f"🏆 **Bracket final — {tournament_name}**\n"
-                f"Tournoi `#{tournament_id}` • "
+                f"{reference_text}\n"
                 f"Format : **{tournament_format}**"
             )
-
         else:
-
             message = (
                 f"🐹 **Bracket en direct — {tournament_name}**\n"
-                f"Tournoi `#{tournament_id}` • "
+                f"{reference_text}\n"
                 f"Format : **{tournament_format}**\n"
-                "Les résultats affichés correspondent aux "
-                "résultats actuellement enregistrés."
+                "Les résultats affichés correspondent aux résultats "
+                "actuellement enregistrés."
             )
 
         try:
-
             await interaction.followup.send(
                 content=message,
                 file=discord_file,
                 ephemeral=False,
             )
-
         except discord.HTTPException as error:
-
             image_size_mb = (
                 image_buffer.getbuffer().nbytes
                 / 1024
@@ -480,27 +504,25 @@ class BracketCog(commands.Cog):
 
     @app_commands.command(
         name="bracket",
-        description="Afficher l'arbre graphique d'un tournoi en cours"
+        description="Afficher l'arbre graphique d'un tournoi en cours",
     )
     @app_commands.describe(
-        tournament_id=(
-            "ID du tournoi à afficher. "
+        tournoi=(
+            "ID ou code du tournoi. "
             "Laisse vide pour utiliser le tournoi sélectionné."
         )
     )
     async def bracket(
         self,
         interaction: discord.Interaction,
-        tournament_id: int | None = None,
+        tournoi: str | None = None,
     ):
         """
-        Affiche le bracket graphique en direct.
+        Exemples :
 
-        Sans ID :
-            tournoi sélectionné dans le salon.
-
-        Avec ID :
-            tournoi précis du serveur.
+        /bracket
+        /bracket tournoi:12
+        /bracket tournoi:TCG-4821
         """
 
         await interaction.response.defer(
@@ -509,10 +531,9 @@ class BracketCog(commands.Cog):
         )
 
         try:
-
             tournament = await self._resolve_tournament(
                 interaction,
-                tournament_id,
+                tournoi,
             )
 
             finished = await self.brackets.is_finished(
@@ -520,17 +541,19 @@ class BracketCog(commands.Cog):
             )
 
             if finished:
+                tournament_code = self._tournament_code(
+                    tournament
+                )
 
                 await interaction.followup.send(
                     (
                         "ℹ️ Ce tournoi est terminé. "
                         "Utilise plutôt "
-                        f"`/final_bracket tournament_id:{tournament.id}` "
+                        f"`/final_bracket tournoi:{tournament_code}` "
                         "pour obtenir son affiche finale."
                     ),
                     ephemeral=True,
                 )
-
                 return
 
             await self._send_bracket_image(
@@ -540,14 +563,12 @@ class BracketCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
 
         except Exception as error:
-
             print(
                 "❌ Erreur /bracket :",
                 repr(error),
@@ -567,23 +588,21 @@ class BracketCog(commands.Cog):
 
     @app_commands.command(
         name="final_bracket",
-        description="Générer l'affiche finale d'un ancien tournoi"
+        description="Générer l'affiche finale d'un ancien tournoi",
     )
     @app_commands.describe(
-        tournament_id=(
-            "Identifiant du tournoi terminé à afficher"
-        )
+        tournoi="ID ou code public du tournoi terminé"
     )
     async def final_bracket(
         self,
         interaction: discord.Interaction,
-        tournament_id: int,
+        tournoi: str,
     ):
         """
-        Génère l'affiche complète d'un tournoi terminé.
+        Exemples :
 
-        L'identifiant est obligatoire pour permettre de retrouver
-        précisément un ancien tournoi.
+        /final_bracket tournoi:12
+        /final_bracket tournoi:TCG-4821
         """
 
         await interaction.response.defer(
@@ -592,10 +611,9 @@ class BracketCog(commands.Cog):
         )
 
         try:
-
             tournament = await self._get_tournament_for_guild(
                 interaction,
-                tournament_id,
+                tournoi,
             )
 
             finished = await self.brackets.is_finished(
@@ -603,7 +621,6 @@ class BracketCog(commands.Cog):
             )
 
             if not finished:
-
                 await interaction.followup.send(
                     (
                         "❌ Ce tournoi n'est pas encore terminé.\n"
@@ -612,7 +629,6 @@ class BracketCog(commands.Cog):
                     ),
                     ephemeral=True,
                 )
-
                 return
 
             winner = await self.brackets.get_winner(
@@ -620,7 +636,6 @@ class BracketCog(commands.Cog):
             )
 
             if winner is None:
-
                 await interaction.followup.send(
                     (
                         "❌ Aucun champion n'est enregistré pour "
@@ -629,7 +644,6 @@ class BracketCog(commands.Cog):
                     ),
                     ephemeral=True,
                 )
-
                 return
 
             await self._send_bracket_image(
@@ -639,14 +653,12 @@ class BracketCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
 
         except Exception as error:
-
             print(
                 "❌ Erreur /final_bracket :",
                 repr(error),
@@ -666,46 +678,40 @@ class BracketCog(commands.Cog):
 
     @app_commands.command(
         name="round",
-        description="Afficher le round actuel"
+        description="Afficher le round actuel d'un tournoi",
+    )
+    @app_commands.describe(
+        tournoi=(
+            "ID ou code du tournoi. "
+            "Laisse vide pour utiliser le tournoi sélectionné."
+        )
     )
     async def current_round(
         self,
         interaction: discord.Interaction,
+        tournoi: str | None = None,
     ):
-        """
-        Affiche le round actuellement en cours sous forme textuelle.
-        """
+        """Affiche le round actuellement en cours sous forme textuelle."""
 
         await interaction.response.defer(
             ephemeral=False
         )
 
         try:
-
-            tournament = await self._get_active_tournament(
-                interaction
+            tournament = await self._resolve_tournament(
+                interaction,
+                tournoi,
             )
-
-            if tournament is None:
-
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif.",
-                    ephemeral=True,
-                )
-
-                return
 
             text = await self.brackets.format_current_round(
                 tournament.id
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         await self._send_text(
@@ -720,38 +726,32 @@ class BracketCog(commands.Cog):
 
     @app_commands.command(
         name="round_show",
-        description="Afficher un round précis du tournoi"
+        description="Afficher un round précis d'un tournoi",
     )
     @app_commands.describe(
-        round_number="Numéro du round à afficher"
+        round_number="Numéro du round à afficher",
+        tournoi=(
+            "ID ou code du tournoi. "
+            "Laisse vide pour utiliser le tournoi sélectionné."
+        ),
     )
     async def round_show(
         self,
         interaction: discord.Interaction,
         round_number: app_commands.Range[int, 1, 7],
+        tournoi: str | None = None,
     ):
-        """
-        Affiche un round particulier sous forme textuelle.
-        """
+        """Affiche un round particulier sous forme textuelle."""
 
         await interaction.response.defer(
             ephemeral=False
         )
 
         try:
-
-            tournament = await self._get_active_tournament(
-                interaction
+            tournament = await self._resolve_tournament(
+                interaction,
+                tournoi,
             )
-
-            if tournament is None:
-
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif.",
-                    ephemeral=True,
-                )
-
-                return
 
             matches = await self.brackets.get_round_matches(
                 tournament.id,
@@ -759,12 +759,10 @@ class BracketCog(commands.Cog):
             )
 
             if not matches:
-
                 await interaction.followup.send(
                     "❌ Aucun match trouvé pour ce round.",
                     ephemeral=True,
                 )
-
                 return
 
             text = self.brackets.format_round(
@@ -773,12 +771,10 @@ class BracketCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         await self._send_text(
@@ -793,46 +789,37 @@ class BracketCog(commands.Cog):
 
     @app_commands.command(
         name="nextmatch",
-        description="Voir le prochain match d'un joueur"
+        description="Voir le prochain match d'un joueur",
     )
     @app_commands.describe(
         joueur=(
             "Joueur concerné. "
             "Laisse vide pour afficher ton propre match."
-        )
+        ),
+        tournoi=(
+            "ID ou code du tournoi. "
+            "Laisse vide pour utiliser le tournoi sélectionné."
+        ),
     )
     async def nextmatch(
         self,
         interaction: discord.Interaction,
         joueur: discord.Member | None = None,
+        tournoi: str | None = None,
     ):
-        """
-        Affiche le prochain match jouable du membre sélectionné.
-        """
+        """Affiche le prochain match jouable du membre sélectionné."""
 
         await interaction.response.defer(
             ephemeral=True
         )
 
         try:
-
-            tournament = await self._get_active_tournament(
-                interaction
+            tournament = await self._resolve_tournament(
+                interaction,
+                tournoi,
             )
 
-            if tournament is None:
-
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif.",
-                    ephemeral=True,
-                )
-
-                return
-
-            target = (
-                joueur
-                or interaction.user
-            )
+            target = joueur or interaction.user
 
             text = await self.brackets.format_next_match(
                 tournament.id,
@@ -840,12 +827,10 @@ class BracketCog(commands.Cog):
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         await interaction.followup.send(
@@ -859,46 +844,40 @@ class BracketCog(commands.Cog):
 
     @app_commands.command(
         name="finale",
-        description="Afficher la finale du tournoi actif"
+        description="Afficher la finale d'un tournoi",
+    )
+    @app_commands.describe(
+        tournoi=(
+            "ID ou code du tournoi. "
+            "Laisse vide pour utiliser le tournoi sélectionné."
+        )
     )
     async def finale(
         self,
         interaction: discord.Interaction,
+        tournoi: str | None = None,
     ):
-        """
-        Affiche uniquement la finale sous forme textuelle.
-        """
+        """Affiche uniquement la finale sous forme textuelle."""
 
         await interaction.response.defer(
             ephemeral=False
         )
 
         try:
-
-            tournament = await self._get_active_tournament(
-                interaction
+            tournament = await self._resolve_tournament(
+                interaction,
+                tournoi,
             )
-
-            if tournament is None:
-
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif.",
-                    ephemeral=True,
-                )
-
-                return
 
             text = await self.brackets.format_final(
                 tournament.id
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         await interaction.followup.send(
@@ -912,46 +891,40 @@ class BracketCog(commands.Cog):
 
     @app_commands.command(
         name="matches",
-        description="Afficher les matchs actuellement jouables"
+        description="Afficher les matchs actuellement jouables",
+    )
+    @app_commands.describe(
+        tournoi=(
+            "ID ou code du tournoi. "
+            "Laisse vide pour utiliser le tournoi sélectionné."
+        )
     )
     async def matches(
         self,
         interaction: discord.Interaction,
+        tournoi: str | None = None,
     ):
-        """
-        Affiche les matchs dont les deux joueurs sont connus.
-        """
+        """Affiche les matchs dont les deux joueurs sont connus."""
 
         await interaction.response.defer(
             ephemeral=False
         )
 
         try:
-
-            tournament = await self._get_active_tournament(
-                interaction
+            tournament = await self._resolve_tournament(
+                interaction,
+                tournoi,
             )
-
-            if tournament is None:
-
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif.",
-                    ephemeral=True,
-                )
-
-                return
 
             text = await self.brackets.format_ready_matches(
                 tournament.id
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         await self._send_text(
@@ -966,63 +939,59 @@ class BracketCog(commands.Cog):
 
     @app_commands.command(
         name="winner",
-        description="Afficher le vainqueur du tournoi actif"
+        description="Afficher le vainqueur d'un tournoi",
+    )
+    @app_commands.describe(
+        tournoi=(
+            "ID ou code du tournoi. "
+            "Laisse vide pour utiliser le tournoi sélectionné."
+        )
     )
     async def winner(
         self,
         interaction: discord.Interaction,
+        tournoi: str | None = None,
     ):
-        """
-        Affiche le champion du tournoi actif.
-        """
+        """Affiche le champion du tournoi sélectionné."""
 
         await interaction.response.defer(
             ephemeral=False
         )
 
         try:
-
-            tournament = await self._get_active_tournament(
-                interaction
+            tournament = await self._resolve_tournament(
+                interaction,
+                tournoi,
             )
-
-            if tournament is None:
-
-                await interaction.followup.send(
-                    "❌ Aucun tournoi actif.",
-                    ephemeral=True,
-                )
-
-                return
 
             winner = await self.brackets.get_winner(
                 tournament.id
             )
 
         except ValueError as error:
-
             await interaction.followup.send(
                 f"❌ {error}",
                 ephemeral=True,
             )
-
             return
 
         if winner is None:
-
             await interaction.followup.send(
                 "❌ Le tournoi n'a pas encore de vainqueur.",
                 ephemeral=True,
             )
-
             return
 
         _, winner_name = winner
 
+        reference_text = self._tournament_reference_text(
+            tournament
+        )
+
         await interaction.followup.send(
             (
-                "🏆 Le vainqueur du tournoi est "
-                f"**{winner_name}** !"
+                f"🏆 Le vainqueur du tournoi est **{winner_name}** !\n"
+                f"{reference_text}"
             ),
             ephemeral=False,
         )
@@ -1031,9 +1000,7 @@ class BracketCog(commands.Cog):
 async def setup(
     bot: commands.Bot,
 ):
-    """
-    Charge le Cog dans Hamtaro.
-    """
+    """Charge le Cog dans Hamtaro."""
 
     await bot.add_cog(
         BracketCog(bot)
