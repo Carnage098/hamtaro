@@ -499,7 +499,7 @@ class HamtaroBracketTheme:
             8: (1600, 900),
             16: (1728, 972),
             32: (1920, 1080),
-            64: (2048, 1152),
+            64: (2560, 1440),
             128: (2560, 1440),
         }
 
@@ -744,6 +744,9 @@ class HamtaroBracketTheme:
     # ==========================================================
     # ESPACEMENT HORIZONTAL
     # ==========================================================
+
+    spread_all_columns_in_final: bool = True
+    final_round_column_minimum_gap: int = 18
 
     def column_gap(self, player_capacity: int) -> int:
         """
