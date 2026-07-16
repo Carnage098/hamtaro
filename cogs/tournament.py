@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import discord
-
-from discord.ext import commands
 from discord import app_commands
+from discord.ext import commands
 
 from services.bracket_service import BracketService
 from utils.tournament_resolver import (
@@ -30,18 +29,79 @@ FORMATS = [
 
 class TournamentCog(commands.Cog):
 
-    def __init__(self, bot: commands.Bot):
+    def __init__(
+        self,
+        bot: commands.Bot,
+    ) -> None:
         self.bot = bot
         self.db = bot.db
-        self.brackets = BracketService(self.db)
+        self.brackets = BracketService(
+            self.db
+        )
 
-    def _guild_id(self, interaction: discord.Interaction) -> str:
+    def _guild_id(
+        self,
+        interaction: discord.Interaction,
+    ) -> str:
         if interaction.guild is None:
             raise ValueError(
                 "Cette commande doit être utilisée dans un serveur."
             )
 
-        return str(interaction.guild.id)
+        return str(
+            interaction.guild.id
+        )
+
+    async def _safe_defer(
+        self,
+        interaction: discord.Interaction,
+        *,
+        ephemeral: bool,
+    ) -> bool:
+        """
+        Accuse immédiatement réception de la commande.
+
+        Retourne False si Discord considère déjà l'interaction
+        comme expirée ou reconnue. Dans ce cas, la commande doit
+        s'arrêter avant de modifier la base de données.
+        """
+
+        if interaction.response.is_done():
+            return True
+
+        try:
+            await interaction.response.defer(
+                ephemeral=ephemeral,
+                thinking=True,
+            )
+            return True
+
+        except discord.InteractionResponded:
+            return True
+
+        except discord.NotFound as error:
+            if error.code == 10062:
+                print(
+                    "⚠️ Interaction expirée avant le defer :",
+                    interaction.id,
+                )
+                return False
+
+            raise
+
+        except discord.HTTPException as error:
+            if error.code in {
+                10062,
+                40060,
+            }:
+                print(
+                    "⚠️ Interaction expirée ou déjà reconnue :",
+                    interaction.id,
+                    f"code={error.code}",
+                )
+                return False
+
+            raise
 
     async def _resolve_tournament(
         self,
@@ -63,12 +123,12 @@ class TournamentCog(commands.Cog):
 
     @app_commands.command(
         name="create_tournament",
-        description="Créer un tournoi Hamtaro"
+        description="Créer un tournoi Hamtaro",
     )
     @app_commands.describe(
         name="Nom du tournoi",
         format="Format du tournoi",
-        max_players="Nombre maximum de joueurs"
+        max_players="Nombre maximum de joueurs",
     )
     @app_commands.choices(
         format=[
@@ -88,28 +148,42 @@ class TournamentCog(commands.Cog):
         name: str,
         format: app_commands.Choice[str],
         max_players: int,
-    ):
-        await interaction.response.defer(
-            ephemeral=False
+    ) -> None:
+        acknowledged = await self._safe_defer(
+            interaction,
+            ephemeral=False,
         )
 
+        if not acknowledged:
+            return
+
         try:
-            guild_id = self._guild_id(interaction)
+            guild_id = self._guild_id(
+                interaction
+            )
 
             tournament = await self.db.create_tournament(
                 guild_id=guild_id,
                 name=name,
                 format=format.value,
                 max_players=max_players,
-                created_by=str(interaction.user.id),
+                created_by=str(
+                    interaction.user.id
+                ),
             )
 
             if interaction.channel_id is not None:
                 await self.db.select_tournament_for_channel(
                     guild_id=guild_id,
-                    channel_id=str(interaction.channel_id),
-                    tournament_id=int(tournament.id),
-                    selected_by=str(interaction.user.id),
+                    channel_id=str(
+                        interaction.channel_id
+                    ),
+                    tournament_id=int(
+                        tournament.id
+                    ),
+                    selected_by=str(
+                        interaction.user.id
+                    ),
                 )
 
         except ValueError as error:
@@ -119,11 +193,27 @@ class TournamentCog(commands.Cog):
             )
             return
 
+        except Exception as error:
+            print(
+                "❌ Erreur création tournoi :",
+                repr(error),
+            )
+
+            await interaction.followup.send(
+                (
+                    "❌ Une erreur inattendue est survenue "
+                    "pendant la création du tournoi."
+                ),
+                ephemeral=True,
+            )
+            return
+
         embed = discord.Embed(
             title="🏆 Tournoi créé",
             description=(
                 "Les inscriptions sont maintenant ouvertes.\n"
-                "Ce tournoi a été sélectionné automatiquement dans ce salon."
+                "Ce tournoi a été sélectionné automatiquement "
+                "dans ce salon."
             ),
             color=discord.Color.gold(),
         )
@@ -147,6 +237,12 @@ class TournamentCog(commands.Cog):
         )
 
         embed.add_field(
+            name="ID",
+            value=f"`{tournament.id}`",
+            inline=True,
+        )
+
+        embed.add_field(
             name="Joueurs",
             value=f"0/{tournament.max_players}",
             inline=True,
@@ -159,11 +255,16 @@ class TournamentCog(commands.Cog):
         )
 
         embed.set_footer(
-            text="Inscris-toi avec /register. Le staff lancera le tournoi quand les inscriptions seront terminées."
+            text=(
+                "Inscris-toi avec /register. "
+                "Le staff lancera le tournoi lorsque "
+                "les inscriptions seront terminées."
+            )
         )
 
         await interaction.followup.send(
             embed=embed,
+            ephemeral=False,
         )
 
     # ==========================================================
@@ -172,10 +273,10 @@ class TournamentCog(commands.Cog):
 
     @app_commands.command(
         name="tournament",
-        description="Voir le tournoi sélectionné dans ce salon"
+        description="Voir le tournoi sélectionné dans ce salon",
     )
     @app_commands.describe(
-        code="Code facultatif du tournoi à afficher"
+        code="Code facultatif du tournoi à afficher",
     )
     @app_commands.autocomplete(
         code=tournament_code_autocomplete
@@ -184,10 +285,14 @@ class TournamentCog(commands.Cog):
         self,
         interaction: discord.Interaction,
         code: str | None = None,
-    ):
-        await interaction.response.defer(
-            ephemeral=False
+    ) -> None:
+        acknowledged = await self._safe_defer(
+            interaction,
+            ephemeral=False,
         )
+
+        if not acknowledged:
+            return
 
         try:
             tournament = await self._resolve_tournament(
@@ -205,13 +310,19 @@ class TournamentCog(commands.Cog):
 
         if tournament is None:
             await interaction.followup.send(
-                "❌ Aucun tournoi actif sur ce serveur.",
+                "❌ Aucun tournoi trouvé sur ce serveur.",
                 ephemeral=True,
             )
             return
 
         registered = await self.db.count_registrations(
             tournament.id
+        )
+
+        status = getattr(
+            tournament.status,
+            "value",
+            str(tournament.status),
         )
 
         embed = discord.Embed(
@@ -238,8 +349,14 @@ class TournamentCog(commands.Cog):
         )
 
         embed.add_field(
+            name="ID",
+            value=f"`{tournament.id}`",
+            inline=True,
+        )
+
+        embed.add_field(
             name="Statut",
-            value=tournament.status.value,
+            value=status,
             inline=True,
         )
 
@@ -251,12 +368,15 @@ class TournamentCog(commands.Cog):
 
         embed.add_field(
             name="Round actuel",
-            value=str(tournament.current_round),
+            value=str(
+                tournament.current_round
+            ),
             inline=True,
         )
 
         await interaction.followup.send(
             embed=embed,
+            ephemeral=False,
         )
 
     # ==========================================================
@@ -265,10 +385,10 @@ class TournamentCog(commands.Cog):
 
     @app_commands.command(
         name="start_tournament",
-        description="Lancer le tournoi sélectionné"
+        description="Lancer le tournoi sélectionné",
     )
     @app_commands.describe(
-        code="Code facultatif du tournoi à lancer"
+        code="Code facultatif du tournoi à lancer",
     )
     @app_commands.autocomplete(
         code=active_tournament_code_autocomplete
@@ -280,10 +400,14 @@ class TournamentCog(commands.Cog):
         self,
         interaction: discord.Interaction,
         code: str | None = None,
-    ):
-        await interaction.response.defer(
-            ephemeral=True
+    ) -> None:
+        acknowledged = await self._safe_defer(
+            interaction,
+            ephemeral=True,
         )
+
+        if not acknowledged:
+            return
 
         try:
             tournament = await self._resolve_tournament(
@@ -298,7 +422,11 @@ class TournamentCog(commands.Cog):
                 )
                 return
 
-            status = tournament.status.value
+            status = getattr(
+                tournament.status,
+                "value",
+                str(tournament.status),
+            ).lower()
 
             if status == "running":
                 await interaction.followup.send(
@@ -309,7 +437,10 @@ class TournamentCog(commands.Cog):
 
             if status != "registration":
                 await interaction.followup.send(
-                    "❌ Le tournoi doit être en phase d'inscription pour être lancé.",
+                    (
+                        "❌ Le tournoi doit être en phase "
+                        "d'inscription pour être lancé."
+                    ),
                     ephemeral=True,
                 )
                 return
@@ -327,18 +458,24 @@ class TournamentCog(commands.Cog):
 
         except Exception as error:
             print(
-                "ERREUR /start_tournament :",
-                error,
+                "❌ Erreur /start_tournament :",
+                repr(error),
             )
 
             await interaction.followup.send(
-                f"❌ Erreur pendant le lancement du tournoi : `{error}`",
+                (
+                    "❌ Erreur pendant le lancement "
+                    f"du tournoi : `{error}`"
+                ),
                 ephemeral=True,
             )
             return
 
         await interaction.followup.send(
-            f"✅ Tournoi `{tournament.code}` lancé avec succès.",
+            (
+                f"✅ Tournoi `{tournament.code}` "
+                f"(ID `#{tournament.id}`) lancé avec succès."
+            ),
             ephemeral=True,
         )
 
@@ -348,10 +485,10 @@ class TournamentCog(commands.Cog):
 
     @app_commands.command(
         name="cancel_tournament",
-        description="Annuler le tournoi sélectionné"
+        description="Annuler le tournoi sélectionné",
     )
     @app_commands.describe(
-        code="Code facultatif du tournoi à annuler"
+        code="Code facultatif du tournoi à annuler",
     )
     @app_commands.autocomplete(
         code=active_tournament_code_autocomplete
@@ -363,10 +500,14 @@ class TournamentCog(commands.Cog):
         self,
         interaction: discord.Interaction,
         code: str | None = None,
-    ):
-        await interaction.response.defer(
-            ephemeral=True
+    ) -> None:
+        acknowledged = await self._safe_defer(
+            interaction,
+            ephemeral=True,
         )
+
+        if not acknowledged:
+            return
 
         try:
             tournament = await self._resolve_tournament(
@@ -392,13 +533,33 @@ class TournamentCog(commands.Cog):
             )
             return
 
+        except Exception as error:
+            print(
+                "❌ Erreur /cancel_tournament :",
+                repr(error),
+            )
+
+            await interaction.followup.send(
+                (
+                    "❌ Une erreur inattendue est survenue "
+                    "pendant l'annulation du tournoi."
+                ),
+                ephemeral=True,
+            )
+            return
+
         await interaction.followup.send(
-            f"✅ Tournoi `{tournament.code}` annulé.",
+            (
+                f"✅ Tournoi `{tournament.code}` "
+                f"(ID `#{tournament.id}`) annulé."
+            ),
             ephemeral=True,
         )
 
 
-async def setup(bot: commands.Bot):
+async def setup(
+    bot: commands.Bot,
+) -> None:
     await bot.add_cog(
         TournamentCog(bot)
     )
