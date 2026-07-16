@@ -282,17 +282,17 @@ class HamtaroBracketTheme:
     # CARTE DU CHAMPION
     # ==========================================================
 
-    champion_title_font_size: int = 39
+    champion_title_font_size: int = 28
     champion_name_font_size: int = 31
     champion_information_font_size: int = 16
-    champion_deck_font_size: int = 18
-    champion_deck_plate_width: int = 310
+    champion_deck_font_size: int = 17
+    champion_deck_plate_width: int = 334
     champion_deck_plate_height: int = 38
     champion_deck_plate_radius: int = 7
     champion_deck_plate_background: Color = (20, 17, 8)
     champion_deck_plate_border: Color = (255, 199, 55)
     champion_deck_label_color: Color = (255, 226, 125)
-    champion_seed_badge_width: int = 70
+    champion_seed_badge_width: int = 58
 
     champion_avatar_size: int = 126
     champion_mascot_size: int = 82
@@ -328,7 +328,7 @@ class HamtaroBracketTheme:
 
     # Deuxième place / finaliste
     runner_up_card_width: int = 310
-    runner_up_card_height: int = 62
+    runner_up_card_height: int = 70
     runner_up_card_radius: int = 8
     runner_up_avatar_size: int = 36
     runner_up_trophy_width: int = 26
@@ -343,8 +343,8 @@ class HamtaroBracketTheme:
     # STATISTIQUES
     # ==========================================================
 
-    statistics_card_width: int = 440
-    statistics_card_height: int = 104
+    statistics_card_width: int = 460
+    statistics_card_height: int = 124
     statistics_card_radius: int = 5
     statistics_card_border_width: int = 1
 
@@ -353,7 +353,7 @@ class HamtaroBracketTheme:
     statistics_label_font_size: int = 13
 
     statistics_title_color: Color = (255, 75, 55)
-    statistics_icon_size: int = 17
+    statistics_icon_size: int = 18
 
     statistics_column_count: int = 4
     statistics_separator_width: int = 1
