@@ -1760,16 +1760,38 @@ class BracketImageService:
             width
             - margin_x
         )
-    
+
+        # En mode final, la carte du podium est plus large que la seule
+        # carte de finale. On reserve donc toute sa largeur au centre afin
+        # qu'elle ne recouvre plus les demi-finales Yusei/Jaden.
+        reserved_center_width = final_geometry.width
+        if final_mode:
+            reserved_method = getattr(self.theme, "center_reserved_width", None)
+            configured_reserved = (
+                int(reserved_method(player_capacity))
+                if callable(reserved_method)
+                else 0
+            )
+            champion_width = int(
+                getattr(self.theme, "champion_card_width", final_geometry.width)
+            )
+            reserved_center_width = max(
+                final_geometry.width,
+                configured_reserved,
+                champion_width + 36,
+            )
+
+        center_left_edge = width // 2 - reserved_center_width // 2
+        center_right_edge = width // 2 + reserved_center_width // 2
+
         left_inner_start = (
-            final_x
+            center_left_edge
             - center_gap
             - geometries[2].width
         )
-    
+
         right_inner_start = (
-            final_x
-            + final_geometry.width
+            center_right_edge
             + center_gap
         )
     
@@ -2940,6 +2962,12 @@ class BracketImageService:
                 center_x = x + geometry.width // 2
                 color = self.RED if side == "left" else self.BLUE
                 title = self._round_title(round_number)
+
+                if round_number == 2:
+                    inner_shift = int(
+                        getattr(self.theme, "round_title_inner_shift", 24)
+                    )
+                    center_x += inner_shift if side == "left" else -inner_shift
 
                 # Les colonnes proches du centre sont très rapprochées.
                 # La police et le bandeau sont donc limités à la largeur
@@ -5701,7 +5729,7 @@ class BracketImageService:
         image: Image.Image,
         final_mode: bool,
     ) -> None:
-        """Dessine le footer avec le nom du serveur et l'avatar du bot."""
+        """Dessine le footer avec une carte de profil du serveur Font Row."""
 
         draw = ImageDraw.Draw(image)
         footer_height = self._effective_footer_height(canvas_height=image.height)
@@ -5713,16 +5741,31 @@ class BracketImageService:
             (0, footer_y, image.width, image.height),
             fill=(*getattr(self.theme, "footer_background", self.BG), 255),
         )
-        separator_height = max(2, int(getattr(self.theme, "footer_top_separator_height", 2)))
-        draw.rectangle((0, footer_y, image.width // 2, footer_y + separator_height), fill=self.RED)
-        draw.rectangle((image.width // 2, footer_y, image.width, footer_y + separator_height), fill=self.BLUE)
+        separator_height = max(
+            2,
+            int(getattr(self.theme, "footer_top_separator_height", 2)),
+        )
+        draw.rectangle(
+            (0, footer_y, image.width // 2, footer_y + separator_height),
+            fill=self.RED,
+        )
+        draw.rectangle(
+            (image.width // 2, footer_y, image.width, footer_y + separator_height),
+            fill=self.BLUE,
+        )
 
-        icon_size = max(int(38 * display_scale), int(getattr(self.theme, "footer_icon_size", 38)))
+        icon_size = max(
+            int(38 * display_scale),
+            int(getattr(self.theme, "footer_icon_size", 38)),
+        )
         icon_path = self._theme_path("footer_icon_path", "hamtaro_footer.png")
         icon = self._load_asset(icon_path)
         if icon is not None:
             icon = self._contain_image(icon, icon_size, icon_size)
-            image.alpha_composite(icon, (padding, footer_y + (footer_height - icon.height) // 2))
+            image.alpha_composite(
+                icon,
+                (padding, footer_y + (footer_height - icon.height) // 2),
+            )
         else:
             self._draw_hamster_fallback(
                 image,
@@ -5733,27 +5776,29 @@ class BracketImageService:
 
         draw = ImageDraw.Draw(image)
         normal_font = self._font(
-            max(int(16 * display_scale), int(getattr(self.theme, "footer_information_font_size", 16)))
+            max(
+                int(16 * display_scale),
+                int(getattr(self.theme, "footer_information_font_size", 16)),
+            )
         )
         emphasis_font = self._font(
-            max(int(18 * display_scale), int(getattr(self.theme, "footer_title_font_size", 18))),
-            bold=True,
-            italic=True,
-        )
-        server_font = self._font(
             max(
-                int(22 * display_scale),
-                int(getattr(self.theme, "footer_server_name_font_size", 23)),
+                int(18 * display_scale),
+                int(getattr(self.theme, "footer_title_font_size", 18)),
             ),
             bold=True,
             italic=True,
         )
         baseline = footer_y + footer_height // 2
         left_x = padding + icon_size + 12
-        # Labels statiques en ASCII pour eviter les caracteres carres
-        # sur les environnements Railway qui chargent une police de secours.
         prefix = "ORGANISE AVEC"
-        draw.text((left_x, baseline), prefix, font=normal_font, fill=self.MUTED, anchor="lm")
+        draw.text(
+            (left_x, baseline),
+            prefix,
+            font=normal_font,
+            fill=self.MUTED,
+            anchor="lm",
+        )
         prefix_width = self._text_width(draw, prefix, normal_font)
         draw.text(
             (left_x + prefix_width + 14, baseline),
@@ -5764,54 +5809,149 @@ class BracketImageService:
         )
 
         center_text = (
-            str(getattr(self.theme, "footer_center_text", "MERCI A TOUS LES PARTICIPANTS !"))
+            str(
+                getattr(
+                    self.theme,
+                    "footer_center_text",
+                    "MERCI A TOUS LES PARTICIPANTS !",
+                )
+            )
             if final_mode
             else "RESULTATS ACTUALISES APRES VALIDATION DU STAFF"
         )
         center_font = self._font(
-            max(int(18 * display_scale), int(getattr(self.theme, "footer_center_font_size", 18))),
+            max(
+                int(18 * display_scale),
+                int(getattr(self.theme, "footer_center_font_size", 18)),
+            ),
             bold=True,
             italic=True,
         )
-        draw.text((image.width // 2, baseline), center_text, font=center_font, fill=self.MUTED, anchor="mm")
-
-        bot_avatar_size = max(
-            int(50 * display_scale),
-            int(getattr(self.theme, "footer_bot_avatar_size", 54)),
+        draw.text(
+            (image.width // 2, baseline),
+            center_text,
+            font=center_font,
+            fill=self.MUTED,
+            anchor="mm",
         )
-        bot_avatar_x = image.width - padding - bot_avatar_size
-        bot_avatar_y = footer_y + (footer_height - bot_avatar_size) // 2
-        server_name = str(getattr(self.theme, "server_name", "FONT ROW")).upper()
-        bot_avatar_path = self._theme_path("bot_avatar_path", "hamtaro_bot_avatar.png")
-        bot_avatar = self._load_asset(bot_avatar_path)
-        if bot_avatar is None:
-            bot_avatar = self._load_asset(
-                self._theme_path("footer_icon_path", "hamtaro_footer.png")
+
+        # Carte Discord du serveur, plus professionnelle qu'un simple nom.
+        profile_width = max(
+            220,
+            int(getattr(self.theme, "footer_server_profile_width", 246)),
+        )
+        profile_height = min(
+            footer_height - 10,
+            int(getattr(self.theme, "footer_server_profile_height", 54)),
+        )
+        profile_x = image.width - padding - profile_width
+        profile_y = footer_y + (footer_height - profile_height) // 2
+        profile_radius = int(
+            getattr(self.theme, "footer_server_profile_radius", 9)
+        )
+        profile_border = getattr(
+            self.theme,
+            "footer_server_profile_border",
+            self.BLUE,
+        )
+        draw.rounded_rectangle(
+            (
+                profile_x,
+                profile_y,
+                profile_x + profile_width,
+                profile_y + profile_height,
+            ),
+            radius=profile_radius,
+            fill=getattr(
+                self.theme,
+                "footer_server_profile_background",
+                self._blend_color(self.PANEL, self.BG, 0.20),
+            ),
+            outline=profile_border,
+            width=int(
+                getattr(self.theme, "footer_server_profile_border_width", 2)
+            ),
+        )
+
+        server_avatar_size = min(
+            profile_height - 10,
+            int(getattr(self.theme, "footer_server_avatar_size", 42)),
+        )
+        server_avatar_x = profile_x + 8
+        server_avatar_y = profile_y + (profile_height - server_avatar_size) // 2
+        server_avatar = self._load_asset(
+            self._theme_path("server_avatar_path", "font_row_server_avatar.png")
+        )
+        if server_avatar is None:
+            server_avatar = self._load_asset(
+                self._theme_path("bot_avatar_path", "hamtaro_bot_avatar.png")
             )
-        if bot_avatar is not None:
+        if server_avatar is None:
+            server_avatar = self._load_asset(icon_path)
+
+        if server_avatar is not None:
             self._paste_avatar(
                 image,
-                bot_avatar,
-                bot_avatar_x,
-                bot_avatar_y,
-                bot_avatar_size,
-                self.BLUE,
-                int(getattr(self.theme, "footer_bot_avatar_border_width", 3)),
+                server_avatar,
+                server_avatar_x,
+                server_avatar_y,
+                server_avatar_size,
+                profile_border,
+                int(
+                    getattr(self.theme, "footer_server_avatar_border_width", 2)
+                ),
             )
         else:
             self._draw_hamster_fallback(
                 image,
-                bot_avatar_x + bot_avatar_size // 2,
-                bot_avatar_y + bot_avatar_size // 2,
-                bot_avatar_size,
+                server_avatar_x + server_avatar_size // 2,
+                server_avatar_y + server_avatar_size // 2,
+                server_avatar_size,
             )
+
         draw = ImageDraw.Draw(image)
+        text_x = server_avatar_x + server_avatar_size + 12
+        server_name = str(getattr(self.theme, "server_name", "FONT ROW")).upper()
+        server_font = self._font(
+            max(
+                int(20 * display_scale),
+                int(getattr(self.theme, "footer_server_name_font_size", 23)),
+            ),
+            bold=True,
+            italic=True,
+        )
+        subtitle_font = self._font(
+            max(
+                10,
+                int(getattr(self.theme, "footer_server_subtitle_font_size", 12)),
+            ),
+            bold=True,
+        )
+        server_name = self._fit_text(
+            draw,
+            server_name,
+            server_font,
+            profile_width - (text_x - profile_x) - 12,
+        )
         draw.text(
-            (bot_avatar_x - 16, baseline),
+            (text_x, profile_y + profile_height // 2 - 8),
             server_name,
             font=server_font,
             fill=self.TEXT,
-            anchor="rm",
+            anchor="lm",
+        )
+        draw.text(
+            (text_x, profile_y + profile_height // 2 + 13),
+            str(
+                getattr(
+                    self.theme,
+                    "footer_server_subtitle",
+                    "SERVEUR DISCORD",
+                )
+            ),
+            font=subtitle_font,
+            fill=self.MUTED,
+            anchor="lm",
         )
 
     # ==========================================================
