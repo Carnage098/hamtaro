@@ -1837,43 +1837,54 @@ class DatabaseService:
     async def report_swiss_result(
         self,
         match_id: int,
-        winner_id: str | None,
-        winner_name: str | None,
+        winner_id: str,
+        winner_name: str,
         player1_score: int,
         player2_score: int,
         *,
         is_draw: bool = False,
         reported_by: str | None = None,
     ) -> None:
-        """
-        Enregistre le résultat d'un match suisse.
-        """
+        """Enregistre une victoire suisse. Les matchs nuls sont interdits."""
 
         match = await self.get_swiss_match(match_id)
 
         if match is None:
             raise ValueError("Match suisse introuvable.")
 
-        if match["status"] != "pending":
-            raise ValueError(
-                "Ce match suisse est déjà terminé."
-            )
+        if str(match["status"]).lower() != "pending":
+            raise ValueError("Ce match suisse est déjà terminé.")
 
-        if player1_score < 0 or player2_score < 0:
-            raise ValueError(
-                "Les scores ne peuvent pas être négatifs."
-            )
+        if int(match["is_bye"] or 0) == 1:
+            raise ValueError("Un BYE est déjà automatiquement validé.")
 
         if is_draw:
-
-            winner_id = None
-            winner_name = None
-
-        elif winner_id is None:
-
             raise ValueError(
-                "Il faut indiquer un gagnant ou déclarer une égalité."
+                "Les matchs nuls n'existent plus. Utilise report_swiss_double_loss()."
             )
+
+        if winner_id is None or winner_name is None:
+            raise ValueError("Il faut obligatoirement indiquer un gagnant.")
+
+        if player1_score < 0 or player2_score < 0:
+            raise ValueError("Les scores ne peuvent pas être négatifs.")
+
+        if player1_score == player2_score:
+            raise ValueError(
+                "Les matchs nuls n'existent plus. Utilise un double loss si le duel n'est pas terminé à temps."
+            )
+
+        if str(winner_id) not in {
+            str(match["player1_id"]),
+            str(match["player2_id"]),
+        }:
+            raise ValueError("Le gagnant indiqué ne participe pas à ce match.")
+
+        result = (
+            "player1"
+            if str(winner_id) == str(match["player1_id"])
+            else "player2"
+        )
 
         await self.update(
             """
@@ -1883,10 +1894,13 @@ class DatabaseService:
                 player2_score = ?,
                 winner_id = ?,
                 winner_name = ?,
-                is_draw = ?,
+                is_draw = 0,
+                is_double_loss = 0,
+                result = ?,
                 status = 'completed',
                 reported_by = ?,
-                reported_at = CURRENT_TIMESTAMP
+                reported_at = CURRENT_TIMESTAMP,
+                finished_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
             (
@@ -1894,10 +1908,49 @@ class DatabaseService:
                 player2_score,
                 winner_id,
                 winner_name,
-                int(is_draw),
+                result,
                 reported_by,
                 match_id,
             ),
+        )
+
+    async def report_swiss_double_loss(
+        self,
+        match_id: int,
+        *,
+        reported_by: str | None = None,
+    ) -> None:
+        """Valide un double loss : 0 point pour les deux joueurs."""
+
+        match = await self.get_swiss_match(match_id)
+
+        if match is None:
+            raise ValueError("Match suisse introuvable.")
+
+        if str(match["status"]).lower() != "pending":
+            raise ValueError("Ce match suisse est déjà terminé.")
+
+        if int(match["is_bye"] or 0) == 1 or match["player2_id"] is None:
+            raise ValueError("Impossible d'appliquer un double loss à un BYE.")
+
+        await self.update(
+            """
+            UPDATE swiss_matches
+            SET
+                player1_score = 0,
+                player2_score = 0,
+                winner_id = NULL,
+                winner_name = NULL,
+                is_draw = 0,
+                is_double_loss = 1,
+                result = 'double_loss',
+                status = 'completed',
+                reported_by = ?,
+                reported_at = CURRENT_TIMESTAMP,
+                finished_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (reported_by, match_id),
         )
 
     async def get_swiss_opponents(
@@ -1970,132 +2023,122 @@ class DatabaseService:
         tournament_id: int,
     ):
         """
-        Classement suisse :
-        victoire = 3 points,
-        égalité = 1 point,
-        défaite = 0 point,
-        BYE = 3 points.
+        Retourne le classement suisse sans match nul.
+
+        Ordre : points décroissants, double losses croissants,
+        victoires décroissantes, défaites croissantes, pseudo.
+        Les anciennes égalités encore présentes en base sont traitées
+        comme des double losses pour rester compatibles avec l'historique.
         """
 
-        return await self.fetchall(
+        registrations = await self.fetchall(
             """
-            WITH results AS (
-
-                SELECT
-                    player1_id AS discord_id,
-
-                    CASE
-                        WHEN is_bye = 1 THEN 3
-                        WHEN is_draw = 1 THEN 1
-                        WHEN winner_id = player1_id THEN 3
-                        ELSE 0
-                    END AS points,
-
-                    CASE
-                        WHEN is_bye = 0 AND is_draw = 0 AND winner_id = player1_id THEN 1
-                        ELSE 0
-                    END AS wins,
-
-                    CASE
-                        WHEN is_draw = 1 THEN 1
-                        ELSE 0
-                    END AS draws,
-
-                    CASE
-                        WHEN is_bye = 0
-                        AND is_draw = 0
-                        AND winner_id IS NOT NULL
-                        AND winner_id != player1_id THEN 1
-                        ELSE 0
-                    END AS losses,
-
-                    CASE
-                        WHEN is_bye = 1 THEN 1
-                        ELSE 0
-                    END AS byes,
-
-                    1 AS played
-
-                FROM swiss_matches
-                WHERE tournament_id = ?
-                AND status = 'completed'
-
-                UNION ALL
-
-                SELECT
-                    player2_id AS discord_id,
-
-                    CASE
-                        WHEN is_draw = 1 THEN 1
-                        WHEN winner_id = player2_id THEN 3
-                        ELSE 0
-                    END AS points,
-
-                    CASE
-                        WHEN is_bye = 0 AND is_draw = 0 AND winner_id = player2_id THEN 1
-                        ELSE 0
-                    END AS wins,
-
-                    CASE
-                        WHEN is_draw = 1 THEN 1
-                        ELSE 0
-                    END AS draws,
-
-                    CASE
-                        WHEN is_bye = 0
-                        AND is_draw = 0
-                        AND winner_id IS NOT NULL
-                        AND winner_id != player2_id THEN 1
-                        ELSE 0
-                    END AS losses,
-
-                    0 AS byes,
-
-                    1 AS played
-
-                FROM swiss_matches
-                WHERE tournament_id = ?
-                AND status = 'completed'
-                AND player2_id IS NOT NULL
-            )
-
-            SELECT
-                registrations.discord_id,
-                registrations.username,
-
-                COALESCE(SUM(results.points), 0) AS points,
-                COALESCE(SUM(results.played), 0) AS played,
-                COALESCE(SUM(results.wins), 0) AS wins,
-                COALESCE(SUM(results.draws), 0) AS draws,
-                COALESCE(SUM(results.losses), 0) AS losses,
-                COALESCE(SUM(results.byes), 0) AS byes
-
+            SELECT discord_id, username
             FROM registrations
-
-            LEFT JOIN results
-                ON results.discord_id = registrations.discord_id
-
-            WHERE registrations.tournament_id = ?
-            AND registrations.dropped = 0
-            AND registrations.disqualified = 0
-
-            GROUP BY
-                registrations.discord_id,
-                registrations.username
-
-            ORDER BY
-                points DESC,
-                wins DESC,
-                draws DESC,
-                byes ASC,
-                registrations.username ASC
+            WHERE tournament_id = ?
+            AND dropped = 0
+            AND disqualified = 0
+            ORDER BY username ASC
             """,
-            (
-                tournament_id,
-                tournament_id,
-                tournament_id,
+            (tournament_id,),
+        )
+
+        matches = await self.fetchall(
+            """
+            SELECT *
+            FROM swiss_matches
+            WHERE tournament_id = ?
+            AND status = 'completed'
+            ORDER BY round_number ASC, table_number ASC
+            """,
+            (tournament_id,),
+        )
+
+        standings: dict[str, dict[str, Any]] = {}
+
+        for row in registrations:
+            discord_id = str(row["discord_id"])
+            standings[discord_id] = {
+                "discord_id": discord_id,
+                "username": str(row["username"]),
+                "points": 0,
+                "played": 0,
+                "wins": 0,
+                "losses": 0,
+                "double_losses": 0,
+                "byes": 0,
+            }
+
+        def ensure_player(discord_id: Any, username: Any) -> str | None:
+            if discord_id is None:
+                return None
+            key = str(discord_id)
+            if key not in standings:
+                standings[key] = {
+                    "discord_id": key,
+                    "username": str(username or "Joueur inconnu"),
+                    "points": 0,
+                    "played": 0,
+                    "wins": 0,
+                    "losses": 0,
+                    "double_losses": 0,
+                    "byes": 0,
+                }
+            return key
+
+        for match in matches:
+            p1 = ensure_player(match["player1_id"], match["player1_name"])
+            p2 = ensure_player(match["player2_id"], match["player2_name"])
+
+            is_bye = int(match["is_bye"] or 0) == 1
+            is_draw = int(match["is_draw"] or 0) == 1
+            is_double_loss = int(match["is_double_loss"] or 0) == 1
+            result = str(match["result"] or "none").lower()
+
+            if is_bye:
+                if p1 is not None:
+                    standings[p1]["points"] += 3
+                    standings[p1]["wins"] += 1
+                    standings[p1]["byes"] += 1
+                    standings[p1]["played"] += 1
+                continue
+
+            if is_double_loss or is_draw or result in {"double_loss", "draw"}:
+                for player_id in (p1, p2):
+                    if player_id is not None:
+                        standings[player_id]["double_losses"] += 1
+                        standings[player_id]["played"] += 1
+                continue
+
+            winner_id = match["winner_id"]
+            if winner_id is None:
+                continue
+
+            winner = ensure_player(winner_id, match["winner_name"])
+            if winner is None:
+                continue
+
+            standings[winner]["points"] += 3
+            standings[winner]["wins"] += 1
+            standings[winner]["played"] += 1
+
+            loser = p2 if winner == p1 else p1
+            if loser is not None:
+                standings[loser]["losses"] += 1
+                standings[loser]["played"] += 1
+
+        ranked = sorted(
+            standings.values(),
+            key=lambda player: (
+                -int(player["points"]),
+                int(player["double_losses"]),
+                -int(player["wins"]),
+                int(player["losses"]),
+                str(player["username"]).lower(),
             ),
         )
+
+        return ranked
     # ==========================================================
     # MATCHS
     # ==========================================================
