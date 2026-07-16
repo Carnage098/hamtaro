@@ -329,10 +329,10 @@ class HamtaroBracketTheme:
     champion_bot_status_color: Color = (35, 165, 90)
 
     # Trophée de remise placé entre le champion et le bot.
-    champion_handoff_trophy_width: int = 114
-    champion_handoff_trophy_height: int = 114
-    champion_visual_gap: int = 14
-    champion_bot_horizontal_shift: int = 10
+    # Espace horizontal entre l'avatar du champion et le profil du bot.
+    # Aucun trophee n'est affiche entre les deux profils.
+    champion_profile_gap: int = 48
+    champion_bot_horizontal_shift: int = 0
 
     champion_card_width: int = 492
     champion_card_height: int = 528
