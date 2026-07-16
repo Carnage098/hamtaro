@@ -6606,7 +6606,7 @@ class BracketImageService:
         image: Image.Image,
         final_mode: bool,
     ) -> None:
-        """Dessine le footer avec une carte de profil du serveur Fun Row."""
+        """Dessine le footer avec une carte serveur et un rectangle d'appel a l'action."""
 
         draw = ImageDraw.Draw(image)
         footer_height = self._effective_footer_height(canvas_height=image.height)
@@ -6712,7 +6712,7 @@ class BracketImageService:
             anchor="mm",
         )
 
-        # Carte Discord du serveur, plus professionnelle qu'un simple nom.
+        # Carte Discord du serveur en bas a droite.
         profile_width = max(
             220,
             int(getattr(self.theme, "footer_server_profile_width", 246)),
@@ -6723,14 +6723,8 @@ class BracketImageService:
         )
         profile_x = image.width - padding - profile_width
         profile_y = footer_y + (footer_height - profile_height) // 2
-        profile_radius = int(
-            getattr(self.theme, "footer_server_profile_radius", 9)
-        )
-        profile_border = getattr(
-            self.theme,
-            "footer_server_profile_border",
-            self.BLUE,
-        )
+        profile_radius = int(getattr(self.theme, "footer_server_profile_radius", 9))
+        profile_border = getattr(self.theme, "footer_server_profile_border", self.BLUE)
         draw.rounded_rectangle(
             (
                 profile_x,
@@ -6745,9 +6739,7 @@ class BracketImageService:
                 self._blend_color(self.PANEL, self.BG, 0.20),
             ),
             outline=profile_border,
-            width=int(
-                getattr(self.theme, "footer_server_profile_border_width", 2)
-            ),
+            width=int(getattr(self.theme, "footer_server_profile_border_width", 2)),
         )
 
         server_avatar_size = min(
@@ -6756,10 +6748,7 @@ class BracketImageService:
         )
         server_avatar_x = profile_x + 8
         server_avatar_y = profile_y + (profile_height - server_avatar_size) // 2
-        # Le profil du serveur utilise exclusivement le logo JG de Fun Row.
-        # Il ne doit jamais retomber sur la PFP Hamtaro du bot.
         server_avatar = self._load_server_avatar_asset()
-
         if server_avatar is not None:
             self._paste_avatar(
                 image,
@@ -6768,12 +6757,9 @@ class BracketImageService:
                 server_avatar_y,
                 server_avatar_size,
                 profile_border,
-                int(
-                    getattr(self.theme, "footer_server_avatar_border_width", 2)
-                ),
+                int(getattr(self.theme, "footer_server_avatar_border_width", 2)),
             )
         else:
-            # Secours neutre : monogramme FR, jamais la mascotte Hamtaro.
             fallback_draw = ImageDraw.Draw(image)
             fallback_draw.ellipse(
                 (
@@ -6830,18 +6816,78 @@ class BracketImageService:
         )
         draw.text(
             (text_x, profile_y + profile_height // 2 + 13),
-            str(
-                getattr(
-                    self.theme,
-                    "footer_server_subtitle",
-                    "SERVEUR DISCORD",
-                )
-            ),
+            str(getattr(self.theme, "footer_server_subtitle", "SERVEUR DISCORD")),
             font=subtitle_font,
             fill=self.MUTED,
             anchor="lm",
         )
 
+        # Rectangle d'appel a l'action a gauche de la carte serveur.
+        callout_width = int(getattr(self.theme, "footer_callout_width", 620))
+        callout_height = min(
+            footer_height - 10,
+            int(getattr(self.theme, "footer_callout_height", profile_height)),
+        )
+        callout_gap = int(getattr(self.theme, "footer_callout_gap", 16))
+        callout_x = profile_x - callout_gap - callout_width
+        callout_y = footer_y + (footer_height - callout_height) // 2
+        callout_radius = int(getattr(self.theme, "footer_callout_radius", 9))
+        callout_border = getattr(self.theme, "footer_callout_border", self.BLUE)
+        callout_background = getattr(
+            self.theme,
+            "footer_callout_background",
+            self._blend_color(self.PANEL, self.BG, 0.20),
+        )
+        draw.rounded_rectangle(
+            (
+                callout_x,
+                callout_y,
+                callout_x + callout_width,
+                callout_y + callout_height,
+            ),
+            radius=callout_radius,
+            fill=callout_background,
+            outline=callout_border,
+            width=int(getattr(self.theme, "footer_callout_border_width", 2)),
+        )
+
+        callout_text = str(
+            getattr(
+                self.theme,
+                "footer_callout_text",
+                "REJOINS NOUS POUR PARTICIPER A DE NOUVELLES AVENTURES !",
+            )
+        ).upper()
+        line1 = "REJOINS NOUS POUR PARTICIPER"
+        line2 = "A DE NOUVELLES AVENTURES !"
+        callout_font = self._font(
+            max(14, int(getattr(self.theme, "footer_callout_font_size", 18))),
+            bold=True,
+            italic=True,
+        )
+        available_width = callout_width - 24
+        if self._text_width(draw, line1, callout_font) > available_width:
+            line1 = self._fit_text(draw, line1, callout_font, available_width)
+        if self._text_width(draw, line2, callout_font) > available_width:
+            line2 = self._fit_text(draw, line2, callout_font, available_width)
+
+        line_gap = int(getattr(self.theme, "footer_callout_line_gap", 6))
+        top_y = callout_y + callout_height // 2 - (callout_font.size + line_gap // 2)
+        bottom_y = callout_y + callout_height // 2 + (callout_font.size // 2 + line_gap // 2)
+        draw.text(
+            (callout_x + callout_width // 2, top_y),
+            line1,
+            font=callout_font,
+            fill=self.TEXT,
+            anchor="ma",
+        )
+        draw.text(
+            (callout_x + callout_width // 2, bottom_y),
+            line2,
+            font=callout_font,
+            fill=self.TEXT,
+            anchor="ma",
+        )
     # ==========================================================
     # GÉNÉRATION DE L'IMAGE
     # ==========================================================
