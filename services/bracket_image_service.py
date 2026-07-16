@@ -768,7 +768,7 @@ class RoundGeometry:
 
 class BracketImageService:
     """
-    Génère les images PNG HD utilisées par :
+    Génère les images PNG HD utilisées par — version V14 :
     
     - /bracket ;
     - /final_bracket ;
@@ -5642,12 +5642,20 @@ class BracketImageService:
             int(getattr(self.theme, "champion_handoff_trophy_height", 60)),
         )
         visual_gap = max(10, int(getattr(self.theme, "champion_visual_gap", 15)))
+        bot_horizontal_shift = max(
+            0,
+            int(getattr(self.theme, "champion_bot_horizontal_shift", 0)),
+        )
 
+        # La largeur inclut le décalage du profil du bot. Le groupe reste
+        # centré dans la carte, mais le bot respire davantage à droite et
+        # laisse au trophée une vraie place entre les deux profils.
         visual_group_width = (
             avatar_size
             + visual_gap
             + handoff_trophy_width
             + visual_gap
+            + bot_horizontal_shift
             + bot_avatar_size
         )
         avatar_top = title_y + champion_title_size + 22
@@ -5655,7 +5663,12 @@ class BracketImageService:
         avatar_left = visual_left
         handoff_left = avatar_left + avatar_size + visual_gap
         handoff_center_x = handoff_left + handoff_trophy_width // 2
-        bot_avatar_left = handoff_left + handoff_trophy_width + visual_gap
+        bot_avatar_left = (
+            handoff_left
+            + handoff_trophy_width
+            + visual_gap
+            + bot_horizontal_shift
+        )
         bot_avatar_top = avatar_top + (avatar_size - bot_avatar_size) // 2
         avatar_center_y = avatar_top + avatar_size // 2
 
@@ -6003,9 +6016,9 @@ class BracketImageService:
             bold=True,
         )
         runner_text_x = runner_card_x + int(getattr(self.theme, "runner_up_avatar_size", 36)) + 22
-        runner_title_y = runner_card_y + max(9, round(runner_card_height * 0.13))
-        runner_name_y = runner_card_y + max(31, round(runner_card_height * 0.44))
-        runner_info_y = runner_card_y + max(51, round(runner_card_height * 0.72))
+        runner_title_y = runner_card_y + max(10, round(runner_card_height * 0.12))
+        runner_name_y = runner_card_y + max(35, round(runner_card_height * 0.43))
+        runner_info_y = runner_card_y + max(61, round(runner_card_height * 0.74))
         draw.text(
             (runner_text_x, runner_title_y),
             "2E PLACE - FINALISTE",
@@ -6432,10 +6445,10 @@ class BracketImageService:
             bold=True,
         )
     
-        title_y = y + max(12, round(height * 0.09))
-        icon_y = y + round(height * 0.39)
-        value_y = y + round(height * 0.61)
-        label_y = y + height - max(12, round(height * 0.10))
+        title_y = y + max(13, round(height * 0.085))
+        icon_y = y + round(height * 0.36)
+        value_y = y + round(height * 0.59)
+        label_y = y + height - max(14, round(height * 0.09))
 
         draw.text(
             (
@@ -6619,7 +6632,7 @@ class BracketImageService:
         image: Image.Image,
         final_mode: bool,
     ) -> None:
-        """Dessine le footer avec une carte de profil du serveur Font Row."""
+        """Dessine le footer avec une carte de profil du serveur Fun Row."""
 
         draw = ImageDraw.Draw(image)
         footer_height = self._effective_footer_height(canvas_height=image.height)
