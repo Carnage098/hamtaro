@@ -118,3 +118,42 @@ async def active_tournament_code_autocomplete(
             break
 
     return choices
+
+
+async def tournament_code_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[discord.app_commands.Choice[str]]:
+    """Autocomplétion de tous les codes du serveur, y compris les tournois terminés."""
+
+    if interaction.guild is None:
+        return []
+
+    db = getattr(interaction.client, "db", None)
+    if db is None:
+        return []
+
+    tournaments = await db.list_tournaments(
+        str(interaction.guild.id),
+        include_finished=True,
+    )
+    needle = current.strip().lower()
+    choices: list[discord.app_commands.Choice[str]] = []
+
+    for tournament in tournaments:
+        code = str(tournament.code)
+        name = str(tournament.name)
+        status = _status_value(tournament)
+        label = f"{code} — {name} — {status}"
+        if needle and needle not in label.lower():
+            continue
+        choices.append(
+            discord.app_commands.Choice(
+                name=label[:100],
+                value=code,
+            )
+        )
+        if len(choices) >= 25:
+            break
+
+    return choices
