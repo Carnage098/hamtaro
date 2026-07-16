@@ -12,6 +12,7 @@ from models.enums import TournamentStatus
 
 from utils.embeds import success_embed, error_embed, info_embed
 from utils.permissions import staff_only
+from utils.tournament_resolver import resolve_tournament
 
 
 class AdminCog(commands.Cog):
@@ -44,10 +45,9 @@ class AdminCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ):
-        guild_id = self._guild_id(interaction)
-
-        return await self.db.get_active_tournament(
-            guild_id
+        return await resolve_tournament(
+            interaction,
+            self.db,
         )
 
     async def _send_error(
@@ -184,7 +184,7 @@ class AdminCog(commands.Cog):
 
     @app_commands.command(
         name="admin_reset_bracket",
-        description="Supprimer le bracket du tournoi actif"
+        description="Supprimer le bracket du tournoi sélectionné"
     )
     @app_commands.default_permissions(
         manage_guild=True
@@ -206,8 +206,8 @@ class AdminCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
@@ -255,7 +255,7 @@ class AdminCog(commands.Cog):
 
     @app_commands.command(
         name="admin_regenerate_bracket",
-        description="Régénérer complètement le bracket du tournoi actif"
+        description="Régénérer complètement le bracket du tournoi sélectionné"
     )
     @app_commands.default_permissions(
         manage_guild=True
@@ -277,8 +277,8 @@ class AdminCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
@@ -352,8 +352,8 @@ class AdminCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
@@ -400,7 +400,7 @@ class AdminCog(commands.Cog):
 
     @app_commands.command(
         name="admin_add_player",
-        description="Ajouter manuellement un joueur au tournoi actif"
+        description="Ajouter manuellement un joueur au tournoi sélectionné"
     )
     @app_commands.describe(
         joueur="Joueur à ajouter au tournoi",
@@ -430,8 +430,8 @@ class AdminCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
@@ -481,7 +481,7 @@ class AdminCog(commands.Cog):
         embed = success_embed(
             title="Joueur ajouté",
             description=(
-                f"{joueur.mention} a été ajouté au tournoi actif."
+                f"{joueur.mention} a été ajouté au tournoi sélectionné."
             ),
         )
 
@@ -514,7 +514,7 @@ class AdminCog(commands.Cog):
 
     @app_commands.command(
         name="remove_player",
-        description="Retirer un joueur du tournoi actif avant son lancement"
+        description="Retirer un joueur du tournoi sélectionné avant son lancement"
     )
     @app_commands.describe(
         joueur="Joueur à retirer du tournoi",
@@ -542,8 +542,8 @@ class AdminCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
@@ -661,8 +661,8 @@ class AdminCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
@@ -706,7 +706,7 @@ class AdminCog(commands.Cog):
 
     @app_commands.command(
         name="admin_dq",
-        description="Disqualifier un joueur du tournoi actif"
+        description="Disqualifier un joueur du tournoi sélectionné"
     )
     @app_commands.describe(
         joueur="Joueur à disqualifier"
@@ -732,8 +732,8 @@ class AdminCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
@@ -803,8 +803,8 @@ class AdminCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
@@ -884,8 +884,8 @@ class AdminCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
@@ -955,8 +955,8 @@ class AdminCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
@@ -1000,7 +1000,7 @@ class AdminCog(commands.Cog):
 
     @app_commands.command(
         name="admin_status",
-        description="Changer le statut du tournoi actif"
+        description="Changer le statut du tournoi sélectionné"
     )
     @app_commands.describe(
         status="Nouveau statut"
@@ -1046,8 +1046,8 @@ class AdminCog(commands.Cog):
             if tournament is None:
                 await self._send_error(
                     interaction=interaction,
-                    title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    title="Aucun tournoi sélectionné",
+                    description="Il n'y a actuellement aucun tournoi sélectionné.",
                 )
                 return
 
