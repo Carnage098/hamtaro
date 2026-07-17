@@ -582,16 +582,42 @@ class TournamentProgressionCog(commands.Cog):
             except (discord.Forbidden, discord.HTTPException):
                 pass
 
-        await thread.send(
-            content=(
-                f"{_mention(match.get('player1_id'), player1_name)} "
-                f"{_mention(match.get('player2_id'), player2_name)}\n\n"
-                "Ce fil est votre espace de match. Vous pouvez y organiser le duel, "
-                "poser une question et conserver les informations utiles.\n\n"
-                "À la fin, utilisez `/result`."
-            ),
-            allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
-        )
+        match_center = self.bot.get_cog("MatchCenterCog")
+        if match_center is not None:
+            try:
+                await match_center.create_match_panel(
+                    thread=thread,
+                    tournament=tournament,
+                    match_kind=match_kind,
+                    match=match,
+                )
+            except Exception as error:
+                print(
+                    f"⚠️ Centre de match {match_kind}:{match.get('id')} : {error}"
+                )
+                await thread.send(
+                    content=(
+                        f"{_mention(match.get('player1_id'), player1_name)} "
+                        f"{_mention(match.get('player2_id'), player2_name)}\n\n"
+                        "Ce fil est votre espace de match. À la fin, utilisez `/result`."
+                    ),
+                    allowed_mentions=discord.AllowedMentions(
+                        users=True, roles=False, everyone=False
+                    ),
+                )
+        else:
+            await thread.send(
+                content=(
+                    f"{_mention(match.get('player1_id'), player1_name)} "
+                    f"{_mention(match.get('player2_id'), player2_name)}\n\n"
+                    "Ce fil est votre espace de match. Vous pouvez y organiser le duel, "
+                    "poser une question et conserver les informations utiles.\n\n"
+                    "À la fin, utilisez `/result`."
+                ),
+                allowed_mentions=discord.AllowedMentions(
+                    users=True, roles=False, everyone=False
+                ),
+            )
         return thread
 
     async def _notify_match_players(
@@ -651,6 +677,14 @@ class TournamentProgressionCog(commands.Cog):
         match_id = int(match["id"])
         tournament_id = int(_value(tournament, "id"))
         guild_id = str(_value(tournament, "guild_id"))
+
+        match_center = self.bot.get_cog("MatchCenterCog")
+        if match_center is not None:
+            try:
+                if await match_center.is_tournament_paused(tournament_id):
+                    return False
+            except Exception as error:
+                print(f"⚠️ Vérification pause tournoi {tournament_id} : {error}")
 
         async with self._lock_for(match_kind, match_id):
             claimed = await self._claim_match_publication(
@@ -743,6 +777,14 @@ class TournamentProgressionCog(commands.Cog):
     ) -> bool:
         tournament_id = int(_value(tournament, "id"))
         guild_id = str(_value(tournament, "guild_id"))
+
+        match_center = self.bot.get_cog("MatchCenterCog")
+        if match_center is not None:
+            try:
+                if await match_center.is_tournament_paused(tournament_id):
+                    return False
+            except Exception as error:
+                print(f"⚠️ Vérification pause résumé tournoi {tournament_id} : {error}")
 
         claimed = await self._claim_round_publication(
             tournament_id=tournament_id,
@@ -971,6 +1013,15 @@ class TournamentProgressionCog(commands.Cog):
 
         if current_round < 1:
             return
+
+        match_center = self.bot.get_cog("MatchCenterCog")
+        if match_center is not None:
+            try:
+                if await match_center.is_tournament_paused(tournament_id):
+                    return
+            except Exception as error:
+                print(f"⚠️ Vérification pause progression suisse {tournament_id} : {error}")
+
         if await self._pending_swiss_matches(tournament_id, current_round) > 0:
             return
 
@@ -1119,6 +1170,18 @@ class TournamentProgressionCog(commands.Cog):
         completed_round: int,
         actor: discord.abc.User,
     ) -> int:
+        match_center = self.bot.get_cog("MatchCenterCog")
+        if match_center is not None:
+            try:
+                if await match_center.is_tournament_paused(tournament_id):
+                    raise ValueError(
+                        "Le tournoi est en pause. Reprends-le avant de générer la ronde suivante."
+                    )
+            except ValueError:
+                raise
+            except Exception as error:
+                print(f"⚠️ Vérification pause génération suisse {tournament_id} : {error}")
+
         action = await self.db.fetchone(
             """
             SELECT * FROM progression_swiss_actions
@@ -1180,7 +1243,21 @@ class TournamentProgressionCog(commands.Cog):
         match_id: int,
     ) -> None:
         """Appelé par ResultsCog pour une progression immédiate."""
-        del guild_id, match_id
+        del guild_id
+
+        match_center = self.bot.get_cog("MatchCenterCog")
+        if match_center is not None:
+            try:
+                await match_center.handle_result_approved(
+                    tournament_id=tournament_id,
+                    match_kind=match_kind,
+                    match_id=match_id,
+                )
+            except Exception as error:
+                print(
+                    f"⚠️ Fermeture centre de match {match_kind}:{match_id} : {error}"
+                )
+
         await asyncio.sleep(0.2)
         tournament = await self.db.get_tournament(tournament_id)
         if tournament is None:
