@@ -29,7 +29,7 @@ COGS = [
     "cogs.graphics_preview",
     "cogs.swiss_graphics",
     "cogs.tournament_context",
-    "cogs.match_center"
+    "cogs.match_center",
     "cogs.tournament_progression",
 ]
 
