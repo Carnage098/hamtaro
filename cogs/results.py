@@ -2360,6 +2360,35 @@ class ResultsCog(commands.Cog):
             if request["status"] not in {"pending", "confirmed", "contested"}:
                 raise ValueError("Ce résultat a déjà été traité.")
 
+            undo_cog = self.bot.get_cog("TournamentUndoCog")
+            undo_snapshot_id: int | None = None
+            if undo_cog is not None:
+                try:
+                    undo_snapshot_id = await undo_cog.capture_result_action(
+                        request=request,
+                        actor_id=str(actor.id),
+                        action_type=(
+                            "automatic_result_approval"
+                            if automatic
+                            else "result_approval"
+                        ),
+                        metadata={
+                            "result_type": request.get("result_type"),
+                            "score": (
+                                f"{request.get('player1_score', 0)}-"
+                                f"{request.get('player2_score', 0)}"
+                            ),
+                            "notes": notes,
+                        },
+                    )
+                except Exception as error:
+                    # Une panne du module undo ne doit jamais bloquer le tournoi.
+                    print(
+                        "⚠️ Sauvegarde avant validation impossible "
+                        f"pour {match_kind}:{match_id} : {error}"
+                    )
+                    undo_snapshot_id = None
+
             changed = await self.db.update(
                 """
                 UPDATE result_requests
@@ -2373,6 +2402,11 @@ class ResultsCog(commands.Cog):
                 (str(actor.id), notes, match_kind, match_id),
             )
             if changed != 1:
+                if undo_cog is not None and undo_snapshot_id is not None:
+                    await undo_cog.abort_snapshot(
+                        undo_snapshot_id,
+                        "La validation a été prise en charge par un autre membre du staff.",
+                    )
                 raise ValueError("Un autre membre du staff traite déjà ce résultat.")
 
             request = await self._get_request(match_kind, match_id)
@@ -2393,7 +2427,7 @@ class ResultsCog(commands.Cog):
                         context,
                         actor_id=str(actor.id),
                     )
-            except Exception:
+            except Exception as error:
                 await self.db.update(
                     """
                     UPDATE result_requests
@@ -2402,6 +2436,14 @@ class ResultsCog(commands.Cog):
                     """,
                     (match_kind, match_id),
                 )
+                if undo_cog is not None and undo_snapshot_id is not None:
+                    try:
+                        await undo_cog.abort_snapshot(
+                            undo_snapshot_id,
+                            f"Validation échouée : {error}",
+                        )
+                    except Exception as undo_error:
+                        print(f"⚠️ Abandon snapshot undo impossible : {undo_error}")
                 raise
 
             await self.db.update(
@@ -2421,6 +2463,16 @@ class ResultsCog(commands.Cog):
             await self._refresh_validation_message(request, disabled=True)
             await self._disable_confirmation_message(request)
             await self._close_dispute_thread(request)
+
+            if undo_cog is not None and undo_snapshot_id is not None:
+                try:
+                    await undo_cog.mark_snapshot_applied(undo_snapshot_id)
+                except Exception as error:
+                    print(
+                        "⚠️ Validation réussie mais snapshot undo non activé "
+                        f"pour {match_kind}:{match_id} : {error}"
+                    )
+
             await self._audit(
                 guild_id=str(request["guild_id"]),
                 match_kind=match_kind,
@@ -3226,8 +3278,39 @@ class ResultsCog(commands.Cog):
             return
         await interaction.response.defer(ephemeral=True)
 
+        undo_cog = self.bot.get_cog("TournamentUndoCog")
+        undo_snapshot_id: int | None = None
+
         try:
             guild_id = self._guild_id(interaction)
+            match_before = await self.db.get_match(match_id)
+            if match_before is None:
+                raise ValueError("Match introuvable.")
+
+            if undo_cog is not None:
+                try:
+                    undo_snapshot_id = await undo_cog.capture_result_action(
+                        request={
+                            "match_kind": MATCH_KIND_BRACKET,
+                            "match_id": int(match_id),
+                            "guild_id": guild_id,
+                            "tournament_id": int(match_before.tournament_id),
+                        },
+                        actor_id=str(interaction.user.id),
+                        action_type="admin_win_immediate",
+                        metadata={
+                            "winner_id": str(winner.id),
+                            "winner_name": winner.display_name,
+                            "reason": notes,
+                        },
+                    )
+                except Exception as snapshot_error:
+                    print(
+                        "⚠️ Sauvegarde avant victoire administrative impossible "
+                        f"pour bracket:{match_id} : {snapshot_error}"
+                    )
+                    undo_snapshot_id = None
+
             completed = await self.brackets.admin_win(
                 match_id=match_id,
                 winner_id=str(winner.id),
@@ -3239,6 +3322,14 @@ class ResultsCog(commands.Cog):
             await self._record_match_history(guild_id, completed, "approved")
             await self.brackets.sync_current_round(completed.tournament_id)
             await self.brackets.get_winner(completed.tournament_id)
+            if undo_cog is not None and undo_snapshot_id is not None:
+                try:
+                    await undo_cog.mark_snapshot_applied(undo_snapshot_id)
+                except Exception as snapshot_error:
+                    print(
+                        "⚠️ Victoire administrative validée mais snapshot undo "
+                        f"non activé pour bracket:{match_id} : {snapshot_error}"
+                    )
             await self._audit(
                 guild_id=guild_id,
                 match_kind=MATCH_KIND_BRACKET,
@@ -3248,6 +3339,14 @@ class ResultsCog(commands.Cog):
                 details={"winner_id": str(winner.id), "reason": notes},
             )
         except ValueError as error:
+            if undo_cog is not None and undo_snapshot_id is not None:
+                try:
+                    await undo_cog.abort_snapshot(
+                        undo_snapshot_id,
+                        f"Victoire administrative échouée : {error}",
+                    )
+                except Exception as undo_error:
+                    print(f"⚠️ Abandon snapshot admin win impossible : {undo_error}")
             await interaction.followup.send(
                 embed=error_embed(
                     title="Victoire administrative impossible",
