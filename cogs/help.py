@@ -1,416 +1,816 @@
 from __future__ import annotations
 
+from collections import OrderedDict
+from dataclasses import dataclass
+from typing import Iterable
+
 import discord
-
-from discord.ext import commands
 from discord import app_commands
+from discord.ext import commands
+
+from utils.permissions import is_staff_member
 
 
-class HelpCog(commands.Cog):
+HELP_PAGE_SIZE = 7
+HELP_TIMEOUT_SECONDS = 300
+
+
+@dataclass(slots=True)
+class HelpCommandInfo:
+    """Informations affichables pour une commande slash."""
+
+    command: app_commands.Command
+    qualified_name: str
+    description: str
+    syntax: str
+    category: str
+    staff_only: bool
+
+
+CATEGORY_META: "OrderedDict[str, tuple[str, str]]" = OrderedDict(
+    {
+        "Démarrage": (
+            "🏠",
+            "S'inscrire, consulter le tournoi et comprendre Hamtaro.",
+        ),
+        "Matchs et résultats": (
+            "⚔️",
+            "Voir son prochain match, déclarer un score et consulter l'historique.",
+        ),
+        "Bracket": (
+            "🌳",
+            "Consulter les tableaux à élimination directe et leurs images.",
+        ),
+        "Rondes suisses": (
+            "🇨🇭",
+            "Pairings, classements et commandes liées aux rondes suisses.",
+        ),
+        "Profils et statistiques": (
+            "📊",
+            "Profils des joueurs, statistiques et données sur les decks.",
+        ),
+        "Images et affichages": (
+            "🖼️",
+            "Générer les aperçus, brackets et classements illustrés.",
+        ),
+        "Staff — tournois": (
+            "🏟️",
+            "Créer, lancer, mettre en pause et faire progresser les tournois.",
+        ),
+        "Staff — résultats": (
+            "✅",
+            "Valider, corriger, refuser ou annuler des résultats.",
+        ),
+        "Staff — configuration": (
+            "⚙️",
+            "Configurer les salons, réparer le bot et exporter les données.",
+        ),
+        "Autres commandes": (
+            "🐹",
+            "Commandes qui ne correspondent pas encore à une catégorie dédiée.",
+        ),
+    }
+)
+
+
+# Ces noms complètent la détection faite avec default_permissions.
+# Ils permettent de masquer correctement les commandes staff même lorsqu'une
+# commande utilise seulement un check personnalisé comme @staff_only().
+STAFF_COMMAND_NAMES = {
+    "add_player",
+    "admin_win",
+    "approve_result",
+    "cancel_tournament",
+    "create_tournament",
+    "end_tournament",
+    "export_tournament",
+    "generate_next_round",
+    "match_center_repair",
+    "match_center_setup",
+    "pause_tournament",
+    "pending_results",
+    "progression_setup",
+    "progression_status",
+    "publish_matches",
+    "reject_result",
+    "remove_player",
+    "repair_tournament",
+    "result_setup",
+    "resume_tournament",
+    "special_result",
+    "staff_logs_disable",
+    "staff_logs_setup",
+    "start_tournament",
+    "tournament_check",
+    "tournament_context",
+    "tournament_context_clear",
+    "tournament_context_set",
+    "undo_history",
+    "undo_tournament_action",
+}
+
+STAFF_PREFIXES = (
+    "admin_",
+    "approve_",
+    "cancel_",
+    "create_",
+    "delete_",
+    "end_",
+    "export_",
+    "force_",
+    "generate_",
+    "pause_",
+    "progression_",
+    "publish_",
+    "reject_",
+    "repair_",
+    "resume_",
+    "setup_",
+    "special_",
+    "staff_",
+    "undo_",
+)
+
+
+class HelpCategorySelect(discord.ui.Select):
+    """Menu déroulant permettant de choisir une catégorie."""
+
+    def __init__(self, parent_view: "InteractiveHelpView") -> None:
+        self.parent_view = parent_view
+
+        options: list[discord.SelectOption] = [
+            discord.SelectOption(
+                label="Accueil",
+                value="__home__",
+                emoji="🏠",
+                description="Revenir au menu principal.",
+                default=parent_view.current_category is None,
+            )
+        ]
+
+        for category, commands_list in parent_view.categories.items():
+            emoji, description = CATEGORY_META[category]
+            options.append(
+                discord.SelectOption(
+                    label=category,
+                    value=category,
+                    emoji=emoji,
+                    description=f"{len(commands_list)} commande(s) — {description}"[:100],
+                    default=parent_view.current_category == category,
+                )
+            )
+
+        super().__init__(
+            placeholder="Choisis une catégorie…",
+            min_values=1,
+            max_values=1,
+            options=options[:25],
+            row=0,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        selected = self.values[0]
+        self.parent_view.current_category = (
+            None if selected == "__home__" else selected
+        )
+        self.parent_view.page = 0
+        self.parent_view.refresh_components()
+
+        await interaction.response.edit_message(
+            embed=self.parent_view.build_embed(),
+            view=self.parent_view,
+        )
+
+
+class InteractiveHelpView(discord.ui.View):
+    """Navigation interactive du menu d'aide."""
 
     def __init__(
         self,
-        bot: commands.Bot,
-    ):
+        *,
+        cog: "HelpCog",
+        requester_id: int,
+        is_staff: bool,
+        categories: "OrderedDict[str, list[HelpCommandInfo]]",
+    ) -> None:
+        super().__init__(timeout=HELP_TIMEOUT_SECONDS)
+        self.cog = cog
+        self.requester_id = requester_id
+        self.is_staff = is_staff
+        self.categories = categories
+        self.current_category: str | None = None
+        self.page = 0
+        self.message: discord.InteractionMessage | None = None
 
+        self.refresh_components()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.requester_id:
+            return True
+
+        await interaction.response.send_message(
+            "❌ Ce menu d'aide appartient à une autre personne. Utilise `/help`.",
+            ephemeral=True,
+        )
+        return False
+
+    def refresh_components(self) -> None:
+        self.clear_items()
+        self.add_item(HelpCategorySelect(self))
+
+        if self.current_category is not None:
+            command_count = len(self.categories.get(self.current_category, []))
+            page_count = max(1, (command_count + HELP_PAGE_SIZE - 1) // HELP_PAGE_SIZE)
+
+            previous_button = discord.ui.Button(
+                label="Précédent",
+                emoji="◀️",
+                style=discord.ButtonStyle.secondary,
+                disabled=self.page <= 0,
+                row=1,
+            )
+            previous_button.callback = self._previous_page
+            self.add_item(previous_button)
+
+            home_button = discord.ui.Button(
+                label="Accueil",
+                emoji="🏠",
+                style=discord.ButtonStyle.primary,
+                row=1,
+            )
+            home_button.callback = self._go_home
+            self.add_item(home_button)
+
+            next_button = discord.ui.Button(
+                label="Suivant",
+                emoji="▶️",
+                style=discord.ButtonStyle.secondary,
+                disabled=self.page >= page_count - 1,
+                row=1,
+            )
+            next_button.callback = self._next_page
+            self.add_item(next_button)
+
+    async def _previous_page(self, interaction: discord.Interaction) -> None:
+        self.page = max(0, self.page - 1)
+        self.refresh_components()
+        await interaction.response.edit_message(
+            embed=self.build_embed(),
+            view=self,
+        )
+
+    async def _next_page(self, interaction: discord.Interaction) -> None:
+        if self.current_category is not None:
+            command_count = len(self.categories.get(self.current_category, []))
+            page_count = max(1, (command_count + HELP_PAGE_SIZE - 1) // HELP_PAGE_SIZE)
+            self.page = min(page_count - 1, self.page + 1)
+
+        self.refresh_components()
+        await interaction.response.edit_message(
+            embed=self.build_embed(),
+            view=self,
+        )
+
+    async def _go_home(self, interaction: discord.Interaction) -> None:
+        self.current_category = None
+        self.page = 0
+        self.refresh_components()
+        await interaction.response.edit_message(
+            embed=self.build_embed(),
+            view=self,
+        )
+
+    def build_embed(self) -> discord.Embed:
+        if self.current_category is None:
+            return self.cog.build_home_embed(
+                categories=self.categories,
+                is_staff=self.is_staff,
+            )
+
+        return self.cog.build_category_embed(
+            category=self.current_category,
+            commands_list=self.categories[self.current_category],
+            page=self.page,
+            is_staff=self.is_staff,
+        )
+
+    async def on_timeout(self) -> None:
+        for item in self.children:
+            item.disabled = True
+
+        if self.message is not None:
+            try:
+                await self.message.edit(view=self)
+            except (discord.NotFound, discord.HTTPException):
+                pass
+
+
+class HelpCog(commands.Cog):
+    """Aide interactive et automatiquement synchronisée avec les slash commands."""
+
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     # ==========================================================
-    # OUTILS DE DÉTECTION
+    # DÉTECTION ET CLASSEMENT
     # ==========================================================
 
-    def _has_role_name(
-        self,
-        member: discord.Member,
-        role_names: list[str],
-    ) -> bool:
+    @staticmethod
+    def _member_is_staff(user: discord.abc.User) -> bool:
+        if not isinstance(user, discord.Member):
+            return False
 
-        member_roles = [
-            role.name.lower()
-            for role in member.roles
-        ]
-
-        wanted_roles = [
-            role_name.lower()
-            for role_name in role_names
-        ]
-
-        return any(
-            role_name in member_roles
-            for role_name in wanted_roles
-        )
-
-    def _is_admin(
-        self,
-        member: discord.Member,
-    ) -> bool:
-
-        return bool(
-            member.guild_permissions.administrator
-            or self._has_role_name(
-                member,
-                [
-                    "admin",
-                    "administrateur",
-                    "administrator",
-                    "owner",
-                    "propriétaire",
-                    "fondateur",
-                ],
-            )
-        )
-
-    def _is_staff(
-        self,
-        member: discord.Member,
-    ) -> bool:
-
-        if self._is_admin(member):
+        permissions = user.guild_permissions
+        if permissions.administrator or permissions.manage_guild:
             return True
 
-        return bool(
-            member.guild_permissions.manage_guild
-            or member.guild_permissions.manage_messages
-            or member.guild_permissions.manage_roles
-            or self._has_role_name(
-                member,
-                [
-                    "staff",
-                    "modo",
-                    "modérateur",
-                    "moderateur",
-                    "arbitre",
-                    "judge",
-                    "orga",
-                    "organisateur",
-                    "tournoi staff",
-                ],
-            )
+        try:
+            return bool(is_staff_member(user))
+        except (AttributeError, TypeError):
+            return False
+
+    @staticmethod
+    def _permission_marks_staff(command: app_commands.Command) -> bool:
+        permissions = getattr(command, "default_permissions", None)
+        if permissions is None:
+            return False
+
+        protected_permissions = (
+            "administrator",
+            "manage_guild",
+            "manage_channels",
+            "manage_messages",
+            "moderate_members",
+            "kick_members",
+            "ban_members",
         )
 
-    def _detect_profile(
+        return any(
+            bool(getattr(permissions, permission_name, False))
+            for permission_name in protected_permissions
+        )
+
+    def _command_is_staff_only(self, command: app_commands.Command) -> bool:
+        normalized_name = command.qualified_name.lower().replace(" ", "_")
+        root_name = normalized_name.split("_")[0]
+        callback = getattr(command, "callback", None)
+        module_name = getattr(callback, "__module__", "").lower()
+
+        if self._permission_marks_staff(command):
+            return True
+
+        if normalized_name in STAFF_COMMAND_NAMES:
+            return True
+
+        if normalized_name.startswith(STAFF_PREFIXES):
+            return True
+
+        if root_name in {
+            "admin",
+            "approve",
+            "cancel",
+            "create",
+            "delete",
+            "end",
+            "export",
+            "force",
+            "generate",
+            "pause",
+            "progression",
+            "publish",
+            "reject",
+            "repair",
+            "resume",
+            "setup",
+            "special",
+            "staff",
+            "undo",
+        }:
+            return True
+
+        staff_modules = (
+            "cogs.admin",
+            "cogs.repair",
+            "cogs.staff_logs",
+            "cogs.end_tournament",
+            "cogs.tournament_undo",
+            "cogs.tournament_export",
+        )
+        return module_name.startswith(staff_modules)
+
+    @staticmethod
+    def _build_syntax(command: app_commands.Command) -> str:
+        parts = [f"/{command.qualified_name}"]
+
+        for parameter in command.parameters:
+            parameter_name = getattr(parameter, "display_name", parameter.name)
+            if parameter.required:
+                parts.append(f"<{parameter_name}>")
+            else:
+                parts.append(f"[{parameter_name}]")
+
+        return " ".join(parts)
+
+    @staticmethod
+    def _category_for(command: app_commands.Command, staff_only: bool) -> str:
+        name = command.qualified_name.lower().replace(" ", "_")
+        callback = getattr(command, "callback", None)
+        module_name = getattr(callback, "__module__", "").lower()
+
+        if staff_only:
+            if any(
+                token in name
+                for token in (
+                    "approve",
+                    "reject",
+                    "pending_result",
+                    "special_result",
+                    "admin_win",
+                    "undo",
+                    "result_setup",
+                )
+            ):
+                return "Staff — résultats"
+
+            if any(
+                token in name
+                for token in (
+                    "setup",
+                    "repair",
+                    "export",
+                    "logs",
+                    "context",
+                    "status",
+                    "publish_matches",
+                )
+            ):
+                return "Staff — configuration"
+
+            return "Staff — tournois"
+
+        if name in {
+            "help",
+            "rules",
+            "register",
+            "join",
+            "leave",
+            "unregister",
+            "tournament",
+            "tournament_info",
+            "tournament_status",
+        } or module_name.endswith(("registration", "tournament_status")):
+            return "Démarrage"
+
+        if any(
+            token in name
+            for token in (
+                "nextmatch",
+                "result",
+                "match_history",
+                "history",
+            )
+        ) and "pending" not in name:
+            return "Matchs et résultats"
+
+        if "swiss" in name:
+            return "Rondes suisses"
+
+        if any(
+            token in name
+            for token in (
+                "bracket",
+                "final_bracket",
+            )
+        ):
+            if "image" in name or "preview" in name:
+                return "Images et affichages"
+            return "Bracket"
+
+        if any(
+            token in name
+            for token in (
+                "profile",
+                "deck_stats",
+                "leaderboard",
+                "ranking",
+                "standings",
+                "stats",
+            )
+        ):
+            return "Profils et statistiques"
+
+        if any(
+            token in name
+            for token in (
+                "image",
+                "preview",
+                "graphics",
+            )
+        ):
+            return "Images et affichages"
+
+        return "Autres commandes"
+
+    def _iter_chat_commands(self) -> Iterable[app_commands.Command]:
+        def walk(item: app_commands.Command | app_commands.Group):
+            if isinstance(item, app_commands.Group):
+                for child in item.commands:
+                    yield from walk(child)
+            elif isinstance(item, app_commands.Command):
+                yield item
+
+        for root_command in self.bot.tree.get_commands():
+            if isinstance(root_command, (app_commands.Command, app_commands.Group)):
+                yield from walk(root_command)
+
+    def collect_commands(
         self,
-        member: discord.Member,
-    ) -> str:
+        *,
+        is_staff: bool,
+    ) -> "OrderedDict[str, list[HelpCommandInfo]]":
+        category_map: dict[str, list[HelpCommandInfo]] = {
+            category: [] for category in CATEGORY_META
+        }
 
-        if self._is_admin(member):
-            return "admin"
+        seen_names: set[str] = set()
 
-        if self._is_staff(member):
-            return "staff"
+        for command in self._iter_chat_commands():
+            qualified_name = command.qualified_name
+            if qualified_name in seen_names:
+                continue
+            seen_names.add(qualified_name)
 
-        return "joueur"
+            staff_only = self._command_is_staff_only(command)
+            if staff_only and not is_staff:
+                continue
+
+            category = self._category_for(command, staff_only)
+            description = command.description or "Aucune description disponible."
+
+            category_map[category].append(
+                HelpCommandInfo(
+                    command=command,
+                    qualified_name=qualified_name,
+                    description=description,
+                    syntax=self._build_syntax(command),
+                    category=category,
+                    staff_only=staff_only,
+                )
+            )
+
+        ordered_categories: "OrderedDict[str, list[HelpCommandInfo]]" = OrderedDict()
+        for category in CATEGORY_META:
+            commands_list = sorted(
+                category_map[category],
+                key=lambda info: info.qualified_name,
+            )
+            if commands_list:
+                ordered_categories[category] = commands_list
+
+        return ordered_categories
 
     # ==========================================================
     # EMBEDS
     # ==========================================================
 
-    def _base_embed(
-        self,
-        title: str,
-        description: str,
+    @staticmethod
+    def build_home_embed(
+        *,
+        categories: "OrderedDict[str, list[HelpCommandInfo]]",
+        is_staff: bool,
     ) -> discord.Embed:
+        command_count = sum(len(commands_list) for commands_list in categories.values())
+        detected_role = "Staff" if is_staff else "Joueur"
 
         embed = discord.Embed(
-            title=title,
-            description=description,
-            color=discord.Color.orange(),
+            title="🐹 Centre d'aide Hamtaro",
+            description=(
+                f"Rôle détecté : **{detected_role}**\n"
+                f"Commandes accessibles : **{command_count}**\n\n"
+                "Choisis une catégorie dans le menu ci-dessous. "
+                "Les commandes staff sont automatiquement masquées aux joueurs."
+            ),
+            color=discord.Color.gold(),
         )
+
+        for category, commands_list in categories.items():
+            emoji, description = CATEGORY_META[category]
+            embed.add_field(
+                name=f"{emoji} {category} — {len(commands_list)}",
+                value=description,
+                inline=False,
+            )
 
         embed.set_footer(
-            text="Hamtaro — Bot de tournois Yu-Gi-Oh!"
+            text="Le menu lit automatiquement les commandes chargées par le bot."
         )
-
         return embed
 
-    def _player_help_embed(
-        self,
+    @staticmethod
+    def build_category_embed(
+        *,
+        category: str,
+        commands_list: list[HelpCommandInfo],
+        page: int,
+        is_staff: bool,
     ) -> discord.Embed:
+        emoji, description = CATEGORY_META[category]
+        page_count = max(1, (len(commands_list) + HELP_PAGE_SIZE - 1) // HELP_PAGE_SIZE)
+        safe_page = min(max(page, 0), page_count - 1)
+        start = safe_page * HELP_PAGE_SIZE
+        displayed_commands = commands_list[start : start + HELP_PAGE_SIZE]
 
-        embed = self._base_embed(
-            title="🐹 Aide Hamtaro — Joueur",
-            description=(
-                "Voici les commandes utiles pour participer à un tournoi."
+        embed = discord.Embed(
+            title=f"{emoji} {category}",
+            description=description,
+            color=(
+                discord.Color.orange()
+                if category.startswith("Staff")
+                else discord.Color.blurple()
             ),
         )
 
-        embed.add_field(
-            name="🎮 Participer à un tournoi",
-            value=(
-                "`/register` — S'inscrire au tournoi actif.\n"
-                "`/profile` — Voir son profil joueur.\n"
-                "`/match_history` — Voir son historique de matchs, si disponible."
-            ),
-            inline=False,
-        )
+        for info in displayed_commands:
+            staff_badge = " 🔒" if info.staff_only and is_staff else ""
+            embed.add_field(
+                name=f"`{info.syntax}`{staff_badge}",
+                value=info.description,
+                inline=False,
+            )
 
-        embed.add_field(
-            name="🏆 Voir le tournoi",
-            value=(
-                "`/bracket` — Voir l'arbre du tournoi à élimination directe.\n"
-                "`/swiss_pairings` — Voir les pairings des rondes suisses.\n"
-                "`/swiss_standings` — Voir le classement suisse.\n"
-                "`/swiss_status` — Voir l'état actuel des rondes suisses."
-            ),
-            inline=False,
+        embed.set_footer(
+            text=(
+                f"Page {safe_page + 1}/{page_count} • "
+                f"{len(commands_list)} commande(s) dans cette catégorie"
+            )
         )
-
-        embed.add_field(
-            name="📌 Règles importantes",
-            value=(
-                "• Si tu t'inscris, tu es considéré comme disponible.\n"
-                "• Le check-in n'est plus obligatoire.\n"
-                "• En tournoi à élimination directe, il faut forcément un gagnant, ça ne fonctionne pas comme les rondes suisses.\n"
-                "• En rondes suisses, un **double loss** peut être donné si le match n'est pas terminé dans le temps prévu (50 minutes, règles officielles de Konami)."
-            ),
-            inline=False,
-        )
-
-        embed.add_field(
-            name="⏱️ Double loss",
-            value=(
-                "Le double loss est réservé aux **rondes suisses**.\n"
-                "Il donne **0 point aux deux joueurs** et compte comme une pénalité plus importante qu'une simple défaite dans le classement."
-            ),
-            inline=False,
-        )
-
         return embed
 
-    def _staff_help_embed(
-        self,
-    ) -> discord.Embed:
-
-        embed = self._base_embed(
-            title="🐹 Aide Hamtaro — Staff",
-            description=(
-                "Voici les commandes utiles pour gérer les matchs et aider au bon déroulement du tournoi."
+    @staticmethod
+    def build_command_embed(info: HelpCommandInfo) -> discord.Embed:
+        emoji, _ = CATEGORY_META[info.category]
+        embed = discord.Embed(
+            title=f"{emoji} /{info.qualified_name}",
+            description=info.description,
+            color=(
+                discord.Color.orange()
+                if info.staff_only
+                else discord.Color.blurple()
             ),
         )
-
         embed.add_field(
-            name="🎯 Gestion des résultats",
-            value=(
-                "`/result` — Enregistrer ou signaler un résultat de match.\n"
-                "`/swiss_result` — Valider le résultat d'une table suisse.\n"
-                "`/swiss_result table:1 resultat:Double loss` — Mettre une double loss en ronde suisse.\n"
-                "`/repair_tournament` — Réparer un tournoi bloqué."
-            ),
+            name="Utilisation",
+            value=f"`{info.syntax}`",
             inline=False,
         )
-
         embed.add_field(
-            name="🏆 Rondes suisses",
-            value=(
-                "`/swiss_pairings` — Afficher les pairings.\n"
-                "`/swiss_standings` — Afficher le classement.\n"
-                "`/swiss_status` — Voir l'état des rondes suisses.\n"
-                "`/swiss_next` — Générer la ronde suisse suivante."
-            ),
-            inline=False,
+            name="Catégorie",
+            value=info.category,
+            inline=True,
         )
-
         embed.add_field(
-            name="👥 Gestion des joueurs",
-            value=(
-                "`/add_admin_player` — Ajouter un joueur manuellement.\n"
-                "`/remove_player` — Retirer un joueur du tournoi.\n"
-                "`/profile` — Consulter le profil d'un joueur.\n"
-                "`/match_history` — Vérifier l'historique d'un joueur, si disponible."
-            ),
-            inline=False,
+            name="Accès",
+            value="🔒 Staff uniquement" if info.staff_only else "👤 Joueurs et staff",
+            inline=True,
         )
 
-        embed.add_field(
-            name="⚠️ Rappel staff",
-            value=(
-                "• Ne génère pas la ronde suivante si tous les résultats ne sont pas validés.\n"
-                "• Le double loss existe uniquement en rondes suisses.\n"
-                "• En cas de bug, note la commande utilisée, la table, la ronde et fais une capture pour l'envoyer au développeur."
-            ),
-            inline=False,
-        )
+        if info.command.parameters:
+            parameter_lines: list[str] = []
+            for parameter in info.command.parameters:
+                display_name = getattr(parameter, "display_name", parameter.name)
+                requirement = "obligatoire" if parameter.required else "facultatif"
+                parameter_description = parameter.description or "Aucune précision."
+                parameter_lines.append(
+                    f"• `{display_name}` — {requirement} : {parameter_description}"
+                )
 
-        return embed
-
-    def _admin_help_embed(
-        self,
-    ) -> discord.Embed:
-
-        embed = self._base_embed(
-            title="🐹 Aide Hamtaro — Admin",
-            description=(
-                "Voici les commandes importantes pour configurer, lancer et administrer les tournois."
-            ),
-        )
-
-        embed.add_field(
-            name="🛠️ Création et gestion du tournoi",
-            value=(
-                "`/create_tournament` — Créer un nouveau tournoi.\n"
-                "`/start_tournament` — Lancer un tournoi à élimination directe.\n"
-                "`/end_tournament` — Terminer le tournoi actif, une fois avoir trouvé le grand vainqueur.\n"
-                "`/tournament_status` — Voir le statut du tournoi actif."
-            ),
-            inline=False,
-        )
-
-        embed.add_field(
-            name="🏆 Rondes suisses",
-            value=(
-                "`/swiss_start` — Lancer les rondes suisses.\n"
-                "`/swiss_result` — Valider un résultat suisse.\n"
-                "`/swiss_next` — Générer la ronde suivante.\n"
-                "`/swiss_reset` — Réinitialiser les rondes suisses du tournoi actif.\n"
-                "`/swiss_standings` — Afficher le classement suisse."
-            ),
-            inline=False,
-        )
-
-        embed.add_field(
-            name="👥 Administration des joueurs",
-            value=(
-                "`/add_admin_player` — Ajouter un joueur au tournoi.\n"
-                "`/remove_player` — Retirer un joueur du tournoi.\n"
-                "`/profile` — Voir le profil d'un joueur.\n"
-                "`/match_history` — Voir l'historique d'un joueur."
-            ),
-            inline=False,
-        )
-
-
-        return embed
-
-    def _general_help_embed(
-        self,
-    ) -> discord.Embed:
-
-        embed = self._base_embed(
-            title="🐹 Aide Hamtaro — Général",
-            description=(
-                "Choisis une catégorie pour afficher l'aide adaptée à toi si t'es un joueur, un membre du staff ou un admin."
-            ),
-        )
-
-        embed.add_field(
-            name="👤 Joueur",
-            value=(
-                "`/help categorie:Joueur`\n"
-                "Pour voir les commandes utiles aux participants."
-            ),
-            inline=False,
-        )
-
-        embed.add_field(
-            name="🛡️ Staff",
-            value=(
-                "`/help categorie:Staff`\n"
-                "Pour voir les commandes de gestion des matchs et des résultats."
-            ),
-            inline=False,
-        )
-
-        embed.add_field(
-            name="👑 Admin",
-            value=(
-                "`/help categorie:Admin`\n"
-                "Pour voir les commandes de création, lancement et administration."
-            ),
-            inline=False,
-        )
+            embed.add_field(
+                name="Paramètres",
+                value="\n".join(parameter_lines)[:1024],
+                inline=False,
+            )
 
         return embed
 
     # ==========================================================
-    # COMMANDE HELP
+    # COMMANDE /HELP
     # ==========================================================
 
     @app_commands.command(
         name="help",
-        description="Afficher l'aide de Hamtaro selon ton rôle"
+        description="Ouvrir l'aide interactive de Hamtaro.",
     )
     @app_commands.describe(
-        categorie="Catégorie d'aide à afficher",
-        visible="Afficher le message publiquement"
+        commande="Afficher directement l'aide d'une commande précise.",
+        visible="Rendre l'aide visible à tout le salon.",
     )
-    @app_commands.choices(
-        categorie=[
-            app_commands.Choice(
-                name="Automatique",
-                value="auto",
-            ),
-            app_commands.Choice(
-                name="Joueur",
-                value="joueur",
-            ),
-            app_commands.Choice(
-                name="Staff",
-                value="staff",
-            ),
-            app_commands.Choice(
-                name="Admin",
-                value="admin",
-            ),
-            app_commands.Choice(
-                name="Général",
-                value="general",
-            ),
-        ]
-    )
-    async def help(
+    async def help_command(
         self,
         interaction: discord.Interaction,
-        categorie: app_commands.Choice[str] | None = None,
+        commande: str | None = None,
         visible: bool = False,
-    ):
+    ) -> None:
+        is_staff = self._member_is_staff(interaction.user)
+        categories = self.collect_commands(is_staff=is_staff)
 
-        if interaction.guild is None or not isinstance(
-            interaction.user,
-            discord.Member,
-        ):
+        all_commands = [
+            info
+            for commands_list in categories.values()
+            for info in commands_list
+        ]
 
-            await interaction.response.send_message(
-                "❌ Cette commande doit être utilisée dans un serveur Discord.",
-                ephemeral=True,
+        if commande:
+            normalized_query = commande.strip().lower().lstrip("/")
+            exact_match = next(
+                (
+                    info
+                    for info in all_commands
+                    if info.qualified_name.lower() == normalized_query
+                ),
+                None,
             )
 
+            if exact_match is not None:
+                await interaction.response.send_message(
+                    embed=self.build_command_embed(exact_match),
+                    ephemeral=not visible,
+                )
+                return
+
+            partial_matches = [
+                info
+                for info in all_commands
+                if normalized_query in info.qualified_name.lower()
+            ][:15]
+
+            if not partial_matches:
+                await interaction.response.send_message(
+                    "❌ Aucune commande accessible ne correspond à cette recherche.",
+                    ephemeral=True,
+                )
+                return
+
+            embed = discord.Embed(
+                title="🔎 Commandes trouvées",
+                description="\n".join(
+                    f"• `{info.syntax}` — {info.description}"
+                    for info in partial_matches
+                )[:4000],
+                color=discord.Color.blurple(),
+            )
+            embed.set_footer(text="Relance /help avec le nom exact pour voir les détails.")
+            await interaction.response.send_message(
+                embed=embed,
+                ephemeral=not visible,
+            )
             return
 
-        selected_category = "auto"
-
-        if categorie is not None:
-            selected_category = categorie.value
-
-        if selected_category == "auto":
-            selected_category = self._detect_profile(
-                interaction.user
-            )
-
-        if selected_category == "admin":
-            embed = self._admin_help_embed()
-
-        elif selected_category == "staff":
-            embed = self._staff_help_embed()
-
-        elif selected_category == "joueur":
-            embed = self._player_help_embed()
-
-        elif selected_category == "general":
-            embed = self._general_help_embed()
-
-        else:
-            embed = self._player_help_embed()
+        view = InteractiveHelpView(
+            cog=self,
+            requester_id=interaction.user.id,
+            is_staff=is_staff,
+            categories=categories,
+        )
 
         await interaction.response.send_message(
-            embed=embed,
+            embed=view.build_embed(),
+            view=view,
             ephemeral=not visible,
         )
 
+        try:
+            view.message = await interaction.original_response()
+        except (discord.NotFound, discord.HTTPException):
+            view.message = None
 
-async def setup(
-    bot: commands.Bot,
-):
+    @help_command.autocomplete("commande")
+    async def help_command_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ) -> list[app_commands.Choice[str]]:
+        is_staff = self._member_is_staff(interaction.user)
+        categories = self.collect_commands(is_staff=is_staff)
+        normalized_current = current.lower().lstrip("/")
 
-    await bot.add_cog(
-        HelpCog(bot)
-    )
+        matches: list[app_commands.Choice[str]] = []
+        for commands_list in categories.values():
+            for info in commands_list:
+                if normalized_current not in info.qualified_name.lower():
+                    continue
+
+                matches.append(
+                    app_commands.Choice(
+                        name=f"/{info.qualified_name} — {info.description}"[:100],
+                        value=info.qualified_name[:100],
+                    )
+                )
+
+                if len(matches) >= 25:
+                    return matches
+
+        return matches
+
+
+async def setup(bot: commands.Bot) -> None:
+    await bot.add_cog(HelpCog(bot))
