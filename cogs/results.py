@@ -2435,6 +2435,27 @@ class ResultsCog(commands.Cog):
             )
 
         await self._notify_result_approved(request, context)
+
+        # Progression immédiate : publication du prochain match de bracket
+        # ou proposition/génération de la ronde suisse suivante.
+        progression = self.bot.get_cog("TournamentProgressionCog")
+        if progression is not None:
+            try:
+                await progression.handle_result_approved(
+                    guild_id=str(request["guild_id"]),
+                    tournament_id=int(request["tournament_id"]),
+                    match_kind=str(request["match_kind"]),
+                    match_id=int(request["match_id"]),
+                )
+            except Exception as error:
+                # Le résultat reste validé même si Discord ne peut pas publier
+                # immédiatement le prochain affrontement. Le scan automatique
+                # du cog de progression réessaiera ensuite.
+                print(
+                    "⚠️ Progression automatique après validation "
+                    f"{request['match_kind']}:{request['match_id']} : {error}"
+                )
+
         return request
 
     async def _reject_request(
