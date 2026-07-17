@@ -32,6 +32,8 @@ COGS = [
     "cogs.tournament_undo",
     "cogs.match_center",
     "cogs.tournament_progression",
+    "cogs.deck_stats",
+    "cogs.tournament_export",
 ]
 
 
