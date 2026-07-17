@@ -14,6 +14,10 @@ from utils.permissions import is_staff_member
 HELP_PAGE_SIZE = 7
 HELP_TIMEOUT_SECONDS = 300
 
+# Erreurs Discord liées aux interactions déjà traitées ou expirées.
+INTERACTION_ALREADY_ACKNOWLEDGED = 40060
+UNKNOWN_INTERACTION = 10062
+
 
 @dataclass(slots=True)
 class HelpCommandInfo:
@@ -43,7 +47,7 @@ CATEGORY_META: "OrderedDict[str, tuple[str, str]]" = OrderedDict(
         ),
         "Rondes suisses": (
             "🇨🇭",
-            "Pairings, classements et commandes liées aux rondes suisses.",
+            "Appariements, classements et commandes liées aux rondes suisses.",
         ),
         "Profils et statistiques": (
             "📊",
@@ -73,9 +77,6 @@ CATEGORY_META: "OrderedDict[str, tuple[str, str]]" = OrderedDict(
 )
 
 
-# Ces noms complètent la détection faite avec default_permissions.
-# Ils permettent de masquer correctement les commandes staff même lorsqu'une
-# commande utilise seulement un check personnalisé comme @staff_only().
 STAFF_COMMAND_NAMES = {
     "add_player",
     "admin_win",
@@ -132,6 +133,70 @@ STAFF_PREFIXES = (
 )
 
 
+def _is_expired_interaction_error(error: BaseException) -> bool:
+    """Retourne True pour les erreurs Discord 40060 et 10062."""
+
+    return isinstance(error, discord.HTTPException) and error.code in {
+        INTERACTION_ALREADY_ACKNOWLEDGED,
+        UNKNOWN_INTERACTION,
+    }
+
+
+async def safe_send(
+    interaction: discord.Interaction,
+    *,
+    content: str | None = None,
+    embed: discord.Embed | None = None,
+    view: discord.ui.View | None = None,
+    ephemeral: bool = True,
+) -> bool:
+    """
+    Répond à une interaction sans faire tomber le cog si Discord considère
+    l'interaction comme expirée ou déjà reconnue.
+    """
+
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                content=content,
+                embed=embed,
+                view=view,
+                ephemeral=ephemeral,
+            )
+        else:
+            await interaction.response.send_message(
+                content=content,
+                embed=embed,
+                view=view,
+                ephemeral=ephemeral,
+            )
+        return True
+    except (discord.NotFound, discord.HTTPException) as error:
+        if _is_expired_interaction_error(error):
+            return False
+        raise
+
+
+async def safe_edit(
+    interaction: discord.Interaction,
+    *,
+    embed: discord.Embed,
+    view: discord.ui.View,
+) -> bool:
+    """Modifie le message d'une interaction de façon tolérante."""
+
+    try:
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=view)
+        else:
+            await interaction.response.edit_message(embed=embed, view=view)
+        return True
+    except (discord.NotFound, discord.HTTPException) as error:
+        if _is_expired_interaction_error(error):
+            return False
+        raise
+
+
 class HelpCategorySelect(discord.ui.Select):
     """Menu déroulant permettant de choisir une catégorie."""
 
@@ -155,7 +220,9 @@ class HelpCategorySelect(discord.ui.Select):
                     label=category,
                     value=category,
                     emoji=emoji,
-                    description=f"{len(commands_list)} commande(s) — {description}"[:100],
+                    description=(
+                        f"{len(commands_list)} commande(s) — {description}"
+                    )[:100],
                     default=parent_view.current_category == category,
                 )
             )
@@ -176,7 +243,8 @@ class HelpCategorySelect(discord.ui.Select):
         self.parent_view.page = 0
         self.parent_view.refresh_components()
 
-        await interaction.response.edit_message(
+        await safe_edit(
+            interaction,
             embed=self.parent_view.build_embed(),
             view=self.parent_view,
         )
@@ -208,77 +276,99 @@ class InteractiveHelpView(discord.ui.View):
         if interaction.user.id == self.requester_id:
             return True
 
-        await interaction.response.send_message(
-            "❌ Ce menu d'aide appartient à une autre personne. Utilise `/help`.",
+        await safe_send(
+            interaction,
+            content=(
+                "❌ Ce menu d'aide appartient à une autre personne. "
+                "Utilise `/help`."
+            ),
             ephemeral=True,
         )
         return False
+
+    async def on_error(
+        self,
+        interaction: discord.Interaction,
+        error: Exception,
+        item: discord.ui.Item[discord.ui.View],
+    ) -> None:
+        if _is_expired_interaction_error(error):
+            return
+
+        print(
+            "❌ Erreur dans le menu /help "
+            f"({type(item).__name__}) : {error}"
+        )
+        await safe_send(
+            interaction,
+            content="❌ Une erreur est survenue dans le menu d'aide.",
+            ephemeral=True,
+        )
 
     def refresh_components(self) -> None:
         self.clear_items()
         self.add_item(HelpCategorySelect(self))
 
-        if self.current_category is not None:
-            command_count = len(self.categories.get(self.current_category, []))
-            page_count = max(1, (command_count + HELP_PAGE_SIZE - 1) // HELP_PAGE_SIZE)
+        if self.current_category is None:
+            return
 
-            previous_button = discord.ui.Button(
-                label="Précédent",
-                emoji="◀️",
-                style=discord.ButtonStyle.secondary,
-                disabled=self.page <= 0,
-                row=1,
-            )
-            previous_button.callback = self._previous_page
-            self.add_item(previous_button)
+        command_count = len(self.categories.get(self.current_category, []))
+        page_count = max(
+            1,
+            (command_count + HELP_PAGE_SIZE - 1) // HELP_PAGE_SIZE,
+        )
 
-            home_button = discord.ui.Button(
-                label="Accueil",
-                emoji="🏠",
-                style=discord.ButtonStyle.primary,
-                row=1,
-            )
-            home_button.callback = self._go_home
-            self.add_item(home_button)
+        previous_button = discord.ui.Button(
+            label="Précédent",
+            emoji="◀️",
+            style=discord.ButtonStyle.secondary,
+            disabled=self.page <= 0,
+            row=1,
+        )
+        previous_button.callback = self._previous_page
+        self.add_item(previous_button)
 
-            next_button = discord.ui.Button(
-                label="Suivant",
-                emoji="▶️",
-                style=discord.ButtonStyle.secondary,
-                disabled=self.page >= page_count - 1,
-                row=1,
-            )
-            next_button.callback = self._next_page
-            self.add_item(next_button)
+        home_button = discord.ui.Button(
+            label="Accueil",
+            emoji="🏠",
+            style=discord.ButtonStyle.primary,
+            row=1,
+        )
+        home_button.callback = self._go_home
+        self.add_item(home_button)
+
+        next_button = discord.ui.Button(
+            label="Suivant",
+            emoji="▶️",
+            style=discord.ButtonStyle.secondary,
+            disabled=self.page >= page_count - 1,
+            row=1,
+        )
+        next_button.callback = self._next_page
+        self.add_item(next_button)
 
     async def _previous_page(self, interaction: discord.Interaction) -> None:
         self.page = max(0, self.page - 1)
         self.refresh_components()
-        await interaction.response.edit_message(
-            embed=self.build_embed(),
-            view=self,
-        )
+        await safe_edit(interaction, embed=self.build_embed(), view=self)
 
     async def _next_page(self, interaction: discord.Interaction) -> None:
         if self.current_category is not None:
             command_count = len(self.categories.get(self.current_category, []))
-            page_count = max(1, (command_count + HELP_PAGE_SIZE - 1) // HELP_PAGE_SIZE)
+            page_count = max(
+                1,
+                (command_count + HELP_PAGE_SIZE - 1) // HELP_PAGE_SIZE,
+            )
             self.page = min(page_count - 1, self.page + 1)
 
         self.refresh_components()
-        await interaction.response.edit_message(
-            embed=self.build_embed(),
-            view=self,
-        )
+        await safe_edit(interaction, embed=self.build_embed(), view=self)
 
     async def _go_home(self, interaction: discord.Interaction) -> None:
         self.current_category = None
         self.page = 0
         self.refresh_components()
-        await interaction.response.edit_message(
-            embed=self.build_embed(),
-            view=self,
-        )
+        await safe_edit(interaction, embed=self.build_embed(), view=self)
 
     def build_embed(self) -> discord.Embed:
         if self.current_category is None:
@@ -298,22 +388,20 @@ class InteractiveHelpView(discord.ui.View):
         for item in self.children:
             item.disabled = True
 
-        if self.message is not None:
-            try:
-                await self.message.edit(view=self)
-            except (discord.NotFound, discord.HTTPException):
-                pass
+        if self.message is None:
+            return
+
+        try:
+            await self.message.edit(view=self)
+        except (discord.NotFound, discord.HTTPException):
+            pass
 
 
 class HelpCog(commands.Cog):
-    """Aide interactive et automatiquement synchronisée avec les slash commands."""
+    """Aide interactive automatiquement synchronisée avec les slash commands."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-
-    # ==========================================================
-    # DÉTECTION ET CLASSEMENT
-    # ==========================================================
 
     @staticmethod
     def _member_is_staff(user: discord.abc.User) -> bool:
@@ -358,13 +446,10 @@ class HelpCog(commands.Cog):
 
         if self._permission_marks_staff(command):
             return True
-
         if normalized_name in STAFF_COMMAND_NAMES:
             return True
-
         if normalized_name.startswith(STAFF_PREFIXES):
             return True
-
         if root_name in {
             "admin",
             "approve",
@@ -388,15 +473,16 @@ class HelpCog(commands.Cog):
         }:
             return True
 
-        staff_modules = (
-            "cogs.admin",
-            "cogs.repair",
-            "cogs.staff_logs",
-            "cogs.end_tournament",
-            "cogs.tournament_undo",
-            "cogs.tournament_export",
+        return module_name.startswith(
+            (
+                "cogs.admin",
+                "cogs.repair",
+                "cogs.staff_logs",
+                "cogs.end_tournament",
+                "cogs.tournament_undo",
+                "cogs.tournament_export",
+            )
         )
-        return module_name.startswith(staff_modules)
 
     @staticmethod
     def _build_syntax(command: app_commands.Command) -> str:
@@ -404,10 +490,11 @@ class HelpCog(commands.Cog):
 
         for parameter in command.parameters:
             parameter_name = getattr(parameter, "display_name", parameter.name)
-            if parameter.required:
-                parts.append(f"<{parameter_name}>")
-            else:
-                parts.append(f"[{parameter_name}]")
+            parts.append(
+                f"<{parameter_name}>"
+                if parameter.required
+                else f"[{parameter_name}]"
+            )
 
         return " ".join(parts)
 
@@ -475,13 +562,7 @@ class HelpCog(commands.Cog):
         if "swiss" in name:
             return "Rondes suisses"
 
-        if any(
-            token in name
-            for token in (
-                "bracket",
-                "final_bracket",
-            )
-        ):
+        if any(token in name for token in ("bracket", "final_bracket")):
             if "image" in name or "preview" in name:
                 return "Images et affichages"
             return "Bracket"
@@ -499,20 +580,15 @@ class HelpCog(commands.Cog):
         ):
             return "Profils et statistiques"
 
-        if any(
-            token in name
-            for token in (
-                "image",
-                "preview",
-                "graphics",
-            )
-        ):
+        if any(token in name for token in ("image", "preview", "graphics")):
             return "Images et affichages"
 
         return "Autres commandes"
 
     def _iter_chat_commands(self) -> Iterable[app_commands.Command]:
-        def walk(item: app_commands.Command | app_commands.Group):
+        def walk(
+            item: app_commands.Command | app_commands.Group,
+        ) -> Iterable[app_commands.Command]:
             if isinstance(item, app_commands.Group):
                 for child in item.commands:
                     yield from walk(child)
@@ -531,7 +607,6 @@ class HelpCog(commands.Cog):
         category_map: dict[str, list[HelpCommandInfo]] = {
             category: [] for category in CATEGORY_META
         }
-
         seen_names: set[str] = set()
 
         for command in self._iter_chat_commands():
@@ -545,13 +620,13 @@ class HelpCog(commands.Cog):
                 continue
 
             category = self._category_for(command, staff_only)
-            description = command.description or "Aucune description disponible."
-
             category_map[category].append(
                 HelpCommandInfo(
                     command=command,
                     qualified_name=qualified_name,
-                    description=description,
+                    description=(
+                        command.description or "Aucune description disponible."
+                    ),
                     syntax=self._build_syntax(command),
                     category=category,
                     staff_only=staff_only,
@@ -569,17 +644,13 @@ class HelpCog(commands.Cog):
 
         return ordered_categories
 
-    # ==========================================================
-    # EMBEDS
-    # ==========================================================
-
     @staticmethod
     def build_home_embed(
         *,
         categories: "OrderedDict[str, list[HelpCommandInfo]]",
         is_staff: bool,
     ) -> discord.Embed:
-        command_count = sum(len(commands_list) for commands_list in categories.values())
+        command_count = sum(len(items) for items in categories.values())
         detected_role = "Staff" if is_staff else "Joueur"
 
         embed = discord.Embed(
@@ -587,8 +658,9 @@ class HelpCog(commands.Cog):
             description=(
                 f"Rôle détecté : **{detected_role}**\n"
                 f"Commandes accessibles : **{command_count}**\n\n"
-                "Choisis une catégorie dans le menu ci-dessous. "
-                "Les commandes staff sont automatiquement masquées aux joueurs."
+                "Choisis une catégorie dans le menu. "
+                "Pour rechercher une commande précise, utilise par exemple "
+                "`/help commande:result`."
             ),
             color=discord.Color.gold(),
         )
@@ -602,7 +674,10 @@ class HelpCog(commands.Cog):
             )
 
         embed.set_footer(
-            text="Le menu lit automatiquement les commandes chargées par le bot."
+            text=(
+                "La recherche reste disponible sans autocomplétion afin "
+                "d'éviter les interactions Discord expirées."
+            )
         )
         return embed
 
@@ -615,7 +690,10 @@ class HelpCog(commands.Cog):
         is_staff: bool,
     ) -> discord.Embed:
         emoji, description = CATEGORY_META[category]
-        page_count = max(1, (len(commands_list) + HELP_PAGE_SIZE - 1) // HELP_PAGE_SIZE)
+        page_count = max(
+            1,
+            (len(commands_list) + HELP_PAGE_SIZE - 1) // HELP_PAGE_SIZE,
+        )
         safe_page = min(max(page, 0), page_count - 1)
         start = safe_page * HELP_PAGE_SIZE
         displayed_commands = commands_list[start : start + HELP_PAGE_SIZE]
@@ -641,7 +719,7 @@ class HelpCog(commands.Cog):
         embed.set_footer(
             text=(
                 f"Page {safe_page + 1}/{page_count} • "
-                f"{len(commands_list)} commande(s) dans cette catégorie"
+                f"{len(commands_list)} commande(s)"
             )
         )
         return embed
@@ -658,19 +736,15 @@ class HelpCog(commands.Cog):
                 else discord.Color.blurple()
             ),
         )
-        embed.add_field(
-            name="Utilisation",
-            value=f"`{info.syntax}`",
-            inline=False,
-        )
-        embed.add_field(
-            name="Catégorie",
-            value=info.category,
-            inline=True,
-        )
+        embed.add_field(name="Utilisation", value=f"`{info.syntax}`", inline=False)
+        embed.add_field(name="Catégorie", value=info.category, inline=True)
         embed.add_field(
             name="Accès",
-            value="🔒 Staff uniquement" if info.staff_only else "👤 Joueurs et staff",
+            value=(
+                "🔒 Staff uniquement"
+                if info.staff_only
+                else "👤 Joueurs et staff"
+            ),
             inline=True,
         )
 
@@ -679,9 +753,9 @@ class HelpCog(commands.Cog):
             for parameter in info.command.parameters:
                 display_name = getattr(parameter, "display_name", parameter.name)
                 requirement = "obligatoire" if parameter.required else "facultatif"
-                parameter_description = parameter.description or "Aucune précision."
+                description = parameter.description or "Aucune précision."
                 parameter_lines.append(
-                    f"• `{display_name}` — {requirement} : {parameter_description}"
+                    f"• `{display_name}` — {requirement} : {description}"
                 )
 
             embed.add_field(
@@ -692,16 +766,12 @@ class HelpCog(commands.Cog):
 
         return embed
 
-    # ==========================================================
-    # COMMANDE /HELP
-    # ==========================================================
-
     @app_commands.command(
         name="help",
         description="Ouvrir l'aide interactive de Hamtaro.",
     )
     @app_commands.describe(
-        commande="Afficher directement l'aide d'une commande précise.",
+        commande="Nom exact ou partiel d'une commande.",
         visible="Rendre l'aide visible à tout le salon.",
     )
     async def help_command(
@@ -712,7 +782,6 @@ class HelpCog(commands.Cog):
     ) -> None:
         is_staff = self._member_is_staff(interaction.user)
         categories = self.collect_commands(is_staff=is_staff)
-
         all_commands = [
             info
             for commands_list in categories.values()
@@ -731,7 +800,8 @@ class HelpCog(commands.Cog):
             )
 
             if exact_match is not None:
-                await interaction.response.send_message(
+                await safe_send(
+                    interaction,
                     embed=self.build_command_embed(exact_match),
                     ephemeral=not visible,
                 )
@@ -744,8 +814,12 @@ class HelpCog(commands.Cog):
             ][:15]
 
             if not partial_matches:
-                await interaction.response.send_message(
-                    "❌ Aucune commande accessible ne correspond à cette recherche.",
+                await safe_send(
+                    interaction,
+                    content=(
+                        "❌ Aucune commande accessible ne correspond à cette "
+                        "recherche."
+                    ),
                     ephemeral=True,
                 )
                 return
@@ -758,8 +832,11 @@ class HelpCog(commands.Cog):
                 )[:4000],
                 color=discord.Color.blurple(),
             )
-            embed.set_footer(text="Relance /help avec le nom exact pour voir les détails.")
-            await interaction.response.send_message(
+            embed.set_footer(
+                text="Relance /help avec le nom exact pour voir les détails."
+            )
+            await safe_send(
+                interaction,
                 embed=embed,
                 ephemeral=not visible,
             )
@@ -772,44 +849,37 @@ class HelpCog(commands.Cog):
             categories=categories,
         )
 
-        await interaction.response.send_message(
+        sent = await safe_send(
+            interaction,
             embed=view.build_embed(),
             view=view,
             ephemeral=not visible,
         )
+
+        if not sent:
+            return
 
         try:
             view.message = await interaction.original_response()
         except (discord.NotFound, discord.HTTPException):
             view.message = None
 
-    @help_command.autocomplete("commande")
-    async def help_command_autocomplete(
+    @help_command.error
+    async def help_command_error(
         self,
         interaction: discord.Interaction,
-        current: str,
-    ) -> list[app_commands.Choice[str]]:
-        is_staff = self._member_is_staff(interaction.user)
-        categories = self.collect_commands(is_staff=is_staff)
-        normalized_current = current.lower().lstrip("/")
+        error: app_commands.AppCommandError,
+    ) -> None:
+        original = getattr(error, "original", error)
+        if _is_expired_interaction_error(original):
+            return
 
-        matches: list[app_commands.Choice[str]] = []
-        for commands_list in categories.values():
-            for info in commands_list:
-                if normalized_current not in info.qualified_name.lower():
-                    continue
-
-                matches.append(
-                    app_commands.Choice(
-                        name=f"/{info.qualified_name} — {info.description}"[:100],
-                        value=info.qualified_name[:100],
-                    )
-                )
-
-                if len(matches) >= 25:
-                    return matches
-
-        return matches
+        print(f"❌ Erreur /help : {original}")
+        await safe_send(
+            interaction,
+            content="❌ Impossible d'ouvrir l'aide pour le moment.",
+            ephemeral=True,
+        )
 
 
 async def setup(bot: commands.Bot) -> None:
