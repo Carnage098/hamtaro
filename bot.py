@@ -29,6 +29,7 @@ COGS = [
     "cogs.graphics_preview",
     "cogs.swiss_graphics",
     "cogs.tournament_context",
+    "cogs.tournament_undo",
     "cogs.match_center",
     "cogs.tournament_progression",
 ]
