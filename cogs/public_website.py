@@ -93,7 +93,8 @@ class PublicWebsiteCog(commands.Cog):
             ]
         )
 
-        application.router.add_get("/", self.index_page)
+        application.router.add_get("/", self.home_page)
+        application.router.add_get("/tournaments", self.index_page)
         application.router.add_get(
             r"/tournaments/{tournament_id:\d+}",
             self.tournament_page,
@@ -567,6 +568,79 @@ class PublicWebsiteCog(commands.Cog):
     # ==========================================================
     # PAGES
     # ==========================================================
+
+    async def home_page(
+        self,
+        request: web.Request,
+    ) -> web.Response:
+        tournaments = await self.service.list_tournaments(limit=80)
+
+        open_statuses = {
+            "registration",
+            "registrations",
+            "open",
+            "waiting",
+        }
+
+        current_statuses = {
+            "active",
+            "started",
+            "running",
+            "in_progress",
+            "playing",
+            "swiss",
+        }
+
+        open_tournaments = [
+            item
+            for item in tournaments
+            if self._status(item.get("status")) in open_statuses
+        ]
+
+        current_tournaments = [
+            item
+            for item in tournaments
+            if self._status(item.get("status")) in current_statuses
+        ]
+
+        archived_tournaments = [
+            item
+            for item in tournaments
+            if self._status(item.get("status")) in FINISHED_STATUSES
+        ]
+
+        featured_tournaments = (
+            open_tournaments
+            + current_tournaments
+        )[:6]
+
+        if not featured_tournaments:
+            featured_tournaments = archived_tournaments[:3]
+
+        recent_results = await self.service.list_recent_results(
+            limit=6
+        )
+
+        command_catalog = self._build_command_catalog()
+        command_count = sum(
+            len(commands)
+            for commands in command_catalog.values()
+        )
+
+        home_stats = {
+            "open": len(open_tournaments),
+            "active": len(current_tournaments),
+            "archived": len(archived_tournaments),
+            "commands": command_count,
+        }
+
+        return self.render(
+            "home.html",
+            request=request,
+            featured_tournaments=featured_tournaments,
+            recent_results=recent_results,
+            home_stats=home_stats,
+        )
 
     async def index_page(
         self,
