@@ -95,3 +95,87 @@
         activate(requested);
     }
 })();
+(() => {
+    "use strict";
+
+    const searchInput = document.querySelector(
+        "[data-command-search]"
+    );
+    const filterButtons = Array.from(
+        document.querySelectorAll("[data-command-filter]")
+    );
+    const commandCards = Array.from(
+        document.querySelectorAll("[data-guide-command]")
+    );
+    const emptyState = document.querySelector(
+        "[data-command-empty]"
+    );
+
+    if (!searchInput || !commandCards.length) {
+        return;
+    }
+
+    let activeRole = "all";
+
+    const normalise = (value) => (
+        String(value || "")
+            .toLocaleLowerCase("fr")
+            .normalize("NFD")
+            .replace(/\p{Diacritic}/gu, "")
+            .trim()
+    );
+
+    const refresh = () => {
+        const query = normalise(searchInput.value);
+        let visibleCount = 0;
+
+        commandCards.forEach((card) => {
+            const role = card.dataset.commandRole || "community";
+            const searchable = normalise(
+                card.dataset.commandSearchText
+            );
+
+            const roleMatches = (
+                activeRole === "all"
+                || role === activeRole
+            );
+
+            const searchMatches = (
+                !query
+                || searchable.includes(query)
+            );
+
+            const visible = roleMatches && searchMatches;
+            card.hidden = !visible;
+
+            if (visible) {
+                visibleCount += 1;
+            }
+        });
+
+        if (emptyState) {
+            emptyState.hidden = visibleCount !== 0;
+        }
+    };
+
+    filterButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            activeRole = (
+                button.dataset.commandFilter
+                || "all"
+            );
+
+            filterButtons.forEach((otherButton) => {
+                otherButton.classList.toggle(
+                    "is-active",
+                    otherButton === button
+                );
+            });
+
+            refresh();
+        });
+    });
+
+    searchInput.addEventListener("input", refresh);
+    refresh();
+})();
