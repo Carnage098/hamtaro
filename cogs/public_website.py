@@ -332,238 +332,237 @@ class PublicWebsiteCog(commands.Cog):
     def _status(value: Any) -> str:
         return str(value or "").lower().strip()
 
-# ==========================================================
-# GUIDE ET CATALOGUE DES COMMANDES
-# ==========================================================
+    # ==========================================================
+    # GUIDE ET CATALOGUE DES COMMANDES
+    # ==========================================================
 
-@staticmethod
-def _guide_role(command_name: str) -> str:
-    """
-    Classement indicatif pour la documentation du site.
+    @staticmethod
+    def _guide_role(command_name: str) -> str:
+        """
+        Classement indicatif pour la documentation du site.
 
-    Les contrôles de permissions définis dans les cogs Discord
-    restent toujours prioritaires.
-    """
+        Les contrôles de permissions définis dans les cogs Discord
+        restent toujours prioritaires.
+        """
 
-    normalized = command_name.lower().replace(" ", "_")
+        normalized = command_name.lower().replace(" ", "_")
 
-    admin_keywords = {
-        "admin",
-        "repair",
-        "undo",
-        "delete",
-        "remove",
-        "force",
-        "end_tournament",
-        "tournament_export",
-        "staff_logs",
-        "configuration",
-        "settings",
-        "setup",
-        "reset",
-        "purge",
-    }
+        admin_keywords = {
+            "admin",
+            "repair",
+            "undo",
+            "delete",
+            "remove",
+            "force",
+            "end_tournament",
+            "tournament_export",
+            "staff_logs",
+            "configuration",
+            "settings",
+            "setup",
+            "reset",
+            "purge",
+        }
 
-    staff_keywords = {
-        "approve",
-        "reject",
-        "pending",
-        "create_tournament",
-        "start_tournament",
-        "open_registration",
-        "close_registration",
-        "swiss_start",
-        "swiss_pair",
-        "swiss_report",
-        "pair",
-        "validate",
-        "validation",
-        "progression",
-        "graphics_preview",
-        "swiss_preview",
-        "final_bracket",
-        "bracket_full",
-        "manage",
-        "moderation",
-    }
+        staff_keywords = {
+            "approve",
+            "reject",
+            "pending",
+            "create_tournament",
+            "start_tournament",
+            "open_registration",
+            "close_registration",
+            "swiss_start",
+            "swiss_pair",
+            "swiss_report",
+            "pair",
+            "validate",
+            "validation",
+            "progression",
+            "graphics_preview",
+            "swiss_preview",
+            "final_bracket",
+            "bracket_full",
+            "manage",
+            "moderation",
+        }
 
-    if any(keyword in normalized for keyword in admin_keywords):
-        return "admin"
+        if any(keyword in normalized for keyword in admin_keywords):
+            return "admin"
 
-    if any(keyword in normalized for keyword in staff_keywords):
-        return "staff"
+        if any(keyword in normalized for keyword in staff_keywords):
+            return "staff"
 
-    return "community"
+        return "community"
 
-@staticmethod
-def _parameter_syntax(parameter: Any) -> str:
-    name = str(
-        getattr(parameter, "display_name", None)
-        or getattr(parameter, "name", "option")
-    )
-
-    required = bool(getattr(parameter, "required", False))
-
-    if required:
-        return f"<{name}>"
-
-    return f"[{name}]"
-
-@classmethod
-def _command_entry(
-    cls,
-    command: Any,
-    qualified_name: str,
-) -> dict[str, Any]:
-    parameters = list(
-        getattr(command, "parameters", None)
-        or []
-    )
-
-    syntax_parts = [
-        cls._parameter_syntax(parameter)
-        for parameter in parameters
-    ]
-
-    syntax = "/" + qualified_name
-    if syntax_parts:
-        syntax += " " + " ".join(syntax_parts)
-
-    options: list[dict[str, Any]] = []
-    for parameter in parameters:
-        option_name = str(
+    @staticmethod
+    def _parameter_syntax(parameter: Any) -> str:
+        name = str(
             getattr(parameter, "display_name", None)
             or getattr(parameter, "name", "option")
         )
 
-        option_description = str(
-            getattr(parameter, "description", "")
-            or "Option de la commande."
+        required = bool(getattr(parameter, "required", False))
+
+        if required:
+            return f"<{name}>"
+
+        return f"[{name}]"
+
+    @classmethod
+    def _command_entry(
+        cls,
+        command: Any,
+        qualified_name: str,
+    ) -> dict[str, Any]:
+        parameters = list(
+            getattr(command, "parameters", None)
+            or []
         )
 
-        options.append(
-            {
-                "name": option_name,
-                "description": option_description,
-                "required": bool(
-                    getattr(parameter, "required", False)
-                ),
-            }
+        syntax_parts = [
+            cls._parameter_syntax(parameter)
+            for parameter in parameters
+        ]
+
+        syntax = "/" + qualified_name
+        if syntax_parts:
+            syntax += " " + " ".join(syntax_parts)
+
+        options: list[dict[str, Any]] = []
+        for parameter in parameters:
+            option_name = str(
+                getattr(parameter, "display_name", None)
+                or getattr(parameter, "name", "option")
+            )
+
+            option_description = str(
+                getattr(parameter, "description", "")
+                or "Option de la commande."
+            )
+
+            options.append(
+                {
+                    "name": option_name,
+                    "description": option_description,
+                    "required": bool(
+                        getattr(parameter, "required", False)
+                    ),
+                }
+            )
+
+        description = str(
+            getattr(command, "description", "")
+            or "Commande Hamtaro."
         )
 
-    description = str(
-        getattr(command, "description", "")
-        or "Commande Hamtaro."
-    )
+        role = cls._guide_role(qualified_name)
 
-    role = cls._guide_role(qualified_name)
+        return {
+            "name": qualified_name,
+            "slash_name": "/" + qualified_name,
+            "syntax": syntax,
+            "description": description,
+            "role": role,
+            "options": options,
+            "search_text": " ".join(
+                [
+                    qualified_name,
+                    syntax,
+                    description,
+                    role,
+                    *[
+                        (
+                            f"{option['name']} "
+                            f"{option['description']}"
+                        )
+                        for option in options
+                    ],
+                ]
+            ).lower(),
+        }
 
-    return {
-        "name": qualified_name,
-        "slash_name": "/" + qualified_name,
-        "syntax": syntax,
-        "description": description,
-        "role": role,
-        "options": options,
-        "search_text": " ".join(
-            [
-                qualified_name,
-                syntax,
-                description,
-                role,
-                *[
-                    (
-                        f"{option['name']} "
-                        f"{option['description']}"
+    @classmethod
+    def _flatten_app_command(
+        cls,
+        command: Any,
+        *,
+        prefix: str = "",
+    ) -> list[dict[str, Any]]:
+        command_name = str(getattr(command, "name", "") or "")
+        qualified_name = " ".join(
+            part
+            for part in (prefix, command_name)
+            if part
+        ).strip()
+
+        children = list(
+            getattr(command, "commands", None)
+            or []
+        )
+
+        if children:
+            entries: list[dict[str, Any]] = []
+
+            for child in children:
+                entries.extend(
+                    cls._flatten_app_command(
+                        child,
+                        prefix=qualified_name,
                     )
-                    for option in options
-                ],
-            ]
-        ).lower(),
-    }
-
-@classmethod
-def _flatten_app_command(
-    cls,
-    command: Any,
-    *,
-    prefix: str = "",
-) -> list[dict[str, Any]]:
-    command_name = str(getattr(command, "name", "") or "")
-    qualified_name = " ".join(
-        part
-        for part in (prefix, command_name)
-        if part
-    ).strip()
-
-    children = list(
-        getattr(command, "commands", None)
-        or []
-    )
-
-    if children:
-        entries: list[dict[str, Any]] = []
-
-        for child in children:
-            entries.extend(
-                cls._flatten_app_command(
-                    child,
-                    prefix=qualified_name,
                 )
+
+            return entries
+
+        if not qualified_name:
+            return []
+
+        return [
+            cls._command_entry(
+                command,
+                qualified_name,
+            )
+        ]
+
+    def _build_command_catalog(
+        self,
+    ) -> dict[str, list[dict[str, Any]]]:
+        catalog: dict[str, list[dict[str, Any]]] = {
+            "community": [],
+            "staff": [],
+            "admin": [],
+        }
+
+        seen: set[str] = set()
+
+        commands = list(self.bot.tree.get_commands())
+
+        guild_id = self._public_guild_id()
+        if guild_id is not None:
+            try:
+                guild_commands = self.bot.tree.get_commands(
+                    guild=discord.Object(id=int(guild_id))
+                )
+                commands.extend(guild_commands)
+            except (TypeError, ValueError):
+                pass
+
+        for command in commands:
+            for entry in self._flatten_app_command(command):
+                name = entry["name"]
+
+                if name in seen:
+                    continue
+
+                seen.add(name)
+                catalog[entry["role"]].append(entry)
+
+        for role_entries in catalog.values():
+            role_entries.sort(
+                key=lambda entry: entry["name"].lower()
             )
 
-        return entries
-
-    if not qualified_name:
-        return []
-
-    return [
-        cls._command_entry(
-            command,
-            qualified_name,
-        )
-    ]
-
-def _build_command_catalog(
-    self,
-) -> dict[str, list[dict[str, Any]]]:
-    catalog: dict[str, list[dict[str, Any]]] = {
-        "community": [],
-        "staff": [],
-        "admin": [],
-    }
-
-    seen: set[str] = set()
-
-    commands = list(self.bot.tree.get_commands())
-
-    guild_id = self._public_guild_id()
-    if guild_id is not None:
-        try:
-            guild_commands = self.bot.tree.get_commands(
-                guild=discord.Object(id=int(guild_id))
-            )
-            commands.extend(guild_commands)
-        except (TypeError, ValueError):
-            pass
-
-    for command in commands:
-        for entry in self._flatten_app_command(command):
-            name = entry["name"]
-
-            if name in seen:
-                continue
-
-            seen.add(name)
-            catalog[entry["role"]].append(entry)
-
-    for role_entries in catalog.values():
-        role_entries.sort(
-            key=lambda entry: entry["name"].lower()
-        )
-
-    return catalog
-
+        return catalog
 
     # ==========================================================
     # PAGES
@@ -644,30 +643,29 @@ def _build_command_catalog(
             bracket_error=bracket_error,
         )
 
-async def guide_page(
-    self,
-    request: web.Request,
-) -> web.Response:
-    command_catalog = self._build_command_catalog()
+    async def guide_page(
+        self,
+        request: web.Request,
+    ) -> web.Response:
+        command_catalog = self._build_command_catalog()
 
-    command_count = sum(
-        len(commands)
-        for commands in command_catalog.values()
-    )
+        command_count = sum(
+            len(commands)
+            for commands in command_catalog.values()
+        )
 
-    role_counts = {
-        role: len(commands)
-        for role, commands in command_catalog.items()
-    }
+        role_counts = {
+            role: len(commands)
+            for role, commands in command_catalog.items()
+        }
 
-    return self.render(
-        "guide.html",
-        request=request,
-        command_catalog=command_catalog,
-        command_count=command_count,
-        role_counts=role_counts,
-    )
-
+        return self.render(
+            "guide.html",
+            request=request,
+            command_catalog=command_catalog,
+            command_count=command_count,
+            role_counts=role_counts,
+        )
     async def results_page(
         self,
         request: web.Request,
