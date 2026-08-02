@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}Participants — Hamtaro{% endblock %}
+
+{% macro participant_avatar(participant, regular=false) %}
+<div class="participant-avatar{% if regular %} participant-avatar-regular{% endif %}">
+    {% if participant.avatar_url %}
+    <img
+        src="{{ participant.avatar_url }}"
+        alt="Avatar de {{ participant.display_name }}"
+        loading="lazy"
+    >
+    {% else %}
+    <span>
+        {{ (participant.display_name or "?")[:1] | upper }}
+    </span>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% macro participant_card(participant, regular=false) %}
+<article
+    class="participant-card{% if regular %} participant-card-regular{% endif %}"
+    data-participant-card
+    data-participant-kind="{% if regular %}regular{% else %}all{% endif %}"
+    data-participant-search="{{ participant.search_text }}"
+>
+    <div class="participant-card-heading">
+        {{ participant_avatar(participant, regular) }}
+
+        <div class="participant-identity">
+            <div class="participant-name-line">
+                <h3>{{ participant.display_name }}</h3>
+
+                {% if regular %}
+                <span class="regular-badge">
+                    Régulier
+                </span>
+                {% endif %}
+            </div>
+
+            <p>
+                @{{ participant.username }}
+            </p>
+        </div>
+    </div>
+
+    <div class="participant-numbers">
+        <div>
+            <small>Tournois</small>
+            <strong>{{ participant.tournaments_played }}</strong>
+        </div>
+
+        <div>
+            <small>Titres</small>
+            <strong>{{ participant.tournament_wins }}</strong>
+        </div>
+
+        <div>
+            <small>Top 4</small>
+            <strong>{{ participant.top_four }}</strong>
+        </div>
+    </div>
+
+    <dl class="participant-details">
+        <div>
+            <dt>Dernier deck</dt>
+            <dd>{{ participant.latest_deck }}</dd>
+        </div>
+
+        <div>
+            <dt>Dernier tournoi</dt>
+            <dd>{{ participant.latest_tournament }}</dd>
+        </div>
+
+        <div>
+            <dt>Dernière participation</dt>
+            <dd>{{ participant.last_participation_display }}</dd>
+        </div>
+    </dl>
+
+    <a
+        class="participant-profile-link"
+        href="/players/{{ participant.discord_id }}"
+    >
+        Voir le profil Hamtaro →
+    </a>
+</article>
+{% endmacro %}
+
+{% block content %}
+<section class="participants-hero">
+    <div>
+        <p class="eyebrow">COMMUNAUTÉ FUN ROW</p>
+        <h1>Les participants Hamtaro</h1>
+        <p class="hero-text">
+            Retrouve les membres ayant participé aux tournois ainsi
+            que les joueurs les plus réguliers de la communauté.
+        </p>
+    </div>
+
+    <aside class="participants-definition">
+        <small>Participant régulier</small>
+        <strong>
+            {{ regular_threshold }} tournois ou plus
+        </strong>
+        <p>
+            Le seuil est calculé automatiquement depuis les inscriptions
+            enregistrées par Hamtaro.
+        </p>
+    </aside>
+</section>
+
+<section class="participants-stat-grid">
+    <article>
+        <small>Participants connus</small>
+        <strong>{{ participant_stats.participants }}</strong>
+    </article>
+
+    <article>
+        <small>Participants réguliers</small>
+        <strong>{{ participant_stats.regulars }}</strong>
+    </article>
+
+    <article>
+        <small>Inscriptions cumulées</small>
+        <strong>{{ participant_stats.registrations }}</strong>
+    </article>
+
+    <article>
+        <small>Titres remportés</small>
+        <strong>{{ participant_stats.titles }}</strong>
+    </article>
+</section>
+
+<section class="participants-tools">
+    <label class="participants-search">
+        <span>Rechercher un participant</span>
+        <input
+            type="search"
+            placeholder="Nom, deck, tournoi ou identifiant Discord…"
+            data-participant-search
+        >
+    </label>
+
+    <div class="participants-filter-buttons">
+        <button
+            class="participant-filter-button is-active"
+            type="button"
+            data-participant-filter="all"
+        >
+            Tous
+        </button>
+
+        <button
+            class="participant-filter-button"
+            type="button"
+            data-participant-filter="regular"
+        >
+            Réguliers
+        </button>
+    </div>
+</section>
+
+<section
+    class="content-section participants-section"
+    data-participant-section="regular"
+>
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">LES PLUS FIDÈLES</p>
+            <h2>Participants réguliers</h2>
+        </div>
+
+        <span class="participants-section-count">
+            {{ regular_participants | length }}
+        </span>
+    </div>
+
+    <div class="participants-grid">
+        {% for participant in regular_participants %}
+            {{ participant_card(participant, true) }}
+        {% else %}
+        <div class="participants-empty-state">
+            <span>🌱</span>
+            <h3>Aucun participant régulier pour le moment</h3>
+            <p>
+                Cette section se remplira automatiquement lorsqu'un joueur
+                aura participé à au moins {{ regular_threshold }} tournois.
+            </p>
+            <a href="/tournaments">Découvrir les tournois</a>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section
+    class="content-section participants-section"
+    data-participant-section="all"
+>
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">TOUTE LA COMMUNAUTÉ</p>
+            <h2>Tous les participants</h2>
+        </div>
+
+        <span class="participants-section-count">
+            {{ participants | length }}
+        </span>
+    </div>
+
+    <div class="participants-grid">
+        {% for participant in participants %}
+            {{ participant_card(
+                participant,
+                participant.tournaments_played >= regular_threshold
+            ) }}
+        {% else %}
+        <div class="participants-empty-state">
+            <span>🐹</span>
+            <h3>Aucun participant enregistré</h3>
+            <p>
+                La page affichera automatiquement les joueurs dès que
+                les premières inscriptions seront enregistrées par Hamtaro.
+            </p>
+            <a href="/guide">Voir comment s'inscrire</a>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<div
+    class="empty-state participants-search-empty"
+    data-participant-empty
+    hidden
+>
+    Aucun participant ne correspond à cette recherche.
+</div>
+{% endblock %}

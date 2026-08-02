@@ -179,3 +179,133 @@
     searchInput.addEventListener("input", refresh);
     refresh();
 })();
+(() => {
+    "use strict";
+
+    const searchInput = document.querySelector(
+        "[data-participant-search]"
+    );
+    const filterButtons = Array.from(
+        document.querySelectorAll(
+            "[data-participant-filter]"
+        )
+    );
+    const cards = Array.from(
+        document.querySelectorAll(
+            "[data-participant-card]"
+        )
+    );
+    const sections = Array.from(
+        document.querySelectorAll(
+            "[data-participant-section]"
+        )
+    );
+    const emptyState = document.querySelector(
+        "[data-participant-empty]"
+    );
+
+    if (!searchInput) {
+        return;
+    }
+
+    let activeFilter = "all";
+
+    const normalise = (value) => (
+        String(value || "")
+            .toLocaleLowerCase("fr")
+            .normalize("NFD")
+            .replace(/\p{Diacritic}/gu, "")
+            .trim()
+    );
+
+    const refresh = () => {
+        const query = normalise(searchInput.value);
+        let visibleCards = 0;
+
+        cards.forEach((card) => {
+            const searchable = normalise(
+                card.dataset.participantSearch
+            );
+            const kind = (
+                card.dataset.participantKind
+                || "all"
+            );
+
+            const searchMatches = (
+                !query
+                || searchable.includes(query)
+            );
+
+            const filterMatches = (
+                activeFilter === "all"
+                || kind === "regular"
+            );
+
+            const section = card.closest(
+                "[data-participant-section]"
+            );
+            const sectionName = section
+                ? section.dataset.participantSection
+                : "all";
+
+            const sectionMatches = (
+                activeFilter === "all"
+                ? sectionName === "all"
+                : sectionName === "regular"
+            );
+
+            const visible = (
+                searchMatches
+                && filterMatches
+                && sectionMatches
+            );
+
+            card.hidden = !visible;
+
+            if (visible) {
+                visibleCards += 1;
+            }
+        });
+
+        sections.forEach((section) => {
+            const sectionName = (
+                section.dataset.participantSection
+                || "all"
+            );
+
+            section.hidden = (
+                activeFilter === "all"
+                ? sectionName !== "all"
+                : sectionName !== "regular"
+            );
+        });
+
+        if (emptyState) {
+            emptyState.hidden = (
+                visibleCards !== 0
+                || !cards.length
+            );
+        }
+    };
+
+    filterButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            activeFilter = (
+                button.dataset.participantFilter
+                || "all"
+            );
+
+            filterButtons.forEach((other) => {
+                other.classList.toggle(
+                    "is-active",
+                    other === button
+                );
+            });
+
+            refresh();
+        });
+    });
+
+    searchInput.addEventListener("input", refresh);
+    refresh();
+})();

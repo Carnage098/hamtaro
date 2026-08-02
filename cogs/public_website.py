@@ -112,6 +112,10 @@ class PublicWebsiteCog(commands.Cog):
             self.player_page,
         )
         application.router.add_get("/profiles", self.profiles_page)
+        application.router.add_get(
+            "/participants",
+            self.participants_page,
+        )
         application.router.add_get("/guide", self.guide_page)
         application.router.add_get("/results", self.results_page)
         application.router.add_get("/decks", self.decks_page)
@@ -887,6 +891,262 @@ class PublicWebsiteCog(commands.Cog):
             prepared.append(match)
 
         return prepared
+
+    @staticmethod
+    def _participant_date(value: Any) -> str:
+        if value in (None, ""):
+            return "Aucune date"
+
+        raw = str(value).strip()
+        date_part = raw[:10]
+
+        pieces = date_part.split("-")
+        if len(pieces) == 3 and all(pieces):
+            return f"{pieces[2]}/{pieces[1]}/{pieces[0]}"
+
+        return date_part or "Aucune date"
+
+    async def _list_public_participants(
+        self,
+    ) -> list[dict[str, Any]]:
+        rows = await self.service._safe_fetchall(
+            """
+            SELECT
+                r.discord_id,
+
+                COALESCE(
+                    (
+                        SELECT NULLIF(TRIM(r2.username), '')
+                        FROM registrations r2
+                        WHERE r2.discord_id = r.discord_id
+                          AND r2.username IS NOT NULL
+                          AND TRIM(r2.username) != ''
+                        ORDER BY
+                            COALESCE(r2.registered_at, '') DESC,
+                            r2.tournament_id DESC
+                        LIMIT 1
+                    ),
+                    'Joueur Hamtaro'
+                ) AS username,
+
+                COUNT(DISTINCT r.tournament_id)
+                    AS tournaments_played,
+
+                COUNT(*) AS registrations_count,
+
+                SUM(
+                    CASE
+                        WHEN r.final_rank = 1 THEN 1
+                        ELSE 0
+                    END
+                ) AS tournament_wins,
+
+                SUM(
+                    CASE
+                        WHEN r.final_rank IS NOT NULL
+                         AND r.final_rank <= 4 THEN 1
+                        ELSE 0
+                    END
+                ) AS top_four,
+
+                MAX(r.registered_at) AS last_participation,
+
+                (
+                    SELECT NULLIF(TRIM(r2.deck), '')
+                    FROM registrations r2
+                    WHERE r2.discord_id = r.discord_id
+                      AND r2.deck IS NOT NULL
+                      AND TRIM(r2.deck) != ''
+                    ORDER BY
+                        COALESCE(r2.registered_at, '') DESC,
+                        r2.tournament_id DESC
+                    LIMIT 1
+                ) AS latest_deck,
+
+                (
+                    SELECT t2.name
+                    FROM registrations r2
+                    JOIN tournaments t2
+                      ON t2.id = r2.tournament_id
+                    WHERE r2.discord_id = r.discord_id
+                      AND LOWER(
+                          COALESCE(t2.status, '')
+                      ) != 'cancelled'
+                    ORDER BY
+                        COALESCE(r2.registered_at, '') DESC,
+                        r2.tournament_id DESC
+                    LIMIT 1
+                ) AS latest_tournament
+
+            FROM registrations r
+            JOIN tournaments t
+              ON t.id = r.tournament_id
+
+            WHERE LOWER(
+                COALESCE(t.status, '')
+            ) != 'cancelled'
+
+            GROUP BY r.discord_id
+
+            ORDER BY
+                tournaments_played DESC,
+                last_participation DESC,
+                username ASC
+
+            LIMIT 500
+            """
+        )
+
+        guild = None
+        guild_id = self._public_guild_id()
+
+        if guild_id is not None:
+            try:
+                guild = self.bot.get_guild(int(guild_id))
+            except (TypeError, ValueError):
+                guild = None
+
+        participants: list[dict[str, Any]] = []
+
+        for row in rows:
+            participant = dict(row)
+
+            discord_id = str(
+                participant.get("discord_id")
+                or ""
+            )
+
+            username = str(
+                participant.get("username")
+                or "Joueur Hamtaro"
+            )
+
+            participant["discord_id"] = discord_id
+            participant["username"] = username
+            participant["display_name"] = username
+            participant["avatar_url"] = ""
+
+            for numeric_field in (
+                "tournaments_played",
+                "registrations_count",
+                "tournament_wins",
+                "top_four",
+            ):
+                try:
+                    participant[numeric_field] = int(
+                        participant.get(numeric_field)
+                        or 0
+                    )
+                except (TypeError, ValueError):
+                    participant[numeric_field] = 0
+
+            participant["latest_deck"] = (
+                str(participant.get("latest_deck") or "")
+                or "Non renseigné"
+            )
+
+            participant["latest_tournament"] = (
+                str(
+                    participant.get("latest_tournament")
+                    or ""
+                )
+                or "Aucun tournoi"
+            )
+
+            participant["last_participation_display"] = (
+                self._participant_date(
+                    participant.get("last_participation")
+                )
+            )
+
+            if guild is not None and discord_id.isdigit():
+                member = guild.get_member(int(discord_id))
+
+                if member is not None:
+                    participant["display_name"] = (
+                        member.display_name
+                    )
+                    participant["username"] = member.name
+
+                    try:
+                        participant["avatar_url"] = (
+                            member.display_avatar.replace(
+                                size=256,
+                                static_format="png",
+                            ).url
+                        )
+                    except Exception:
+                        participant["avatar_url"] = (
+                            member.display_avatar.url
+                        )
+
+            participant["search_text"] = " ".join(
+                [
+                    participant["display_name"],
+                    participant["username"],
+                    participant["latest_deck"],
+                    participant["latest_tournament"],
+                    discord_id,
+                ]
+            ).lower()
+
+            participants.append(participant)
+
+        return participants
+
+    async def participants_page(
+        self,
+        request: web.Request,
+    ) -> web.Response:
+        participants = await self._list_public_participants()
+
+        raw_threshold = os.getenv(
+            "REGULAR_PARTICIPANT_MIN_TOURNAMENTS",
+            "3",
+        )
+
+        try:
+            regular_threshold = max(
+                2,
+                min(50, int(raw_threshold)),
+            )
+        except (TypeError, ValueError):
+            regular_threshold = 3
+
+        regular_participants = [
+            participant
+            for participant in participants
+            if (
+                participant["tournaments_played"]
+                >= regular_threshold
+            )
+        ]
+
+        total_registrations = sum(
+            participant["registrations_count"]
+            for participant in participants
+        )
+
+        total_titles = sum(
+            participant["tournament_wins"]
+            for participant in participants
+        )
+
+        participant_stats = {
+            "participants": len(participants),
+            "regulars": len(regular_participants),
+            "registrations": total_registrations,
+            "titles": total_titles,
+        }
+
+        return self.render(
+            "participants.html",
+            request=request,
+            participants=participants,
+            regular_participants=regular_participants,
+            regular_threshold=regular_threshold,
+            participant_stats=participant_stats,
+        )
 
     async def profiles_page(
         self,
