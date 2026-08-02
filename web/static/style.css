@@ -1247,3 +1247,137 @@ td a {
     height: 100%;
     place-items: center;
 }
+/* ==========================================================
+   RÉSEAUX SOUS LE MENU PRINCIPAL
+   ========================================================== */
+
+.navigation-stack {
+    display: grid;
+    justify-items: end;
+    gap: 10px;
+    min-width: 0;
+}
+
+.site-community-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 14px;
+    width: 100%;
+}
+
+.community-callout {
+    flex: 0 0 auto;
+    color: var(--gold);
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.site-community-row .owner-socials {
+    position: static;
+    right: auto;
+    bottom: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 7px;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.site-community-row .owner-social {
+    min-height: 32px;
+    padding: 0 9px;
+    border-radius: 9px;
+    font-size: 11px;
+}
+
+.site-community-row .social-symbol {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+/* Le bandeau ne contient désormais que l'image JJET Games. */
+.owner-banner {
+    overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+    .site-header {
+        align-items: flex-start;
+    }
+
+    .navigation-stack {
+        width: 100%;
+    }
+
+    .site-community-row {
+        align-items: flex-end;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .site-community-row .owner-socials {
+        width: 100%;
+    }
+
+    .site-community-row .owner-social span:last-child {
+        display: inline;
+    }
+}
+
+@media (max-width: 800px) {
+    .site-header {
+        position: static;
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .navigation-stack {
+        justify-items: stretch;
+    }
+
+    .main-navigation {
+        width: 100%;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+    }
+
+    .site-community-row {
+        align-items: flex-start;
+    }
+
+    .site-community-row .owner-socials {
+        justify-content: flex-start;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding-bottom: 4px;
+    }
+
+    .site-community-row .owner-social {
+        flex: 0 0 auto;
+    }
+}
+
+@media (max-width: 560px) {
+    .site-community-row .owner-social span:last-child {
+        display: none;
+    }
+
+    .site-community-row .owner-social {
+        min-width: 34px;
+        justify-content: center;
+        padding: 0 7px;
+    }
+}

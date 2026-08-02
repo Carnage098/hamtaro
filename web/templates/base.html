@@ -30,58 +30,6 @@
                 alt="Bannière officielle JJET Games"
             >
         </a>
-
-        <nav class="owner-socials" aria-label="Réseaux sociaux de JJET Games">
-            <a
-                class="owner-social owner-social-youtube"
-                href="{{ social_links.youtube }}"
-                target="_blank"
-                rel="noopener noreferrer"
-            >
-                <span class="social-symbol">▶</span>
-                <span>YouTube</span>
-            </a>
-
-            <a
-                class="owner-social owner-social-twitch"
-                href="{{ social_links.twitch }}"
-                target="_blank"
-                rel="noopener noreferrer"
-            >
-                <span class="social-symbol">▣</span>
-                <span>Twitch</span>
-            </a>
-
-            <a
-                class="owner-social owner-social-discord"
-                href="{{ social_links.discord }}"
-                target="_blank"
-                rel="noopener noreferrer"
-            >
-                <span class="social-symbol">☁</span>
-                <span>Discord</span>
-            </a>
-
-            <a
-                class="owner-social owner-social-x"
-                href="{{ social_links.x }}"
-                target="_blank"
-                rel="noopener noreferrer"
-            >
-                <span class="social-symbol">X</span>
-                <span>Twitter / X</span>
-            </a>
-
-            <a
-                class="owner-social owner-social-instagram"
-                href="{{ social_links.instagram }}"
-                target="_blank"
-                rel="noopener noreferrer"
-            >
-                <span class="social-symbol">◎</span>
-                <span>Instagram</span>
-            </a>
-        </nav>
     </section>
 
     <header class="site-header">
@@ -105,13 +53,79 @@
             </span>
         </a>
 
-        <nav class="main-navigation" aria-label="Navigation principale">
-            <a href="/">Tournois</a>
-            <a href="/profiles">Profils</a>
-            <a href="/results">Résultats</a>
-            <a href="/decks">Decks</a>
-            <a href="/archives">Archives</a>
-        </nav>
+        <div class="navigation-stack">
+            <nav
+                class="main-navigation"
+                aria-label="Navigation principale"
+            >
+                <a href="/">Tournois</a>
+                <a href="/profiles">Profils</a>
+                <a href="/results">Résultats</a>
+                <a href="/decks">Decks</a>
+                <a href="/archives">Archives</a>
+            </nav>
+
+            <div class="site-community-row">
+                <strong class="community-callout">
+                    REJOINS-NOUS !
+                </strong>
+
+                <nav
+                    class="owner-socials"
+                    aria-label="Réseaux sociaux de JJET Games"
+                >
+                    <a
+                        class="owner-social owner-social-youtube"
+                        href="{{ social_links.youtube }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <span class="social-symbol">▶</span>
+                        <span>YouTube</span>
+                    </a>
+
+                    <a
+                        class="owner-social owner-social-twitch"
+                        href="{{ social_links.twitch }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <span class="social-symbol">▣</span>
+                        <span>Twitch</span>
+                    </a>
+
+                    <a
+                        class="owner-social owner-social-discord"
+                        href="{{ social_links.discord }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <span class="social-symbol">☁</span>
+                        <span>Discord</span>
+                    </a>
+
+                    <a
+                        class="owner-social owner-social-x"
+                        href="{{ social_links.x }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <span class="social-symbol">X</span>
+                        <span>Twitter / X</span>
+                    </a>
+
+                    <a
+                        class="owner-social owner-social-instagram"
+                        href="{{ social_links.instagram }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <span class="social-symbol">◎</span>
+                        <span>Instagram</span>
+                    </a>
+                </nav>
+            </div>
+        </div>
     </header>
 
     <main class="page-shell">
