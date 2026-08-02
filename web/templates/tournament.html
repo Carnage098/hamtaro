@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}{{ tournament.name }} — Hamtaro{% endblock %}
+
+{% block content %}
+<section class="tournament-hero">
+    <div>
+        <p class="eyebrow">
+            TOURNOI #{{ tournament.id }}
+            {% if tournament.code %}· {{ tournament.code }}{% endif %}
+        </p>
+        <h1>{{ tournament.name }}</h1>
+        <p class="hero-text">
+            {{ tournament.format or "Format inconnu" }}
+            · {{ tournament.participant_count or 0 }} participants
+        </p>
+    </div>
+
+    <span class="status status-{{ tournament.status | lower }}">
+        {{ tournament.status or "inconnu" }}
+    </span>
+</section>
+
+<section class="content-section">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">IMAGE OFFICIELLE</p>
+            <h2>Bracket du tournoi</h2>
+        </div>
+
+        {% if bracket_version %}
+        <a
+            class="primary-button"
+            href="/api/tournaments/{{ tournament.id }}/bracket.png?v={{ bracket_version }}"
+            download="hamtaro_bracket_{{ tournament.id }}.png"
+        >
+            Télécharger le PNG
+        </a>
+        {% endif %}
+    </div>
+
+    {% if bracket_version %}
+    <div
+        class="bracket-frame"
+        data-tournament-id="{{ tournament.id }}"
+        data-bracket-version="{{ bracket_version }}"
+    >
+        <img
+            class="bracket-image"
+            data-bracket-image
+            src="/api/tournaments/{{ tournament.id }}/bracket.png?v={{ bracket_version }}"
+            alt="Bracket officiel du tournoi {{ tournament.name }}"
+        >
+    </div>
+
+    <p class="refresh-note">
+        L'image se vérifie automatiquement toutes les 30 secondes.
+    </p>
+    {% else %}
+    <div class="empty-state">
+        {{ bracket_error or "Le bracket n'est pas encore disponible." }}
+    </div>
+    {% endif %}
+</section>
+
+<section class="two-columns">
+    <article class="content-card">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">JOUEURS</p>
+                <h2>Participants</h2>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Seed</th>
+                        <th>Joueur</th>
+                        <th>Deck</th>
+                        <th>Classement</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for player in tournament.participants %}
+                    <tr>
+                        <td>{{ player.seed or "—" }}</td>
+                        <td>
+                            {% if player.discord_id %}
+                            <a href="/players/{{ player.discord_id }}">
+                                {{ player.username }}
+                            </a>
+                            {% else %}
+                                {{ player.username }}
+                            {% endif %}
+                        </td>
+                        <td>{{ player.deck or "Non renseigné" }}</td>
+                        <td>
+                            {% if player.final_rank %}
+                                #{{ player.final_rank }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4">Aucun participant enregistré.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="content-card">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">MATCHS</p>
+                <h2>Derniers résultats</h2>
+            </div>
+        </div>
+
+        <div class="result-list">
+            {% for result in tournament.results %}
+            <div class="result-item">
+                <div>
+                    <small>Ronde {{ result.round or "?" }}</small>
+                    <strong>
+                        {{ result.player1_name or "À déterminer" }}
+                        <span>vs</span>
+                        {{ result.player2_name or "À déterminer" }}
+                    </strong>
+                </div>
+                <div class="result-score">
+                    {{ result.score or (
+                        (result.player1_score|string)
+                        ~ "-"
+                        ~ (result.player2_score|string)
+                    ) }}
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-state small">
+                Aucun résultat validé.
+            </div>
+            {% endfor %}
+        </div>
+    </article>
+</section>
+{% endblock %}

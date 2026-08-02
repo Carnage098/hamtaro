@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Archives — Hamtaro{% endblock %}
+
+{% block content %}
+<section class="hero compact-hero">
+    <p class="eyebrow">HISTORIQUE</p>
+    <h1>Archives des tournois</h1>
+</section>
+
+<section class="content-section">
+    <div class="card-grid">
+        {% for tournament in tournaments %}
+        <a class="tournament-card" href="/tournaments/{{ tournament.id }}">
+            <div class="card-topline">
+                <span class="status status-{{ tournament.status | lower }}">
+                    {{ tournament.status }}
+                </span>
+                <span>#{{ tournament.id }}</span>
+            </div>
+
+            <h3>{{ tournament.name }}</h3>
+
+            <div class="card-information">
+                <span>{{ tournament.format or "Format inconnu" }}</span>
+                <span>{{ tournament.participant_count or 0 }} joueurs</span>
+            </div>
+
+            {% if tournament.winner_name %}
+            <p class="champion-line">
+                Champion : <strong>{{ tournament.winner_name }}</strong>
+            </p>
+            {% endif %}
+        </a>
+        {% else %}
+        <div class="empty-state">
+            Aucun tournoi archivé.
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

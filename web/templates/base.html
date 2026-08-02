@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <meta
+        name="description"
+        content="Tournois, brackets et résultats officiels Hamtaro."
+    >
+    <title>{% block title %}Hamtaro Tournaments{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/app.js" defer></script>
+</head>
+
+<body>
+    <header class="site-header">
+        <a class="brand" href="/">
+            <span class="brand-mark">H</span>
+            <span>
+                <strong>HAMTARO</strong>
+                <small>TOURNAMENTS</small>
+            </span>
+        </a>
+
+        <nav class="main-navigation" aria-label="Navigation principale">
+            <a href="/">Tournois</a>
+            <a href="/results">Résultats</a>
+            <a href="/decks">Decks</a>
+            <a href="/archives">Archives</a>
+        </nav>
+    </header>
+
+    <main class="page-shell">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <p>Hamtaro Tournament System</p>
+        <p>Le bracket affiché est généré par le même moteur que Discord.</p>
+    </footer>
+</body>
+</html>
