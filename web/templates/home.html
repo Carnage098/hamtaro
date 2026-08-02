@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}Accueil — Hamtaro{% endblock %}
+
+{% macro tournament_card(tournament) %}
+<a
+    class="home-tournament-card"
+    href="/tournaments/{{ tournament.id }}"
+>
+    <div class="home-card-topline">
+        <span class="status status-{{ tournament.status | lower }}">
+            {{ tournament.status or "inconnu" }}
+        </span>
+        <span>#{{ tournament.id }}</span>
+    </div>
+
+    <h3>{{ tournament.name }}</h3>
+
+    <div class="home-card-details">
+        <span>{{ tournament.format or "Format inconnu" }}</span>
+        <span>{{ tournament.participant_count or 0 }} joueurs</span>
+    </div>
+
+    <span class="home-card-link">Voir le tournoi →</span>
+</a>
+{% endmacro %}
+
+{% block content %}
+<section class="home-hero">
+    <div class="home-hero-content">
+        <p class="eyebrow">BIENVENUE SUR HAMTARO</p>
+
+        <h1>
+            Les tournois Yu-Gi-Oh! de Fun Row,
+            réunis au même endroit.
+        </h1>
+
+        <p class="home-hero-text">
+            Hamtaro est le bot officiel de JJET Games pour organiser
+            les inscriptions, les rondes suisses, les brackets,
+            les résultats et les statistiques de la communauté.
+        </p>
+
+        <div class="home-hero-actions">
+            <a class="primary-button" href="/tournaments">
+                Voir les tournois
+            </a>
+
+            <a class="home-secondary-button" href="/guide">
+                Apprendre à utiliser Hamtaro
+            </a>
+
+            <a
+                class="home-discord-button"
+                href="{{ social_links.discord }}"
+                target="_blank"
+                rel="noopener noreferrer"
+            >
+                Rejoindre Fun Row
+            </a>
+        </div>
+    </div>
+
+    <aside class="home-status-panel">
+        <p class="eyebrow">HAMTARO EN DIRECT</p>
+
+        <div class="home-stat-grid">
+            <article>
+                <small>Inscriptions ouvertes</small>
+                <strong>{{ home_stats.open }}</strong>
+            </article>
+
+            <article>
+                <small>Tournois en cours</small>
+                <strong>{{ home_stats.active }}</strong>
+            </article>
+
+            <article>
+                <small>Tournois archivés</small>
+                <strong>{{ home_stats.archived }}</strong>
+            </article>
+
+            <article>
+                <small>Commandes disponibles</small>
+                <strong>{{ home_stats.commands }}</strong>
+            </article>
+        </div>
+
+        <a href="/tournaments" class="home-status-link">
+            Consulter toute l'activité →
+        </a>
+    </aside>
+</section>
+
+<section class="home-feature-section">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">UN BOT COMPLET</p>
+            <h2>Tout ce qu'il faut pour participer</h2>
+        </div>
+    </div>
+
+    <div class="home-feature-grid">
+        <a class="home-feature-card" href="/tournaments">
+            <span class="home-feature-icon">🏆</span>
+            <div>
+                <h3>Tournois et brackets</h3>
+                <p>
+                    Suis les inscriptions, les adversaires, les scores
+                    et l'image officielle du bracket en direct.
+                </p>
+            </div>
+        </a>
+
+        <a class="home-feature-card" href="/profiles">
+            <span class="home-feature-icon">👤</span>
+            <div>
+                <h3>Profils des joueurs</h3>
+                <p>
+                    Retrouve les victoires, les decks, les séries,
+                    les Top 4 et l'historique des matchs.
+                </p>
+            </div>
+        </a>
+
+        <a class="home-feature-card" href="/guide">
+            <span class="home-feature-icon">📘</span>
+            <div>
+                <h3>Guide du bot</h3>
+                <p>
+                    Apprends quelles commandes utiliser comme joueur,
+                    membre du staff ou administrateur.
+                </p>
+            </div>
+        </a>
+
+        <a class="home-feature-card" href="/decks">
+            <span class="home-feature-icon">🎴</span>
+            <div>
+                <h3>Statistiques des decks</h3>
+                <p>
+                    Consulte les participations, les Top 4 et les
+                    victoires enregistrées pour chaque deck.
+                </p>
+            </div>
+        </a>
+    </div>
+</section>
+
+<section class="content-section">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">À SUIVRE</p>
+            <h2>Tournois mis en avant</h2>
+        </div>
+
+        <a class="text-link" href="/tournaments">
+            Tous les tournois
+        </a>
+    </div>
+
+    <div class="home-tournament-grid">
+        {% for tournament in featured_tournaments %}
+            {{ tournament_card(tournament) }}
+        {% else %}
+            <div class="empty-state">
+                Aucun tournoi n'est encore disponible.
+                Consulte le guide pour préparer la prochaine compétition.
+            </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="home-bottom-grid">
+    <article class="home-results-panel">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">DERNIERS DUELS</p>
+                <h2>Résultats récents</h2>
+            </div>
+
+            <a class="text-link" href="/results">
+                Voir tous les résultats
+            </a>
+        </div>
+
+        <div class="home-result-list">
+            {% for result in recent_results %}
+            <a
+                class="home-result-item"
+                href="/tournaments/{{ result.tournament_id }}"
+            >
+                <div>
+                    <small>
+                        {{ result.tournament_name or "Tournoi Hamtaro" }}
+                    </small>
+
+                    <strong>
+                        {{ result.player1_name or "Joueur 1" }}
+                        <span>vs</span>
+                        {{ result.player2_name or "Joueur 2" }}
+                    </strong>
+                </div>
+
+                <span class="home-result-score">
+                    {{ result.score or (
+                        (result.player1_score|string)
+                        ~ "-"
+                        ~ (result.player2_score|string)
+                    ) }}
+                </span>
+            </a>
+            {% else %}
+            <div class="empty-state small">
+                Aucun résultat validé pour le moment.
+            </div>
+            {% endfor %}
+        </div>
+    </article>
+
+    <aside class="home-start-panel">
+        <p class="eyebrow">COMMENCER</p>
+        <h2>Tu découvres Hamtaro ?</h2>
+
+        <p>
+            Le guide explique le parcours complet : inscription,
+            prochain adversaire, signalement d'un résultat,
+            validation staff et clôture du tournoi.
+        </p>
+
+        <ol>
+            <li>Consulte le tournoi actif.</li>
+            <li>Inscris-toi avec ton deck.</li>
+            <li>Joue ton match puis signale le score.</li>
+            <li>Suis ton profil et le bracket.</li>
+        </ol>
+
+        <a class="primary-button" href="/guide">
+            Ouvrir le guide complet
+        </a>
+    </aside>
+</section>
+{% endblock %}
