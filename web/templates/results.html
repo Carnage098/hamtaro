@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Résultats — Hamtaro{% endblock %}
+
+{% block content %}
+<section class="hero compact-hero">
+    <p class="eyebrow">MATCHS VALIDÉS</p>
+    <h1>Résultats récents</h1>
+</section>
+
+<section class="content-card">
+    <div class="result-list">
+        {% for result in results %}
+        <a
+            class="result-item result-link"
+            href="/tournaments/{{ result.tournament_id }}"
+        >
+            <div>
+                <small>
+                    {{ result.tournament_name }}
+                    · ronde {{ result.round or "?" }}
+                </small>
+                <strong>
+                    {{ result.player1_name or "À déterminer" }}
+                    <span>vs</span>
+                    {{ result.player2_name or "À déterminer" }}
+                </strong>
+                {% if result.winner_name %}
+                <p>Vainqueur : {{ result.winner_name }}</p>
+                {% endif %}
+            </div>
+
+            <div class="result-score">
+                {{ result.score or (
+                    (result.player1_score|string)
+                    ~ "-"
+                    ~ (result.player2_score|string)
+                ) }}
+            </div>
+        </a>
+        {% else %}
+        <div class="empty-state">
+            Aucun résultat récent n'est disponible.
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

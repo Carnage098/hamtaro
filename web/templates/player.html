@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}
+{{ player.display_name or player.username }} — Hamtaro
+{% endblock %}
+
+{% block content %}
+<section class="player-hero">
+    <div class="player-avatar">
+        {% if player.avatar_url %}
+        <img
+            src="{{ player.avatar_url }}"
+            alt="Avatar de {{ player.display_name or player.username }}"
+        >
+        {% else %}
+        <span>
+            {{ (player.display_name or player.username or "?")[:1] | upper }}
+        </span>
+        {% endif %}
+    </div>
+
+    <div>
+        <p class="eyebrow">PROFIL JOUEUR</p>
+        <h1>{{ player.display_name or player.username }}</h1>
+        <p class="hero-text">Identifiant Discord : {{ player.discord_id }}</p>
+    </div>
+</section>
+
+<section class="stat-grid">
+    <article class="stat-card">
+        <small>Matchs</small>
+        <strong>{{ player.calculated_played or 0 }}</strong>
+    </article>
+
+    <article class="stat-card">
+        <small>Victoires</small>
+        <strong>{{ player.calculated_wins or 0 }}</strong>
+    </article>
+
+    <article class="stat-card">
+        <small>Défaites</small>
+        <strong>{{ player.calculated_losses or 0 }}</strong>
+    </article>
+
+    <article class="stat-card">
+        <small>Tournois</small>
+        <strong>{{ player.registrations | length }}</strong>
+    </article>
+</section>
+
+<section class="two-columns">
+    <article class="content-card">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">PARCOURS</p>
+                <h2>Tournois joués</h2>
+            </div>
+        </div>
+
+        <div class="result-list">
+            {% for registration in player.registrations %}
+            <a
+                class="result-item result-link"
+                href="/tournaments/{{ registration.tournament_id }}"
+            >
+                <div>
+                    <small>{{ registration.tournament_format }}</small>
+                    <strong>{{ registration.tournament_name }}</strong>
+                    <p>{{ registration.deck or "Deck non renseigné" }}</p>
+                </div>
+                <div class="result-score">
+                    {% if registration.final_rank %}
+                        #{{ registration.final_rank }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </div>
+            </a>
+            {% else %}
+            <div class="empty-state small">Aucun tournoi enregistré.</div>
+            {% endfor %}
+        </div>
+    </article>
+
+    <article class="content-card">
+        <div class="section-heading compact">
+            <div>
+                <p class="eyebrow">HISTORIQUE</p>
+                <h2>Derniers matchs</h2>
+            </div>
+        </div>
+
+        <div class="result-list">
+            {% for match in player.matches %}
+            <a
+                class="result-item result-link"
+                href="/tournaments/{{ match.tournament_id }}"
+            >
+                <div>
+                    <small>{{ match.tournament_name }}</small>
+                    <strong>
+                        {{ match.player1_name or "?" }}
+                        <span>vs</span>
+                        {{ match.player2_name or "?" }}
+                    </strong>
+                </div>
+                <div class="result-score">
+                    {{ match.score or (
+                        (match.player1_score|string)
+                        ~ "-"
+                        ~ (match.player2_score|string)
+                    ) }}
+                </div>
+            </a>
+            {% else %}
+            <div class="empty-state small">Aucun match enregistré.</div>
+            {% endfor %}
+        </div>
+    </article>
+</section>
+{% endblock %}

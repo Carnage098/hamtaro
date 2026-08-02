@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Decks — Hamtaro{% endblock %}
+
+{% block content %}
+<section class="hero compact-hero">
+    <p class="eyebrow">MÉTAGAME</p>
+    <h1>Statistiques des decks</h1>
+    <p class="hero-text">
+        Données calculées depuis les inscriptions et les classements finaux.
+    </p>
+</section>
+
+<section class="content-card">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Deck</th>
+                    <th>Participations</th>
+                    <th>Tournois</th>
+                    <th>Top 4</th>
+                    <th>Victoires</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for deck in decks %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td><strong>{{ deck.deck }}</strong></td>
+                    <td>{{ deck.appearances or 0 }}</td>
+                    <td>{{ deck.tournaments or 0 }}</td>
+                    <td>{{ deck.top_four or 0 }}</td>
+                    <td>{{ deck.tournament_wins or 0 }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">
+                        Aucune statistique de deck n'est encore disponible.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
