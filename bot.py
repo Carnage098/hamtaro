@@ -34,6 +34,7 @@ COGS = [
     "cogs.tournament_progression",
     "cogs.deck_stats",
     "cogs.tournament_export",
+    "cogs.public_website",
 ]
 
 
