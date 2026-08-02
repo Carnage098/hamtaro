@@ -1312,58 +1312,102 @@ class PublicWebsiteCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ) -> None:
-        # Discord exige une première réponse très rapide.
-        # Le defer empêche l'erreur 10062 si l'interaction prend du retard.
-        await interaction.response.defer(
-            thinking=True,
-            ephemeral=True,
+        # Cette commande ne fait aucun traitement long :
+        # elle répond directement au lieu de faire defer + followup.
+        delay_seconds = max(
+            0.0,
+            (
+                discord.utils.utcnow()
+                - interaction.created_at
+            ).total_seconds(),
         )
+
+        if delay_seconds >= 2.0:
+            LOGGER.warning(
+                (
+                    "/hamtaro_site reçue avec %.2f seconde(s) "
+                    "de retard. Une autre tâche bloque peut-être "
+                    "la boucle asyncio."
+                ),
+                delay_seconds,
+            )
 
         website_url = os.getenv(
             "WEBSITE_BASE_URL",
             "",
         ).strip().rstrip("/")
 
-        if not website_url:
+        try:
+            if not website_url:
+                await interaction.response.send_message(
+                    (
+                        "❌ Le site est activé, mais "
+                        "`WEBSITE_BASE_URL` n'est pas encore "
+                        "configurée dans Railway."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            embed = discord.Embed(
+                title="🌐 Site public Hamtaro",
+                description=(
+                    "Consulte les tournois, les résultats, "
+                    "les archives et les brackets officiels."
+                ),
+                url=website_url,
+                colour=discord.Colour.gold(),
+            )
+
+            embed.add_field(
+                name="Lien du site",
+                value=(
+                    f"[Ouvrir le site Hamtaro]"
+                    f"({website_url})"
+                ),
+                inline=False,
+            )
+
+            view = discord.ui.View()
+            view.add_item(
+                discord.ui.Button(
+                    label="Ouvrir le site",
+                    url=website_url,
+                    emoji="🌐",
+                )
+            )
+
+            await interaction.response.send_message(
+                embed=embed,
+                view=view,
+                ephemeral=True,
+            )
+
+        except discord.NotFound as error:
+            if error.code == 10062:
+                LOGGER.warning(
+                    (
+                        "Interaction /hamtaro_site expirée avant "
+                        "la réponse : id=%s retard=%.2fs code=%s"
+                    ),
+                    interaction.id,
+                    delay_seconds,
+                    error.code,
+                )
+                return
+
+            raise
+
+        except discord.InteractionResponded:
+            # Sécurité en cas de réponse déjà envoyée par un autre
+            # gestionnaire : on utilise alors un followup.
             await interaction.followup.send(
                 (
-                    "❌ Le site est activé, mais `WEBSITE_BASE_URL` "
-                    "n'est pas encore configurée dans Railway."
+                    f"🌐 Site public Hamtaro : "
+                    f"{website_url}"
                 ),
                 ephemeral=True,
             )
-            return
-
-        embed = discord.Embed(
-            title="🌐 Site public Hamtaro",
-            description=(
-                "Consulte les tournois, les résultats, les archives "
-                "et les brackets officiels."
-            ),
-            url=website_url,
-            colour=discord.Colour.gold(),
-        )
-
-        embed.add_field(
-            name="Lien du site",
-            value=f"[Ouvrir le site Hamtaro]({website_url})",
-            inline=False,
-        )
-
-        view = discord.ui.View(timeout=None)
-        view.add_item(
-            discord.ui.Button(
-                label="Ouvrir le site",
-                url=website_url,
-                emoji="🌐",
-            )
-        )
-
-        await interaction.followup.send(
-            embed=embed,
-            view=view,
-            ephemeral=True,
-        )
 
 
 async def setup(bot: commands.Bot) -> None:
