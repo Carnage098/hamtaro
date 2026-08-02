@@ -86,7 +86,19 @@
 
     <header class="site-header">
         <a class="brand" href="/">
-            <span class="brand-mark">H</span>
+            <span class="brand-mark brand-avatar">
+                {% if bot_avatar_url %}
+                <img
+                    src="{{ bot_avatar_url }}"
+                    alt="Photo de profil Discord de Hamtaro"
+                    width="44"
+                    height="44"
+                >
+                {% else %}
+                <span aria-hidden="true">H</span>
+                {% endif %}
+            </span>
+
             <span>
                 <strong>HAMTARO</strong>
                 <small>TOURNAMENTS</small>

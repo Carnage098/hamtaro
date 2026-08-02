@@ -294,10 +294,22 @@ class PublicWebsiteCog(commands.Cog):
             ).strip(),
         }
 
+        bot_avatar_url = ""
+
+        if self.bot.user is not None:
+            try:
+                bot_avatar_url = self.bot.user.display_avatar.replace(
+                    size=256,
+                    static_format="png",
+                ).url
+            except Exception:
+                bot_avatar_url = self.bot.user.display_avatar.url
+
         html = template.render(
             request=request,
             website_url=website_url,
             social_links=social_links,
+            bot_avatar_url=bot_avatar_url,
             **context,
         )
 
