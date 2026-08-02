@@ -1990,3 +1990,104 @@ td a {
         text-align: left;
     }
 }
+/* ==========================================================
+   SLOGAN OFFICIEL DE HAMTARO DANS L'EN-TÊTE
+   ========================================================== */
+
+.site-header {
+    display: grid;
+    grid-template-columns:
+        auto
+        minmax(240px, 1fr)
+        minmax(0, auto);
+    align-items: center;
+}
+
+.brand {
+    flex: none;
+    min-width: max-content;
+}
+
+.brand-slogan {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding: 8px clamp(18px, 3vw, 54px);
+}
+
+.brand-slogan p {
+    max-width: 610px;
+    margin: 0;
+    color: var(--text);
+    font-size: clamp(16px, 1.45vw, 23px);
+    font-weight: 760;
+    line-height: 1.42;
+    letter-spacing: 0.015em;
+    text-align: center;
+    text-wrap: balance;
+}
+
+.brand-slogan strong {
+    color: var(--gold);
+    font-weight: 950;
+}
+
+.navigation-stack {
+    min-width: 0;
+}
+
+/*
+ * Sur les écrans intermédiaires, l'identité et le slogan restent
+ * côte à côte. Le menu passe en dessous afin d'éviter qu'il sorte
+ * de l'écran.
+ */
+@media (max-width: 1250px) {
+    .site-header {
+        grid-template-columns:
+            auto
+            minmax(220px, 1fr);
+        row-gap: 16px;
+    }
+
+    .brand-slogan {
+        justify-content: flex-start;
+        padding-right: 0;
+    }
+
+    .brand-slogan p {
+        max-width: none;
+        text-align: left;
+    }
+
+    .navigation-stack {
+        grid-column: 1 / -1;
+        width: 100%;
+        justify-items: end;
+    }
+}
+
+@media (max-width: 800px) {
+    .site-header {
+        display: flex;
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .brand-slogan {
+        justify-content: flex-start;
+        padding: 4px 0 8px;
+    }
+
+    .brand-slogan p {
+        font-size: 16px;
+        text-align: left;
+    }
+}
+
+@media (max-width: 480px) {
+    .brand-slogan p {
+        font-size: 14px;
+        line-height: 1.5;
+    }
+}
