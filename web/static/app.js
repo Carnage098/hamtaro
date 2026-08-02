@@ -47,3 +47,51 @@
 
     window.setInterval(refreshBracket, 30_000);
 })();
+(() => {
+    "use strict";
+
+    const tabs = Array.from(
+        document.querySelectorAll("[data-profile-tab]")
+    );
+    const panels = Array.from(
+        document.querySelectorAll("[data-profile-panel]")
+    );
+
+    if (!tabs.length || !panels.length) {
+        return;
+    }
+
+    const activate = (name) => {
+        tabs.forEach((tab) => {
+            const selected = tab.dataset.profileTab === name;
+            tab.classList.toggle("is-active", selected);
+            tab.setAttribute("aria-selected", String(selected));
+        });
+
+        panels.forEach((panel) => {
+            const selected = panel.dataset.profilePanel === name;
+            panel.classList.toggle("is-active", selected);
+            panel.hidden = !selected;
+        });
+
+        const url = new URL(window.location.href);
+        url.searchParams.set("section", name);
+        window.history.replaceState({}, "", url);
+    };
+
+    tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+            activate(tab.dataset.profileTab || "overview");
+        });
+    });
+
+    const requested = new URL(window.location.href)
+        .searchParams
+        .get("section");
+
+    if (requested && tabs.some(
+        (tab) => tab.dataset.profileTab === requested
+    )) {
+        activate(requested);
+    }
+})();

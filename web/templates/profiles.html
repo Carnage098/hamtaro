@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Rechercher un profil — Hamtaro{% endblock %}
+
+{% block content %}
+<section class="hero compact-hero profile-search-hero">
+    <p class="eyebrow">PROFILS HAMTARO</p>
+    <h1>Rechercher un joueur</h1>
+    <p class="hero-text">
+        Entre l'identifiant Discord numérique du joueur pour consulter
+        les mêmes statistiques que dans la commande <code>/profile</code>.
+    </p>
+</section>
+
+<section class="profile-search-card">
+    <form class="profile-search-form" action="/profiles" method="get">
+        <label for="discord_id">Identifiant Discord</label>
+
+        <div class="profile-search-line">
+            <input
+                id="discord_id"
+                name="discord_id"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]+"
+                placeholder="Exemple : 123456789012345678"
+                required
+                autocomplete="off"
+            >
+            <button class="primary-button" type="submit">
+                Ouvrir le profil
+            </button>
+        </div>
+
+        {% if error %}
+        <p class="form-error">{{ error }}</p>
+        {% endif %}
+    </form>
+
+    <aside class="profile-search-help">
+        <strong>Comment trouver un identifiant Discord ?</strong>
+        <p>
+            Active le mode développeur dans Discord, fais un clic droit
+            sur le joueur, puis choisis « Copier l'identifiant ».
+        </p>
+    </aside>
+</section>
+{% endblock %}

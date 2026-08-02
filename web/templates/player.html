@@ -1,121 +1,268 @@
 {% extends "base.html" %}
 
-{% block title %}
-{{ player.display_name or player.username }} — Hamtaro
-{% endblock %}
+{% block title %}{{ display_name }} — Hamtaro{% endblock %}
 
 {% block content %}
-<section class="player-hero">
-    <div class="player-avatar">
-        {% if player.avatar_url %}
-        <img
-            src="{{ player.avatar_url }}"
-            alt="Avatar de {{ player.display_name or player.username }}"
-        >
-        {% else %}
-        <span>
-            {{ (player.display_name or player.username or "?")[:1] | upper }}
-        </span>
-        {% endif %}
-    </div>
-
-    <div>
-        <p class="eyebrow">PROFIL JOUEUR</p>
-        <h1>{{ player.display_name or player.username }}</h1>
-        <p class="hero-text">Identifiant Discord : {{ player.discord_id }}</p>
-    </div>
-</section>
-
-<section class="stat-grid">
-    <article class="stat-card">
-        <small>Matchs</small>
-        <strong>{{ player.calculated_played or 0 }}</strong>
-    </article>
-
-    <article class="stat-card">
-        <small>Victoires</small>
-        <strong>{{ player.calculated_wins or 0 }}</strong>
-    </article>
-
-    <article class="stat-card">
-        <small>Défaites</small>
-        <strong>{{ player.calculated_losses or 0 }}</strong>
-    </article>
-
-    <article class="stat-card">
-        <small>Tournois</small>
-        <strong>{{ player.registrations | length }}</strong>
-    </article>
-</section>
-
-<section class="two-columns">
-    <article class="content-card">
-        <div class="section-heading compact">
-            <div>
-                <p class="eyebrow">PARCOURS</p>
-                <h2>Tournois joués</h2>
-            </div>
-        </div>
-
-        <div class="result-list">
-            {% for registration in player.registrations %}
-            <a
-                class="result-item result-link"
-                href="/tournaments/{{ registration.tournament_id }}"
+<section class="player-profile-hero">
+    <div class="player-profile-identity">
+        <div class="player-avatar player-avatar-large">
+            {% if avatar_url %}
+            <img
+                src="{{ avatar_url }}"
+                alt="Avatar de {{ display_name }}"
             >
-                <div>
-                    <small>{{ registration.tournament_format }}</small>
-                    <strong>{{ registration.tournament_name }}</strong>
-                    <p>{{ registration.deck or "Deck non renseigné" }}</p>
-                </div>
-                <div class="result-score">
-                    {% if registration.final_rank %}
-                        #{{ registration.final_rank }}
-                    {% else %}
-                        —
-                    {% endif %}
-                </div>
-            </a>
             {% else %}
-            <div class="empty-state small">Aucun tournoi enregistré.</div>
-            {% endfor %}
+            <span>{{ (display_name or "?")[:1] | upper }}</span>
+            {% endif %}
         </div>
-    </article>
 
+        <div>
+            <p class="eyebrow">PROFIL HAMTARO</p>
+            <h1>{{ display_name }}</h1>
+            <p class="hero-text">
+                @{{ username }} · {{ profile_scope }}
+            </p>
+        </div>
+    </div>
+
+    <div class="profile-rank-summary">
+        <span class="profile-rank-label">Taux de victoire</span>
+        <strong>{{ "%.1f"|format(summary.win_rate) }} %</strong>
+        <small>
+            {{ summary.wins }} victoire(s) sur
+            {{ summary.matches }} match(s) comptabilisé(s)
+        </small>
+    </div>
+</section>
+
+<nav class="profile-tabs" aria-label="Sections du profil">
+    <button
+        class="profile-tab is-active"
+        type="button"
+        data-profile-tab="overview"
+    >
+        👤 Vue générale
+    </button>
+    <button
+        class="profile-tab"
+        type="button"
+        data-profile-tab="matches"
+    >
+        ⚔️ Derniers matchs
+    </button>
+    <button
+        class="profile-tab"
+        type="button"
+        data-profile-tab="decks"
+    >
+        🎴 Decks
+    </button>
+    <button
+        class="profile-tab"
+        type="button"
+        data-profile-tab="records"
+    >
+        🏆 Palmarès
+    </button>
+</nav>
+
+<section
+    class="profile-panel is-active"
+    data-profile-panel="overview"
+>
+    <div class="profile-overview-grid">
+        <article class="profile-detail-card">
+            <p class="eyebrow">📊 MATCHS</p>
+            <dl class="profile-definition-list">
+                <div><dt>Joués</dt><dd>{{ summary.matches }}</dd></div>
+                <div><dt>Victoires</dt><dd>{{ summary.wins }}</dd></div>
+                <div><dt>Défaites</dt><dd>{{ summary.losses }}</dd></div>
+                <div><dt>Double Loss</dt><dd>{{ summary.double_losses }}</dd></div>
+                <div><dt>BYE</dt><dd>{{ summary.byes }}</dd></div>
+            </dl>
+        </article>
+
+        <article class="profile-detail-card">
+            <p class="eyebrow">📈 PERFORMANCES</p>
+            <dl class="profile-definition-list">
+                <div>
+                    <dt>Taux de victoire</dt>
+                    <dd>{{ "%.1f"|format(summary.win_rate) }} %</dd>
+                </div>
+                <div>
+                    <dt>Série actuelle</dt>
+                    <dd>{{ summary.current_streak }}</dd>
+                </div>
+                <div>
+                    <dt>Meilleure série</dt>
+                    <dd>{{ summary.best_streak }}</dd>
+                </div>
+            </dl>
+        </article>
+
+        <article class="profile-detail-card">
+            <p class="eyebrow">🏆 TOURNOIS</p>
+            <dl class="profile-definition-list">
+                <div>
+                    <dt>Participations</dt>
+                    <dd>{{ summary.tournaments_played }}</dd>
+                </div>
+                <div><dt>Titres</dt><dd>{{ summary.tournaments_won }}</dd></div>
+                <div><dt>Finales</dt><dd>{{ summary.finals }}</dd></div>
+                <div><dt>Top 4</dt><dd>{{ summary.top4 }}</dd></div>
+            </dl>
+        </article>
+
+        <article class="profile-detail-card">
+            <p class="eyebrow">🎴 DECKS</p>
+            <dl class="profile-definition-list profile-definition-wide">
+                <div>
+                    <dt>Deck récent</dt>
+                    <dd>{{ summary.current_deck or "Non renseigné" }}</dd>
+                </div>
+                <div>
+                    <dt>Le plus utilisé</dt>
+                    <dd>{{ summary.most_used_deck or "Non renseigné" }}</dd>
+                </div>
+                <div>
+                    <dt>Meilleur résultat</dt>
+                    <dd>
+                        {% if summary.best_deck and summary.best_deck_win_rate is not none %}
+                            {{ summary.best_deck }}
+                            · {{ "%.1f"|format(summary.best_deck_win_rate) }} %
+                        {% else %}
+                            Pas assez de matchs
+                        {% endif %}
+                    </dd>
+                </div>
+            </dl>
+        </article>
+    </div>
+
+    <p class="profile-method-note">
+        Les BYE ne sont pas comptés dans le taux de victoire.
+        Un Double Loss compte comme un match sans victoire.
+    </p>
+</section>
+
+<section
+    class="profile-panel"
+    data-profile-panel="matches"
+    hidden
+>
     <article class="content-card">
         <div class="section-heading compact">
             <div>
-                <p class="eyebrow">HISTORIQUE</p>
+                <p class="eyebrow">⚔️ HISTORIQUE</p>
                 <h2>Derniers matchs</h2>
             </div>
         </div>
 
-        <div class="result-list">
-            {% for match in player.matches %}
+        <div class="profile-match-list">
+            {% for match in matches[:20] %}
             <a
-                class="result-item result-link"
+                class="profile-match profile-result-{{ match.result_code | lower }}"
                 href="/tournaments/{{ match.tournament_id }}"
             >
-                <div>
-                    <small>{{ match.tournament_name }}</small>
-                    <strong>
-                        {{ match.player1_name or "?" }}
-                        <span>vs</span>
-                        {{ match.player2_name or "?" }}
-                    </strong>
+                <div class="profile-match-result">
+                    <span>{{ match.result_label }}</span>
+                    <strong>{{ match.score_display }}</strong>
                 </div>
-                <div class="result-score">
-                    {{ match.score or (
-                        (match.player1_score|string)
-                        ~ "-"
-                        ~ (match.player2_score|string)
-                    ) }}
+
+                <div class="profile-match-main">
+                    <small>
+                        {{ match.tournament_name or "Tournoi" }}
+                        {% if match.tournament_code %}
+                            · {{ match.tournament_code }}
+                        {% endif %}
+                    </small>
+                    <strong>contre {{ match.opponent_name }}</strong>
+                    <p>
+                        {{ match.round_label }}
+                        · {{ match.tournament_format or "Format inconnu" }}
+                    </p>
                 </div>
             </a>
             {% else %}
-            <div class="empty-state small">Aucun match enregistré.</div>
+            <div class="empty-state small">
+                Aucun match terminé n'a été trouvé.
+            </div>
             {% endfor %}
         </div>
     </article>
+</section>
+
+<section
+    class="profile-panel"
+    data-profile-panel="decks"
+    hidden
+>
+    <div class="deck-profile-grid">
+        {% for deck in decks %}
+            {% if deck.matches > 0 %}
+            <article class="deck-profile-card">
+                <div class="deck-profile-heading">
+                    <h3>{{ deck.deck }}</h3>
+                    <strong>{{ "%.1f"|format(deck.win_rate) }} %</strong>
+                </div>
+
+                <dl class="profile-definition-list">
+                    <div><dt>Matchs</dt><dd>{{ deck.matches }}</dd></div>
+                    <div><dt>Victoires</dt><dd>{{ deck.wins }}</dd></div>
+                    <div><dt>Défaites</dt><dd>{{ deck.losses }}</dd></div>
+                    <div><dt>Double Loss</dt><dd>{{ deck.double_losses }}</dd></div>
+                </dl>
+
+                {% if deck.matches < 5 %}
+                <p class="sample-warning">⚠️ Échantillon faible</p>
+                {% endif %}
+            </article>
+            {% endif %}
+        {% else %}
+        <div class="empty-state">
+            Aucun match avec un deck renseigné.
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section
+    class="profile-panel"
+    data-profile-panel="records"
+    hidden
+>
+    <div class="records-showcase">
+        <article class="record-card record-card-gold">
+            <small>Titres</small>
+            <strong>{{ summary.tournaments_won }}</strong>
+        </article>
+
+        <article class="record-card">
+            <small>Finales</small>
+            <strong>{{ summary.finals }}</strong>
+        </article>
+
+        <article class="record-card">
+            <small>Top 4</small>
+            <strong>{{ summary.top4 }}</strong>
+        </article>
+
+        <article class="record-card">
+            <small>Série actuelle</small>
+            <strong>{{ summary.current_streak }}</strong>
+        </article>
+
+        <article class="record-card">
+            <small>Meilleure série</small>
+            <strong>{{ summary.best_streak }}</strong>
+        </article>
+    </div>
+
+    {% if summary.finals == 0 and summary.top4 == 0 %}
+    <p class="profile-method-note">
+        Les finales et les Top 4 apparaissent lorsque
+        <code>final_rank</code> est renseigné dans les inscriptions.
+    </p>
+    {% endif %}
 </section>
 {% endblock %}
