@@ -2938,3 +2938,106 @@ td a {
         text-align: left;
     }
 }
+/* ==========================================================
+   SCÈNE DE FIN DE LA PAGE D'ACCUEIL
+   ========================================================== */
+
+.visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: -1px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(50%) !important;
+    border: 0 !important;
+    white-space: nowrap !important;
+}
+
+.home-end-scene {
+    position: relative;
+    width: 100%;
+    margin: clamp(58px, 8vw, 110px) auto 0;
+    isolation: isolate;
+}
+
+.home-end-scene::before {
+    position: absolute;
+    z-index: -1;
+    inset: 8% -5% -4%;
+    border-radius: 50%;
+    background:
+        radial-gradient(
+            ellipse at center,
+            rgba(240, 199, 94, 0.09),
+            rgba(7, 9, 16, 0) 68%
+        );
+    filter: blur(28px);
+    content: "";
+    pointer-events: none;
+}
+
+.home-end-scene-frame {
+    position: relative;
+    width: min(100%, 1672px);
+    margin: 0 auto;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    border-radius: clamp(18px, 2.2vw, 34px);
+    background: #161515;
+    box-shadow:
+        0 28px 90px rgba(0, 0, 0, 0.44),
+        0 0 60px rgba(240, 199, 94, 0.035);
+}
+
+.home-end-scene-frame::after {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow:
+        inset 0 1px rgba(255, 255, 255, 0.045),
+        inset 0 -42px 70px rgba(7, 9, 16, 0.16);
+    content: "";
+    pointer-events: none;
+}
+
+.home-end-scene-frame img {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1672 / 941;
+    object-fit: contain;
+    background: #161515;
+}
+
+@media (max-width: 700px) {
+    .home-end-scene {
+        width: calc(100% + 10px);
+        margin-left: -5px;
+    }
+
+    .home-end-scene-frame {
+        border-radius: 18px;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .home-end-scene-frame {
+        animation: home-end-scene-arrival 600ms ease-out both;
+        animation-timeline: view();
+        animation-range: entry 8% cover 28%;
+    }
+
+    @keyframes home-end-scene-arrival {
+        from {
+            opacity: 0.25;
+            transform: translateY(24px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+}
