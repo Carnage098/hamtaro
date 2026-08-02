@@ -16,6 +16,7 @@ from jinja2 import (
     select_autoescape,
 )
 
+from services.analytics_service import AnalyticsService
 from services.bracket_export_service import (
     BracketExportService,
     FINISHED_STATUSES,
@@ -49,6 +50,7 @@ class PublicWebsiteCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.service = BracketExportService(bot)
+        self.analytics = AnalyticsService()
 
         project_root = Path(__file__).resolve().parent.parent
         self.web_directory = project_root / "web"
@@ -108,6 +110,7 @@ class PublicWebsiteCog(commands.Cog):
             r"/players/{discord_id:\d+}",
             self.player_page,
         )
+        application.router.add_get("/profiles", self.profiles_page)
         application.router.add_get("/results", self.results_page)
         application.router.add_get("/decks", self.decks_page)
         application.router.add_get("/archives", self.archives_page)
@@ -268,9 +271,33 @@ class PublicWebsiteCog(commands.Cog):
             "",
         ).rstrip("/")
 
+        social_links = {
+            "youtube": os.getenv(
+                "JJET_YOUTUBE_URL",
+                "https://www.youtube.com/@jjetgames2869",
+            ).strip(),
+            "twitch": os.getenv(
+                "JJET_TWITCH_URL",
+                "https://www.twitch.tv/jjetgames",
+            ).strip(),
+            "discord": os.getenv(
+                "JJET_DISCORD_URL",
+                "https://discord.gg/ZGUhg8yTZC",
+            ).strip(),
+            "x": os.getenv(
+                "JJET_X_URL",
+                "https://x.com/jjetgames?s=21&t=lZrZN0RjrW7lPWv3CWFipQ",
+            ).strip(),
+            "instagram": os.getenv(
+                "JJET_INSTAGRAM_URL",
+                "https://www.instagram.com/jjettgames/",
+            ).strip(),
+        }
+
         html = template.render(
             request=request,
             website_url=website_url,
+            social_links=social_links,
             **context,
         )
 
@@ -403,20 +430,203 @@ class PublicWebsiteCog(commands.Cog):
             tournaments=tournaments,
         )
 
+    def _public_guild_id(self) -> str | None:
+        configured = (
+            os.getenv("PUBLIC_GUILD_ID")
+            or os.getenv("GUILD_ID")
+            or ""
+        ).strip()
+
+        if configured.isdigit():
+            return configured
+
+        if self.bot.guilds:
+            return str(self.bot.guilds[0].id)
+
+        return None
+
+    async def _public_member(
+        self,
+        guild_id: str,
+        discord_id: str,
+    ) -> discord.Member | None:
+        try:
+            guild = self.bot.get_guild(int(guild_id))
+            member_id = int(discord_id)
+        except (TypeError, ValueError):
+            return None
+
+        if guild is None:
+            return None
+
+        member = guild.get_member(member_id)
+        if member is not None:
+            return member
+
+        try:
+            return await guild.fetch_member(member_id)
+        except (
+            discord.NotFound,
+            discord.Forbidden,
+            discord.HTTPException,
+        ):
+            return None
+
+    @staticmethod
+    def _profile_matches(
+        matches: list[dict[str, Any]],
+        player_id: str,
+    ) -> list[dict[str, Any]]:
+        prepared: list[dict[str, Any]] = []
+
+        for raw_match in matches:
+            match = dict(raw_match)
+            player1_id = str(match.get("player1_id") or "")
+            player2_id = str(match.get("player2_id") or "")
+
+            if player1_id == player_id:
+                opponent_name = match.get("player2_name") or "BYE"
+            elif player2_id == player_id:
+                opponent_name = match.get("player1_name") or "BYE"
+            else:
+                opponent_name = "Adversaire inconnu"
+
+            is_bye = int(match.get("is_bye") or 0) == 1
+            is_double_loss = int(match.get("is_double_loss") or 0) == 1
+            winner_id = str(match.get("winner_id") or "")
+
+            if is_bye:
+                result_code = "BYE"
+                result_label = "BYE"
+            elif is_double_loss:
+                result_code = "DL"
+                result_label = "Double Loss"
+            elif winner_id == player_id:
+                result_code = "W"
+                result_label = "Victoire"
+            elif winner_id:
+                result_code = "L"
+                result_label = "Défaite"
+            else:
+                result_code = "N"
+                result_label = "Non déterminé"
+
+            score_text = str(match.get("score_text") or "").strip()
+            if not score_text:
+                score_text = (
+                    f"{int(match.get('player1_score') or 0)}"
+                    f"-{int(match.get('player2_score') or 0)}"
+                )
+
+            if match.get("match_kind") == "swiss":
+                round_label = (
+                    f"Ronde {match.get('round_number') or '?'}"
+                    f" · Table {match.get('table_number') or '?'}"
+                )
+            else:
+                round_label = (
+                    f"Round {match.get('round_number') or '?'}"
+                    f" · Match {match.get('table_number') or '?'}"
+                )
+
+            match.update(
+                {
+                    "opponent_name": opponent_name,
+                    "result_code": result_code,
+                    "result_label": result_label,
+                    "score_display": score_text,
+                    "round_label": round_label,
+                }
+            )
+            prepared.append(match)
+
+        return prepared
+
+    async def profiles_page(
+        self,
+        request: web.Request,
+    ) -> web.Response:
+        discord_id = str(
+            request.query.get("discord_id") or ""
+        ).strip()
+
+        if discord_id:
+            if not discord_id.isdigit():
+                return self.render(
+                    "profiles.html",
+                    request=request,
+                    error=(
+                        "L'identifiant Discord doit contenir "
+                        "uniquement des chiffres."
+                    ),
+                )
+
+            raise web.HTTPFound(f"/players/{discord_id}")
+
+        return self.render(
+            "profiles.html",
+            request=request,
+            error=None,
+        )
+
     async def player_page(
         self,
         request: web.Request,
     ) -> web.Response:
         discord_id = request.match_info["discord_id"]
-        player = await self.service.get_player_profile(discord_id)
+        guild_id = self._public_guild_id()
 
-        if player is None:
-            raise web.HTTPNotFound()
+        if guild_id is None:
+            raise ValueError(
+                "Aucun serveur Discord public n'est configuré. "
+                "Ajoute PUBLIC_GUILD_ID dans Railway."
+            )
+
+        member = await self._public_member(
+            guild_id,
+            discord_id,
+        )
+
+        fallback_name = (
+            member.display_name
+            if member is not None
+            else f"Joueur {discord_id}"
+        )
+
+        summary, matches, decks = (
+            await self.analytics.get_player_profile(
+                guild_id=guild_id,
+                player_id=discord_id,
+                fallback_name=fallback_name,
+            )
+        )
+
+        avatar_url = summary.avatar_url
+        if member is not None:
+            avatar_url = member.display_avatar.replace(
+                size=256,
+                static_format="png",
+            ).url
+
+        display_name = summary.display_name or fallback_name
+        username = summary.username or fallback_name
+
+        prepared_matches = self._profile_matches(
+            matches,
+            discord_id,
+        )
 
         return self.render(
             "player.html",
             request=request,
-            player=player,
+            player_id=discord_id,
+            display_name=display_name,
+            username=username,
+            avatar_url=avatar_url,
+            summary=summary,
+            matches=prepared_matches,
+            decks=decks,
+            profile_scope="Tous les tournois du serveur",
         )
 
     # ==========================================================
@@ -496,15 +706,22 @@ class PublicWebsiteCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ) -> None:
+        # Discord exige une première réponse très rapide.
+        # Le defer empêche l'erreur 10062 si l'interaction prend du retard.
+        await interaction.response.defer(
+            thinking=True,
+            ephemeral=True,
+        )
+
         website_url = os.getenv(
             "WEBSITE_BASE_URL",
             "",
         ).strip().rstrip("/")
 
         if not website_url:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 (
-                    "Le site est activé, mais `WEBSITE_BASE_URL` "
+                    "❌ Le site est activé, mais `WEBSITE_BASE_URL` "
                     "n'est pas encore configurée dans Railway."
                 ),
                 ephemeral=True,
@@ -522,14 +739,24 @@ class PublicWebsiteCog(commands.Cog):
         )
 
         embed.add_field(
-            name="Lien",
-            value=website_url,
+            name="Lien du site",
+            value=f"[Ouvrir le site Hamtaro]({website_url})",
             inline=False,
         )
 
-        await interaction.response.send_message(
+        view = discord.ui.View(timeout=None)
+        view.add_item(
+            discord.ui.Button(
+                label="Ouvrir le site",
+                url=website_url,
+                emoji="🌐",
+            )
+        )
+
+        await interaction.followup.send(
             embed=embed,
-            ephemeral=False,
+            view=view,
+            ephemeral=True,
         )
 
 
