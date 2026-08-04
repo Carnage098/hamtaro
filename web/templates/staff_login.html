@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Connexion staff · Hamtaro{% endblock %}
+
+{% block content %}
+<section class="professional-panel professional-login">
+    <div>
+        <p class="professional-eyebrow">ACCÈS PROTÉGÉ</p>
+        <h1>Tableau de bord staff</h1>
+        <p>
+            Entre le jeton défini dans la variable Railway
+            <code>STAFF_DASHBOARD_TOKEN</code>.
+        </p>
+    </div>
+
+    {% if error %}
+    <div class="professional-alert professional-alert-error" role="alert">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/staff/login" class="professional-form">
+        <label for="staff-token">Jeton d’accès</label>
+        <input
+            id="staff-token"
+            name="token"
+            type="password"
+            autocomplete="current-password"
+            minlength="24"
+            required
+        >
+        <button type="submit">Ouvrir le tableau de bord</button>
+    </form>
+</section>
+{% endblock %}

@@ -369,3 +369,201 @@
 
     refreshTournamentLists();
 })();
+
+// Tableau de bord staff : rafraîchissement protégé en arrière-plan.
+(() => {
+    "use strict";
+
+    const dashboard = document.querySelector("[data-staff-dashboard]");
+    if (!dashboard) {
+        return;
+    }
+
+    const refreshUrl = dashboard.dataset.refreshUrl || "/staff/api/overview";
+    const updateLabel = document.querySelector("[data-staff-last-update]");
+    let running = false;
+
+    const replaceRows = (selector, rows, emptyMessage, columns) => {
+        const body = document.querySelector(selector);
+        if (!body) {
+            return;
+        }
+        body.replaceChildren();
+
+        if (!rows.length) {
+            const tr = document.createElement("tr");
+            const td = document.createElement("td");
+            td.colSpan = columns;
+            td.textContent = emptyMessage;
+            tr.append(td);
+            body.append(tr);
+            return;
+        }
+
+        rows.forEach((row) => {
+            const tr = document.createElement("tr");
+            row.forEach((value, index) => {
+                const td = document.createElement("td");
+                if (index === 0) {
+                    const code = document.createElement("code");
+                    code.textContent = String(value ?? "");
+                    td.append(code);
+                } else {
+                    td.textContent = String(value ?? "");
+                }
+                tr.append(td);
+            });
+            body.append(tr);
+        });
+    };
+
+    const replaceCards = (selector, rows, emptyMessage, builder) => {
+        const container = document.querySelector(selector);
+        if (!container) {
+            return;
+        }
+        container.replaceChildren();
+        if (!rows.length) {
+            const p = document.createElement("p");
+            p.textContent = emptyMessage;
+            container.append(p);
+            return;
+        }
+        rows.forEach((row) => container.append(builder(row)));
+    };
+
+    const refresh = async () => {
+        if (running || document.hidden) {
+            return;
+        }
+        running = true;
+        try {
+            const response = await fetch(refreshUrl, {
+                cache: "no-store",
+                credentials: "same-origin",
+                headers: {"Accept": "application/json"},
+            });
+            if (!response.ok) {
+                return;
+            }
+            const data = await response.json();
+            const totals = data.totals || {};
+            const statValues = document.querySelectorAll(
+                "[data-staff-stats] article strong"
+            );
+            const ordered = [
+                totals.active_tournaments,
+                totals.registrations,
+                totals.pending_results,
+                totals.invalid_matches,
+            ];
+            statValues.forEach((element, index) => {
+                element.textContent = String(ordered[index] ?? 0);
+            });
+
+            replaceRows(
+                "[data-staff-tournaments]",
+                (data.active_tournaments || []).map((item) => [
+                    item.code,
+                    item.name,
+                    item.status,
+                    `${item.participant_count || 0}/${item.max_players || 0}`,
+                    `${item.current_round || 0}/${item.total_rounds || 0}`,
+                ]),
+                "Aucun tournoi actif.",
+                5
+            );
+            replaceRows(
+                "[data-staff-results]",
+                (data.pending_results || []).map((item) => [
+                    item.tournament_code,
+                    `${item.match_kind}:${item.match_id}`,
+                    `${item.player1_score}-${item.player2_score}`,
+                    item.status,
+                ]),
+                "Aucun résultat en attente.",
+                4
+            );
+
+            replaceCards(
+                "[data-staff-invalid]",
+                data.invalid_matches || [],
+                "Aucune incohérence détectée.",
+                (item) => {
+                    const article = document.createElement("article");
+                    article.className = "professional-issue";
+                    const strong = document.createElement("strong");
+                    strong.textContent = `${item.tournament_code} · Match #${item.id}`;
+                    const span = document.createElement("span");
+                    span.textContent = `${item.player1_name || "?"} contre ${item.player2_name || "?"}`;
+                    const code = document.createElement("code");
+                    code.textContent = String(item.status || "");
+                    article.append(strong, span, code);
+                    return article;
+                }
+            );
+
+            replaceCards(
+                "[data-staff-audit]",
+                data.recent_audit || [],
+                "Aucune action enregistrée.",
+                (item) => {
+                    const article = document.createElement("article");
+                    article.className = "professional-audit-entry";
+                    const strong = document.createElement("strong");
+                    strong.textContent = String(item.action || "Action");
+                    const span = document.createElement("span");
+                    span.textContent = String(
+                        item.actor_name || item.actor_id || "Système"
+                    );
+                    const time = document.createElement("time");
+                    time.textContent = String(item.created_at || "");
+                    article.append(strong, span, time);
+                    return article;
+                }
+            );
+
+            if (updateLabel) {
+                updateLabel.textContent = `Mis à jour à ${new Date().toLocaleTimeString("fr-FR")}`;
+            }
+        } catch (error) {
+            console.debug("Tableau de bord staff indisponible.", error);
+        } finally {
+            running = false;
+        }
+    };
+
+    window.setInterval(refresh, 15_000);
+    window.addEventListener("focus", refresh);
+})();
+
+
+// Recherche locale et indication de synchronisation de la page Tournois.
+(() => {
+    "use strict";
+
+    const search = document.querySelector("[data-tournament-search]");
+    if (!search) {
+        return;
+    }
+    const updateLabel = document.querySelector("[data-tournament-last-update]");
+
+    const applyFilter = () => {
+        const query = search.value.trim().toLocaleLowerCase("fr-FR");
+        document.querySelectorAll("[data-tournament-card]").forEach((card) => {
+            const haystack = String(card.dataset.search || "");
+            card.hidden = Boolean(query) && !haystack.includes(query);
+        });
+    };
+
+    search.addEventListener("input", applyFilter);
+    const observer = new MutationObserver(() => {
+        applyFilter();
+        if (updateLabel) {
+            updateLabel.textContent = `Mis à jour à ${new Date().toLocaleTimeString("fr-FR")}`;
+        }
+    });
+    document.querySelectorAll("[data-tournament-list]").forEach((list) => {
+        observer.observe(list, {childList: true, subtree: true});
+    });
+})();

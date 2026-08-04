@@ -3,35 +3,53 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
+import signal
 import time
 import traceback
+from contextlib import suppress
 from typing import Any
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from config import TOKEN
+from config import (
+    BOT_BUILD,
+    DATABASE_BACKUP_INTERVAL_HOURS,
+    DATABASE_BACKUPS_ENABLED,
+    DEBUG_INTERACTIONS,
+    ENABLE_MESSAGE_CONTENT,
+    ENABLE_WATCHDOG,
+    EVENT_LOOP_WARNING_SECONDS,
+    EVENT_LOOP_WATCHDOG_INTERVAL,
+    FAIL_ON_COG_ERROR,
+    GUILD_ID,
+    INSTANCE_LOCK_PATH,
+    LOG_LEVEL,
+    SYNC_GLOBAL_COMMANDS,
+    SYNC_GUILD_COMMANDS,
+    TOKEN,
+)
 from database import init_db
+from services.database_maintenance import (
+    checkpoint_wal,
+    create_backup,
+    prepare_database,
+)
 from services.database_service import DatabaseService
 from utils.permissions import StaffOnly
+from utils.runtime_lock import AlreadyRunningError, RuntimeLock
 
 
 logging.basicConfig(
-    level=getattr(
-        logging,
-        os.getenv("LOG_LEVEL", "INFO").strip().upper(),
-        logging.INFO,
-    ),
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",
 )
-
 LOGGER = logging.getLogger("hamtaro")
-BOT_BUILD = "interaction-fix-2026-08-04-2133"
 
-
-COGS = [
+# Un échec sur un module essentiel empêche un bot partiellement cassé
+# d'apparaître en ligne. Les modules graphiques restent facultatifs.
+REQUIRED_COGS = (
     "cogs.registration",
     "cogs.tournament",
     "cogs.bracket",
@@ -47,64 +65,51 @@ COGS = [
     "cogs.bracket_full",
     "cogs.end_tournament",
     "cogs.help",
-    "cogs.graphics_preview",
-    "cogs.swiss_graphics",
     "cogs.tournament_context",
     "cogs.tournament_undo",
     "cogs.match_center",
     "cogs.tournament_progression",
     "cogs.deck_stats",
     "cogs.tournament_export",
+    "cogs.professional_web",
     "cogs.public_website",
     "cogs.hamtaro_hub",
-]
+    "cogs.system_health",
+    "cogs.professional_tools",
+)
+
+OPTIONAL_COGS = (
+    "cogs.graphics_preview",
+    "cogs.swiss_graphics",
+)
 
 
-def _truthy(value: str | None, default: bool = False) -> bool:
-    if value is None:
-        return default
-
-    return value.strip().lower() not in {
-        "0",
-        "false",
-        "no",
-        "off",
-        "disabled",
-    }
-
-
-def _interaction_name(interaction: discord.Interaction) -> str:
+def interaction_name(interaction: discord.Interaction) -> str:
     data = interaction.data
-    if isinstance(data, dict):
-        name = data.get("name")
-        if name:
-            return str(name)
-
+    if isinstance(data, dict) and data.get("name"):
+        return str(data["name"])
     command = interaction.command
-    if command is not None:
-        return str(getattr(command, "qualified_name", command.name))
+    return (
+        str(getattr(command, "qualified_name", command.name))
+        if command is not None
+        else "interaction-inconnue"
+    )
 
-    return "interaction-inconnue"
 
-
-class LoggingCommandTree(app_commands.CommandTree):
-    """Journalise le passage d'une commande avant son callback."""
-
+class HamtaroCommandTree(app_commands.CommandTree):
     async def interaction_check(
         self,
         interaction: discord.Interaction,
         /,
     ) -> bool:
-        LOGGER.warning(
-            (
-                "[COMMAND_TREE] interaction reçue "
-                "id=%s commande=%s guild=%s user=%s"
-            ),
-            interaction.id,
-            _interaction_name(interaction),
-            interaction.guild_id,
-            interaction.user.id,
-        )
+        if DEBUG_INTERACTIONS:
+            LOGGER.info(
+                "[COMMAND] id=%s name=%s guild=%s user=%s",
+                interaction.id,
+                interaction_name(interaction),
+                interaction.guild_id,
+                interaction.user.id,
+            )
         return True
 
 
@@ -112,239 +117,209 @@ class HamtaroBot(commands.Bot):
     def __init__(self) -> None:
         intents = discord.Intents.default()
         intents.members = True
-        intents.message_content = True
+        intents.message_content = ENABLE_MESSAGE_CONTENT
 
         super().__init__(
             command_prefix="!",
             intents=intents,
-            tree_cls=LoggingCommandTree,
+            tree_cls=HamtaroCommandTree,
+            allowed_mentions=discord.AllowedMentions.none(),
+            chunk_guilds_at_startup=False,
         )
 
         self.db = DatabaseService()
-        self._watchdog_task: asyncio.Task[None] | None = None
+        self.started_at_monotonic = time.monotonic()
+        self.failed_extensions: dict[str, str] = {}
+        self._background_tasks: set[asyncio.Task[Any]] = set()
+        self._ready_logged = False
+
+    def create_background_task(
+        self,
+        coroutine,
+        *,
+        name: str,
+    ) -> asyncio.Task[Any]:
+        task = asyncio.create_task(coroutine, name=name)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
 
     async def setup_hook(self) -> None:
-        LOGGER.warning(
-            "[BOOT] Hamtaro version=%s fichier=%s",
-            BOT_BUILD,
-            __file__,
-        )
+        LOGGER.info("Démarrage Hamtaro build=%s", BOT_BUILD)
 
-        self._watchdog_task = asyncio.create_task(
-            self._event_loop_watchdog(),
-            name="hamtaro-event-loop-watchdog",
-        )
-
-        init_started = time.perf_counter()
+        # Le contrôle et la sauvegarde ont lieu avant toute migration.
+        await prepare_database()
         await init_db()
-        LOGGER.info(
-            "[BOOT] init_db terminé en %.3fs",
-            time.perf_counter() - init_started,
-        )
-
-        db_started = time.perf_counter()
         await self.db.connect()
-        LOGGER.info(
-            "[BOOT] connexion DatabaseService terminée en %.3fs",
-            time.perf_counter() - db_started,
-        )
 
-        for cog in COGS:
-            cog_started = time.perf_counter()
-            try:
-                await self.load_extension(cog)
-                LOGGER.info(
-                    "✅ Cog chargé : %s en %.3fs",
-                    cog,
-                    time.perf_counter() - cog_started,
-                )
-            except Exception:
-                LOGGER.exception("❌ Erreur chargement %s", cog)
-
+        await self._load_extensions()
         await self._sync_application_commands()
 
+        if ENABLE_WATCHDOG:
+            self.create_background_task(
+                self._event_loop_watchdog(),
+                name="hamtaro-event-loop-watchdog",
+            )
+
+        if DATABASE_BACKUPS_ENABLED:
+            self.create_background_task(
+                self._database_backup_loop(),
+                name="hamtaro-database-backups",
+            )
+
+    async def _load_extensions(self) -> None:
+        required_failures: list[str] = []
+
+        for extension in (*REQUIRED_COGS, *OPTIONAL_COGS):
+            started = time.perf_counter()
+            try:
+                await self.load_extension(extension)
+            except Exception as error:
+                self.failed_extensions[extension] = repr(error)
+                LOGGER.exception("Échec du chargement de %s", extension)
+                if extension in REQUIRED_COGS:
+                    required_failures.append(extension)
+            else:
+                LOGGER.info(
+                    "Cog chargé : %s en %.3fs",
+                    extension,
+                    time.perf_counter() - started,
+                )
+
+        if required_failures and FAIL_ON_COG_ERROR:
+            raise RuntimeError(
+                "Modules essentiels non chargés : "
+                + ", ".join(required_failures)
+            )
+
+        if required_failures:
+            LOGGER.error(
+                "Hamtaro démarre en mode dégradé. Modules essentiels absents : %s",
+                ", ".join(required_failures),
+            )
+
     async def _sync_application_commands(self) -> None:
-        """
-        Synchronise les commandes globales et, lorsqu'un identifiant de
-        serveur est configuré, remplace les anciennes commandes de serveur
-        par une copie exacte des commandes actuellement chargées.
-        """
+        performed = False
 
-        try:
+        if SYNC_GUILD_COMMANDS:
+            if GUILD_ID.isdigit():
+                guild = discord.Object(id=int(GUILD_ID))
+                started = time.perf_counter()
+                self.tree.clear_commands(guild=guild)
+                self.tree.copy_global_to(guild=guild)
+                commands_synced = await self.tree.sync(guild=guild)
+                LOGGER.info(
+                    "%s commandes synchronisées sur le serveur %s en %.3fs",
+                    len(commands_synced),
+                    GUILD_ID,
+                    time.perf_counter() - started,
+                )
+                performed = True
+            else:
+                LOGGER.warning(
+                    "SYNC_GUILD_COMMANDS est actif, mais GUILD_ID est absent ou invalide."
+                )
+
+        if SYNC_GLOBAL_COMMANDS:
             started = time.perf_counter()
-            global_synced = await self.tree.sync()
-            LOGGER.warning(
-                "[SYNC] %s commande(s) globale(s) synchronisée(s) en %.3fs",
-                len(global_synced),
-                time.perf_counter() - started,
-            )
-        except Exception:
-            LOGGER.exception(
-                "❌ Erreur lors de la synchronisation globale des commandes"
-            )
-            return
-
-        guild_id = (
-            os.getenv("GUILD_ID")
-            or os.getenv("PUBLIC_GUILD_ID")
-            or ""
-        ).strip()
-
-        sync_guild = _truthy(
-            os.getenv("SYNC_GUILD_COMMANDS"),
-            default=True,
-        )
-
-        if not sync_guild:
+            commands_synced = await self.tree.sync()
             LOGGER.info(
-                "[SYNC] Synchronisation de serveur désactivée par "
-                "SYNC_GUILD_COMMANDS."
-            )
-            return
-
-        if not guild_id.isdigit():
-            LOGGER.warning(
-                "[SYNC] Aucun GUILD_ID/PUBLIC_GUILD_ID valide : "
-                "les anciennes commandes propres au serveur ne peuvent "
-                "pas être remplacées automatiquement."
-            )
-            return
-
-        guild = discord.Object(id=int(guild_id))
-
-        try:
-            started = time.perf_counter()
-
-            # Supprime de l'arbre local les anciennes définitions de serveur,
-            # puis copie les commandes globales réellement chargées.
-            self.tree.clear_commands(guild=guild)
-            self.tree.copy_global_to(guild=guild)
-
-            guild_synced = await self.tree.sync(guild=guild)
-
-            LOGGER.warning(
-                (
-                    "[SYNC] %s commande(s) synchronisée(s) sur le serveur "
-                    "%s en %.3fs"
-                ),
-                len(guild_synced),
-                guild_id,
+                "%s commandes globales synchronisées en %.3fs",
+                len(commands_synced),
                 time.perf_counter() - started,
             )
-        except Exception:
-            LOGGER.exception(
-                "❌ Erreur lors de la synchronisation des commandes "
-                "du serveur %s",
-                guild_id,
+            performed = True
+
+        if not performed:
+            LOGGER.info(
+                "Synchronisation Discord ignorée. Les commandes déjà publiées restent actives."
             )
 
-    async def _event_loop_watchdog(self) -> None:
-        """Détecte les traitements synchrones qui figent tout le bot."""
-
-        interval = max(
-            0.5,
-            float(os.getenv("EVENT_LOOP_WATCHDOG_INTERVAL", "1.0")),
-        )
-        warning_after = max(
-            1.0,
-            float(os.getenv("EVENT_LOOP_WARNING_SECONDS", "2.0")),
-        )
-
-        loop = asyncio.get_running_loop()
-        expected = loop.time() + interval
-
+    async def _database_backup_loop(self) -> None:
+        interval = DATABASE_BACKUP_INTERVAL_HOURS * 3600
         try:
             while not self.is_closed():
                 await asyncio.sleep(interval)
+                await create_backup(reason="scheduled")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            LOGGER.exception("La boucle de sauvegarde SQLite s'est arrêtée.")
 
+    async def _event_loop_watchdog(self) -> None:
+        loop = asyncio.get_running_loop()
+        expected = loop.time() + EVENT_LOOP_WATCHDOG_INTERVAL
+
+        try:
+            while not self.is_closed():
+                await asyncio.sleep(EVENT_LOOP_WATCHDOG_INTERVAL)
                 now = loop.time()
                 delay = max(0.0, now - expected)
-                expected = now + interval
+                expected = now + EVENT_LOOP_WATCHDOG_INTERVAL
 
-                if delay < warning_after:
+                if delay < EVENT_LOOP_WARNING_SECONDS:
                     continue
 
                 LOGGER.error(
-                    (
-                        "[EVENT_LOOP_BLOCKED] La boucle asyncio a été "
-                        "bloquée pendant environ %.3fs. Une fonction "
-                        "synchrone lourde s'exécute probablement dans un "
-                        "async def."
-                    ),
+                    "La boucle asyncio a été bloquée pendant environ %.3fs.",
                     delay,
                 )
-
                 current = asyncio.current_task()
                 reported = 0
 
                 for task in asyncio.all_tasks(loop):
                     if task is current or task.done():
                         continue
-
-                    frames = task.get_stack(limit=4)
+                    frames = task.get_stack(limit=3)
                     if not frames:
                         continue
 
-                    reported += 1
                     LOGGER.error(
-                        "[EVENT_LOOP_TASK] nom=%s coroutine=%r",
+                        "Tâche potentiellement bloquante : %s (%r)",
                         task.get_name(),
                         task.get_coro(),
                     )
-
                     for frame in frames:
                         extracted = traceback.extract_stack(frame, limit=1)
-                        if not extracted:
-                            continue
-
-                        info = extracted[0]
-                        LOGGER.error(
-                            "[EVENT_LOOP_STACK] %s:%s dans %s -> %s",
-                            info.filename,
-                            info.lineno,
-                            info.name,
-                            info.line or "",
-                        )
-
-                    if reported >= 12:
+                        if extracted:
+                            info = extracted[0]
+                            LOGGER.error(
+                                "%s:%s dans %s -> %s",
+                                info.filename,
+                                info.lineno,
+                                info.name,
+                                info.line or "",
+                            )
+                    reported += 1
+                    if reported >= 8:
                         break
-
         except asyncio.CancelledError:
             raise
         except Exception:
-            LOGGER.exception("Le watchdog asyncio s'est arrêté anormalement.")
+            LOGGER.exception("Le watchdog asyncio s'est arrêté.")
 
-    async def on_interaction(
-        self,
-        interaction: discord.Interaction,
-    ) -> None:
-        if interaction.type is discord.InteractionType.application_command:
-            LOGGER.warning(
-                (
-                    "[INTERACTION_EVENT] id=%s commande=%s "
-                    "guild=%s user=%s"
-                ),
+    async def on_interaction(self, interaction: discord.Interaction) -> None:
+        if (
+            DEBUG_INTERACTIONS
+            and interaction.type is discord.InteractionType.application_command
+        ):
+            LOGGER.info(
+                "[INTERACTION] id=%s name=%s guild=%s user=%s",
                 interaction.id,
-                _interaction_name(interaction),
+                interaction_name(interaction),
                 interaction.guild_id,
                 interaction.user.id,
             )
 
-    async def on_socket_raw_receive(self, msg: str | bytes) -> None:
-        """
-        Journalise INTERACTION_CREATE au niveau Gateway. Si ce log apparaît
-        mais pas [COMMAND_TREE], Discord a bien envoyé l'interaction mais
-        discord.py ne l'a pas associée à la commande chargée.
-        """
+    async def on_socket_raw_receive(self, message: str | bytes) -> None:
+        if not DEBUG_INTERACTIONS:
+            return
 
-        if isinstance(msg, bytes):
-            try:
-                text = msg.decode("utf-8")
-            except UnicodeDecodeError:
-                return
-        else:
-            text = msg
-
+        text = (
+            message.decode("utf-8", errors="ignore")
+            if isinstance(message, bytes)
+            else message
+        )
         if "INTERACTION_CREATE" not in text:
             return
 
@@ -352,30 +327,34 @@ class HamtaroBot(commands.Bot):
             payload: dict[str, Any] = json.loads(text)
             data = payload.get("d") or {}
             command_data = data.get("data") or {}
-            LOGGER.warning(
-                (
-                    "[GATEWAY_INTERACTION_CREATE] id=%s commande=%s "
-                    "guild=%s application=%s"
-                ),
+            LOGGER.debug(
+                "[GATEWAY] id=%s command=%s guild=%s application=%s",
                 data.get("id"),
                 command_data.get("name"),
                 data.get("guild_id"),
                 data.get("application_id"),
             )
         except (TypeError, ValueError, json.JSONDecodeError):
-            LOGGER.warning(
-                "[GATEWAY_INTERACTION_CREATE] interaction reçue, "
-                "mais le payload n'a pas pu être décodé."
-            )
+            LOGGER.debug("Payload INTERACTION_CREATE illisible.")
 
     async def close(self) -> None:
-        if self._watchdog_task is not None:
-            self._watchdog_task.cancel()
-            try:
-                await self._watchdog_task
-            except asyncio.CancelledError:
-                pass
-            self._watchdog_task = None
+        LOGGER.info("Arrêt propre de Hamtaro.")
+
+        for task in tuple(self._background_tasks):
+            task.cancel()
+        if self._background_tasks:
+            await asyncio.gather(
+                *tuple(self._background_tasks),
+                return_exceptions=True,
+            )
+        self._background_tasks.clear()
+
+        connection = getattr(self.db, "conn", None)
+        await checkpoint_wal(connection)
+
+        if DATABASE_BACKUPS_ENABLED:
+            with suppress(Exception):
+                await create_backup(reason="shutdown")
 
         try:
             await self.db.close()
@@ -392,74 +371,39 @@ async def send_interaction_message(
     *,
     ephemeral: bool = True,
 ) -> bool:
-    """
-    Envoie une réponse sans provoquer une seconde exception si
-    l'interaction est déjà reconnue, expirée ou inconnue de Discord.
-
-    Retourne True si le message a été envoyé, sinon False.
-    """
-
     try:
         if interaction.response.is_done():
-            await interaction.followup.send(
-                message,
-                ephemeral=ephemeral,
-            )
+            await interaction.followup.send(message, ephemeral=ephemeral)
         else:
             await interaction.response.send_message(
                 message,
                 ephemeral=ephemeral,
             )
-
         return True
-
     except discord.InteractionResponded:
         try:
-            await interaction.followup.send(
-                message,
-                ephemeral=ephemeral,
-            )
+            await interaction.followup.send(message, ephemeral=ephemeral)
             return True
-        except (
-            discord.NotFound,
-            discord.HTTPException,
-        ):
+        except (discord.NotFound, discord.HTTPException):
             return False
-
     except discord.NotFound as error:
         if error.code == 10062:
-            LOGGER.warning(
-                "Interaction expirée ou inconnue : %s",
-                interaction.id,
-            )
+            LOGGER.warning("Interaction expirée : %s", interaction.id)
             return False
-
-        LOGGER.exception(
-            "Erreur Discord pendant l'envoi de l'interaction %s",
-            interaction.id,
-        )
+        LOGGER.exception("Erreur Discord sur l'interaction %s", interaction.id)
         return False
-
     except discord.HTTPException as error:
         if error.code in {10062, 40060}:
             LOGGER.warning(
-                "Interaction déjà reconnue ou expirée : %s code=%s",
+                "Interaction expirée ou déjà reconnue : %s code=%s",
                 interaction.id,
                 error.code,
             )
             return False
-
-        LOGGER.exception(
-            "Erreur HTTP Discord pendant l'envoi de l'interaction %s",
-            interaction.id,
-        )
+        LOGGER.exception("Erreur HTTP Discord sur %s", interaction.id)
         return False
-
     except Exception:
-        LOGGER.exception(
-            "Erreur inattendue pendant l'envoi de l'interaction %s",
-            interaction.id,
-        )
+        LOGGER.exception("Erreur inattendue sur %s", interaction.id)
         return False
 
 
@@ -468,78 +412,84 @@ async def on_app_command_error(
     interaction: discord.Interaction,
     error: app_commands.AppCommandError,
 ) -> None:
-    """
-    Gestionnaire global des erreurs des commandes slash.
+    original = getattr(error, "original", error)
 
-    Il vérifie toujours si l'interaction a déjà été reconnue avant
-    d'essayer d'envoyer un message.
-    """
-
-    original_error = getattr(
-        error,
-        "original",
-        error,
-    )
-
-    if isinstance(original_error, StaffOnly):
+    if isinstance(original, StaffOnly):
         await send_interaction_message(
             interaction,
             "⛔ Cette commande est réservée au staff.",
-            ephemeral=True,
         )
         return
 
-    if isinstance(original_error, discord.InteractionResponded):
-        LOGGER.warning(
-            "Une commande a tenté de répondre deux fois : %s",
-            interaction.command.name
-            if interaction.command
-            else "commande inconnue",
+    if isinstance(original, app_commands.CommandOnCooldown):
+        await send_interaction_message(
+            interaction,
+            f"⏳ Réessaie dans {original.retry_after:.1f} seconde(s).",
         )
+        return
+
+    if isinstance(original, discord.InteractionResponded):
+        LOGGER.warning("Double réponse évitée pour %s", interaction_name(interaction))
         return
 
     if (
-        isinstance(original_error, discord.HTTPException)
-        and original_error.code in {10062, 40060}
+        isinstance(original, discord.HTTPException)
+        and original.code in {10062, 40060}
     ):
         LOGGER.warning(
             "Interaction Discord expirée ou déjà reconnue : %s code=%s",
             interaction.id,
-            original_error.code,
+            original.code,
         )
         return
 
-    LOGGER.exception(
-        "Erreur slash command : %r",
-        original_error,
-        exc_info=(
-            type(original_error),
-            original_error,
-            original_error.__traceback__,
-        ),
+    LOGGER.error(
+        "Erreur slash command %s : %r",
+        interaction_name(interaction),
+        original,
+        exc_info=(type(original), original, original.__traceback__),
     )
-
     await send_interaction_message(
         interaction,
-        "❌ Une erreur est survenue pendant l'exécution de la commande.",
-        ephemeral=True,
+        "❌ Une erreur est survenue. Le problème a été enregistré dans les logs.",
     )
 
 
 @bot.event
 async def on_ready() -> None:
-    LOGGER.warning("------------------------")
-    LOGGER.warning("🐹 HAMTARO")
-    LOGGER.warning("Utilisateur : %s", bot.user)
-    LOGGER.warning("Latence Gateway : %.3fs", bot.latency)
-    LOGGER.warning("Version : %s", BOT_BUILD)
-    LOGGER.warning("------------------------")
+    if bot._ready_logged:
+        LOGGER.info("Hamtaro reconnecté à Discord.")
+        return
+
+    bot._ready_logged = True
+    LOGGER.info("----------------------------------------")
+    LOGGER.info("HAMTARO prêt : %s", bot.user)
+    LOGGER.info("Latence Gateway : %.0f ms", bot.latency * 1000)
+    LOGGER.info("Build : %s", BOT_BUILD)
+    LOGGER.info("Cogs chargés : %s", len(bot.extensions))
+    LOGGER.info("----------------------------------------")
 
 
-if not TOKEN:
-    raise RuntimeError(
-        "DISCORD_TOKEN est introuvable dans les variables d'environnement."
-    )
+def main() -> None:
+    if not TOKEN:
+        raise RuntimeError(
+            "DISCORD_TOKEN est introuvable dans les variables d'environnement."
+        )
+
+    runtime_lock = RuntimeLock(INSTANCE_LOCK_PATH)
+    try:
+        runtime_lock.acquire()
+    except AlreadyRunningError as error:
+        raise RuntimeError(
+            "Une autre instance Hamtaro utilise déjà le même volume. "
+            "Conserve un seul service et un seul réplica Railway."
+        ) from error
+
+    try:
+        bot.run(TOKEN, log_handler=None)
+    finally:
+        runtime_lock.release()
 
 
-bot.run(TOKEN)
+if __name__ == "__main__":
+    main()
