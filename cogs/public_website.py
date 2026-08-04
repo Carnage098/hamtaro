@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,7 @@ from services.bracket_export_service import (
 
 
 LOGGER = logging.getLogger(__name__)
+HAMTARO_SITE_BUILD = "diag-2026-08-04-2119"
 
 
 def _truthy(value: str | None, default: bool = True) -> bool:
@@ -68,6 +70,12 @@ class PublicWebsiteCog(commands.Cog):
         self.application: web.Application | None = None
 
     async def cog_load(self) -> None:
+        LOGGER.warning(
+            "[HAMTARO_SITE] version=%s fichier=%s",
+            HAMTARO_SITE_BUILD,
+            __file__,
+        )
+
         if not _truthy(os.getenv("WEBSITE_ENABLED"), default=True):
             LOGGER.info("Site public Hamtaro désactivé.")
             return
@@ -1312,9 +1320,9 @@ class PublicWebsiteCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ) -> None:
-        # Cette commande ne fait aucun traitement long :
-        # elle répond directement au lieu de faire defer + followup.
-        delay_seconds = max(
+        started = time.perf_counter()
+
+        interaction_age = max(
             0.0,
             (
                 discord.utils.utcnow()
@@ -1322,30 +1330,81 @@ class PublicWebsiteCog(commands.Cog):
             ).total_seconds(),
         )
 
-        if delay_seconds >= 2.0:
-            LOGGER.warning(
-                (
-                    "/hamtaro_site reçue avec %.2f seconde(s) "
-                    "de retard. Une autre tâche bloque peut-être "
-                    "la boucle asyncio."
-                ),
-                delay_seconds,
-            )
-
-        website_url = os.getenv(
-            "WEBSITE_BASE_URL",
-            "",
-        ).strip().rstrip("/")
+        LOGGER.warning(
+            (
+                "[HAMTARO_SITE] START "
+                "version=%s id=%s age=%.3fs gateway=%.3fs"
+            ),
+            HAMTARO_SITE_BUILD,
+            interaction.id,
+            interaction_age,
+            float(getattr(self.bot, "latency", 0.0) or 0.0),
+        )
 
         try:
+            defer_started = time.perf_counter()
+
+            await interaction.response.defer(
+                ephemeral=False,
+                thinking=True,
+            )
+
+            defer_duration = time.perf_counter() - defer_started
+
+            LOGGER.warning(
+                (
+                    "[HAMTARO_SITE] DEFER_OK "
+                    "id=%s defer=%.3fs total=%.3fs"
+                ),
+                interaction.id,
+                defer_duration,
+                time.perf_counter() - started,
+            )
+
+            website_url = os.getenv(
+                "WEBSITE_BASE_URL",
+                "",
+            ).strip().rstrip("/")
+
             if not website_url:
-                await interaction.response.send_message(
-                    (
+                await interaction.edit_original_response(
+                    content=(
                         "❌ Le site est activé, mais "
                         "`WEBSITE_BASE_URL` n'est pas encore "
                         "configurée dans Railway."
                     ),
-                    ephemeral=True,
+                    embed=None,
+                    view=None,
+                )
+
+                LOGGER.warning(
+                    (
+                        "[HAMTARO_SITE] END_NO_URL "
+                        "id=%s total=%.3fs"
+                    ),
+                    interaction.id,
+                    time.perf_counter() - started,
+                )
+                return
+
+            if not website_url.startswith(("http://", "https://")):
+                await interaction.edit_original_response(
+                    content=(
+                        "❌ `WEBSITE_BASE_URL` doit commencer par "
+                        "`https://` ou `http://`."
+                    ),
+                    embed=None,
+                    view=None,
+                )
+
+                LOGGER.warning(
+                    (
+                        "[HAMTARO_SITE] END_BAD_URL "
+                        "id=%s total=%.3fs url=%r"
+                    ),
+                    interaction.id,
+                    time.perf_counter() - started,
+                    website_url,
                 )
                 return
 
@@ -1368,7 +1427,7 @@ class PublicWebsiteCog(commands.Cog):
                 inline=False,
             )
 
-            view = discord.ui.View()
+            view = discord.ui.View(timeout=None)
             view.add_item(
                 discord.ui.Button(
                     label="Ouvrir le site",
@@ -1377,37 +1436,66 @@ class PublicWebsiteCog(commands.Cog):
                 )
             )
 
-            await interaction.response.send_message(
+            edit_started = time.perf_counter()
+
+            await interaction.edit_original_response(
+                content=None,
                 embed=embed,
                 view=view,
-                ephemeral=False,
+            )
+
+            edit_duration = time.perf_counter() - edit_started
+            total_duration = time.perf_counter() - started
+
+            LOGGER.warning(
+                (
+                    "[HAMTARO_SITE] END_OK "
+                    "id=%s edit=%.3fs total=%.3fs"
+                ),
+                interaction.id,
+                edit_duration,
+                total_duration,
             )
 
         except discord.NotFound as error:
-            if error.code == 10062:
-                LOGGER.warning(
-                    (
-                        "Interaction /hamtaro_site expirée avant "
-                        "la réponse : id=%s retard=%.2fs code=%s"
-                    ),
-                    interaction.id,
-                    delay_seconds,
-                    error.code,
-                )
-                return
-
-            raise
-
-        except discord.InteractionResponded:
-            # Sécurité en cas de réponse déjà envoyée par un autre
-            # gestionnaire : on utilise alors un followup.
-            await interaction.followup.send(
+            LOGGER.warning(
                 (
-                    f"🌐 Site public Hamtaro : "
-                    f"{website_url}"
+                    "[HAMTARO_SITE] NOT_FOUND "
+                    "id=%s code=%s age_start=%.3fs total=%.3fs"
                 ),
-                ephemeral=False,
+                interaction.id,
+                error.code,
+                interaction_age,
+                time.perf_counter() - started,
             )
+
+            if error.code != 10062:
+                raise
+
+        except Exception:
+            LOGGER.exception(
+                (
+                    "[HAMTARO_SITE] ERROR "
+                    "id=%s total=%.3fs"
+                ),
+                interaction.id,
+                time.perf_counter() - started,
+            )
+
+            try:
+                if interaction.response.is_done():
+                    await interaction.edit_original_response(
+                        content="❌ Impossible d'afficher le lien du site.",
+                        embed=None,
+                        view=None,
+                    )
+                else:
+                    await interaction.response.send_message(
+                        "❌ Impossible d'afficher le lien du site.",
+                        ephemeral=False,
+                    )
+            except discord.HTTPException:
+                pass
 
 
 async def setup(bot: commands.Bot) -> None:
