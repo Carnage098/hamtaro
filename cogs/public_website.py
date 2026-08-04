@@ -1345,7 +1345,7 @@ class PublicWebsiteCog(commands.Cog):
                         "`WEBSITE_BASE_URL` n'est pas encore "
                         "configurée dans Railway."
                     ),
-                    ephemeral=False,
+                    ephemeral=True,
                 )
                 return
 
