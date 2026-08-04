@@ -1345,7 +1345,7 @@ class PublicWebsiteCog(commands.Cog):
                         "`WEBSITE_BASE_URL` n'est pas encore "
                         "configurée dans Railway."
                     ),
-                    ephemeral=True,
+                    ephemeral=False,
                 )
                 return
 
@@ -1380,7 +1380,7 @@ class PublicWebsiteCog(commands.Cog):
             await interaction.response.send_message(
                 embed=embed,
                 view=view,
-                ephemeral=True,
+                ephemeral=False,
             )
 
         except discord.NotFound as error:
@@ -1406,7 +1406,7 @@ class PublicWebsiteCog(commands.Cog):
                     f"🌐 Site public Hamtaro : "
                     f"{website_url}"
                 ),
-                ephemeral=True,
+                ephemeral=False,
             )
 
 
