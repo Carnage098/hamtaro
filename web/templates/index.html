@@ -25,7 +25,7 @@
 {% endmacro %}
 
 {% block content %}
-<section class="hero">
+<section class="hero" data-tournaments-page>
     <p class="eyebrow">HAMTARO CUP</p>
     <h1>Les tournois en direct</h1>
     <p class="hero-text">
@@ -42,7 +42,7 @@
         </div>
     </div>
 
-    <div class="card-grid">
+    <div class="card-grid" data-tournament-list="open">
         {% for tournament in open_tournaments %}
             {{ tournament_card(tournament) }}
         {% else %}
@@ -61,7 +61,7 @@
         </div>
     </div>
 
-    <div class="card-grid">
+    <div class="card-grid" data-tournament-list="current">
         {% for tournament in current_tournaments %}
             {{ tournament_card(tournament) }}
         {% else %}
@@ -81,7 +81,7 @@
         <a class="text-link" href="/archives">Toutes les archives</a>
     </div>
 
-    <div class="card-grid">
+    <div class="card-grid" data-tournament-list="archives">
         {% for tournament in recent_archives %}
             {{ tournament_card(tournament) }}
         {% else %}

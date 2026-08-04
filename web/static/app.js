@@ -10,7 +10,6 @@
 
     const tournamentId = frame.dataset.tournamentId;
     let currentVersion = frame.dataset.bracketVersion || "";
-
     const refreshBracket = async () => {
         try {
             const response = await fetch(
@@ -26,14 +25,12 @@
             if (!response.ok) {
                 return;
             }
-
             const data = await response.json();
             const version = String(data.version || "");
 
             if (!version || version === currentVersion) {
                 return;
             }
-
             currentVersion = version;
             frame.dataset.bracketVersion = version;
             image.src = (
@@ -49,7 +46,6 @@
 })();
 (() => {
     "use strict";
-
     const tabs = Array.from(
         document.querySelectorAll("[data-profile-tab]")
     );
@@ -60,7 +56,6 @@
     if (!tabs.length || !panels.length) {
         return;
     }
-
     const activate = (name) => {
         tabs.forEach((tab) => {
             const selected = tab.dataset.profileTab === name;
@@ -73,7 +68,6 @@
             panel.classList.toggle("is-active", selected);
             panel.hidden = !selected;
         });
-
         const url = new URL(window.location.href);
         url.searchParams.set("section", name);
         window.history.replaceState({}, "", url);
@@ -88,7 +82,6 @@
     const requested = new URL(window.location.href)
         .searchParams
         .get("section");
-
     if (requested && tabs.some(
         (tab) => tab.dataset.profileTab === requested
     )) {
@@ -97,7 +90,6 @@
 })();
 (() => {
     "use strict";
-
     const searchInput = document.querySelector(
         "[data-command-search]"
     );
@@ -116,7 +108,6 @@
     }
 
     let activeRole = "all";
-
     const normalise = (value) => (
         String(value || "")
             .toLocaleLowerCase("fr")
@@ -128,7 +119,6 @@
     const refresh = () => {
         const query = normalise(searchInput.value);
         let visibleCount = 0;
-
         commandCards.forEach((card) => {
             const role = card.dataset.commandRole || "community";
             const searchable = normalise(
@@ -144,7 +134,6 @@
                 !query
                 || searchable.includes(query)
             );
-
             const visible = roleMatches && searchMatches;
             card.hidden = !visible;
 
@@ -164,7 +153,6 @@
                 button.dataset.commandFilter
                 || "all"
             );
-
             filterButtons.forEach((otherButton) => {
                 otherButton.classList.toggle(
                     "is-active",
@@ -181,7 +169,6 @@
 })();
 (() => {
     "use strict";
-
     const searchInput = document.querySelector(
         "[data-participant-search]"
     );
@@ -203,7 +190,6 @@
     const emptyState = document.querySelector(
         "[data-participant-empty]"
     );
-
     if (!searchInput) {
         return;
     }
@@ -221,7 +207,6 @@
     const refresh = () => {
         const query = normalise(searchInput.value);
         let visibleCards = 0;
-
         cards.forEach((card) => {
             const searchable = normalise(
                 card.dataset.participantSearch
@@ -240,7 +225,6 @@
                 activeFilter === "all"
                 || kind === "regular"
             );
-
             const section = card.closest(
                 "[data-participant-section]"
             );
@@ -253,7 +237,6 @@
                 ? sectionName === "all"
                 : sectionName === "regular"
             );
-
             const visible = (
                 searchMatches
                 && filterMatches
@@ -272,7 +255,6 @@
                 section.dataset.participantSection
                 || "all"
             );
-
             section.hidden = (
                 activeFilter === "all"
                 ? sectionName !== "all"
@@ -287,7 +269,6 @@
             );
         }
     };
-
     filterButtons.forEach((button) => {
         button.addEventListener("click", () => {
             activeFilter = (
@@ -305,7 +286,86 @@
             refresh();
         });
     });
-
     searchInput.addEventListener("input", refresh);
     refresh();
+})();
+
+// Actualisation automatique de la liste générale des tournois.
+(() => {
+    "use strict";
+
+    const page = document.querySelector("[data-tournaments-page]");
+
+    if (!page) {
+        return;
+    }
+
+    const selectors = [
+        '[data-tournament-list="open"]',
+        '[data-tournament-list="current"]',
+        '[data-tournament-list="archives"]',
+    ];
+
+    let refreshInProgress = false;
+
+    const refreshTournamentLists = async () => {
+        if (refreshInProgress || document.hidden) {
+            return;
+        }
+
+        refreshInProgress = true;
+
+        try {
+            const url = new URL("/tournaments", window.location.origin);
+            url.searchParams.set("refresh", Date.now().toString());
+
+            const response = await fetch(url, {
+                cache: "no-store",
+                headers: {
+                    "Accept": "text/html",
+                    "X-Requested-With": "fetch",
+                },
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const html = await response.text();
+            const nextDocument = new DOMParser().parseFromString(
+                html,
+                "text/html"
+            );
+
+            selectors.forEach((selector) => {
+                const currentList = document.querySelector(selector);
+                const nextList = nextDocument.querySelector(selector);
+
+                if (!currentList || !nextList) {
+                    return;
+                }
+
+                if (currentList.innerHTML !== nextList.innerHTML) {
+                    currentList.innerHTML = nextList.innerHTML;
+                }
+            });
+        } catch (error) {
+            console.debug(
+                "Actualisation des tournois indisponible.",
+                error
+            );
+        } finally {
+            refreshInProgress = false;
+        }
+    };
+
+    window.setInterval(refreshTournamentLists, 15_000);
+    window.addEventListener("focus", refreshTournamentLists);
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+            refreshTournamentLists();
+        }
+    });
+
+    refreshTournamentLists();
 })();
