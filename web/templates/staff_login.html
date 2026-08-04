@@ -1,35 +1,43 @@
 {% extends "base.html" %}
 
-{% block title %}Connexion staff · Hamtaro{% endblock %}
+{% block title %}Connexion staff — Hamtaro{% endblock %}
 
 {% block content %}
-<section class="professional-panel professional-login">
-    <div>
-        <p class="professional-eyebrow">ACCÈS PROTÉGÉ</p>
+<section class="staff-auth-shell">
+    <article class="staff-auth-card">
+        <div class="staff-auth-icon" aria-hidden="true">🔐</div>
+        <p class="staff-eyebrow">ACCÈS PROTÉGÉ</p>
         <h1>Tableau de bord staff</h1>
-        <p>
-            Entre le jeton défini dans la variable Railway
-            <code>STAFF_DASHBOARD_TOKEN</code>.
+        <p class="staff-auth-description">
+            Saisis la valeur de la variable Railway
+            <code>STAFF_DASHBOARD_TOKEN</code> pour accéder aux données internes
+            des tournois.
         </p>
-    </div>
 
-    {% if error %}
-    <div class="professional-alert professional-alert-error" role="alert">
-        {{ error }}
-    </div>
-    {% endif %}
+        {% if error %}
+        <div class="staff-alert staff-alert-error" role="alert">
+            {{ error }}
+        </div>
+        {% endif %}
 
-    <form method="post" action="/staff/login" class="professional-form">
-        <label for="staff-token">Jeton d’accès</label>
-        <input
-            id="staff-token"
-            name="token"
-            type="password"
-            autocomplete="current-password"
-            minlength="24"
-            required
-        >
-        <button type="submit">Ouvrir le tableau de bord</button>
-    </form>
+        <form method="post" action="/staff/login" class="staff-auth-form">
+            <label for="staff-token">Jeton d’accès</label>
+            <input
+                id="staff-token"
+                name="token"
+                type="password"
+                minlength="24"
+                autocomplete="current-password"
+                required
+                autofocus
+            >
+            <button type="submit">Ouvrir le tableau de bord</button>
+        </form>
+
+        <p class="staff-security-note">
+            La session expire automatiquement après huit heures. Le jeton ne
+            doit jamais être publié sur Discord ou GitHub.
+        </p>
+    </article>
 </section>
 {% endblock %}

@@ -1,33 +1,38 @@
 {% extends "base.html" %}
 
-{% block title %}Tableau de bord staff · Hamtaro{% endblock %}
+{% block title %}Tableau de bord staff — Hamtaro{% endblock %}
 
 {% block content %}
 <section
-    class="professional-dashboard"
+    class="staff-dashboard"
     data-staff-dashboard
     data-refresh-url="/staff/api/overview"
+    data-refresh-seconds="{{ refresh_seconds }}"
 >
-    <header class="professional-dashboard-header">
+    <header class="staff-dashboard-header">
         <div>
-            <p class="professional-eyebrow">HAMTARO STAFF</p>
-            <h1>Tableau de bord du tournoi</h1>
+            <p class="staff-eyebrow">HAMTARO STAFF</p>
+            <h1>Tableau de bord des tournois</h1>
             <p>
                 Vue protégée des tournois actifs, résultats en attente,
-                incohérences et dernières actions sensibles.
+                incohérences et actions récentes.
             </p>
         </div>
-        <a class="professional-button-secondary" href="/staff/logout">
-            Se déconnecter
-        </a>
+        <form method="post" action="/staff/logout">
+            <button class="staff-secondary-button" type="submit">
+                Se déconnecter
+            </button>
+        </form>
     </header>
 
-    <div class="professional-live-line" aria-live="polite">
-        <span class="professional-live-dot"></span>
-        <span data-staff-last-update>Mise à jour automatique toutes les 15 secondes</span>
+    <div class="staff-live-line" aria-live="polite">
+        <span class="staff-live-dot" aria-hidden="true"></span>
+        <span data-staff-last-update>
+            Synchronisation automatique toutes les {{ refresh_seconds }} secondes
+        </span>
     </div>
 
-    <section class="professional-stat-grid" data-staff-stats>
+    <section class="staff-stat-grid" data-staff-stats>
         <article>
             <strong>{{ overview.totals.active_tournaments }}</strong>
             <span>Tournois actifs</span>
@@ -46,15 +51,19 @@
         </article>
     </section>
 
-    <div class="professional-dashboard-grid">
-        <section class="professional-card">
-            <h2>Tournois actifs</h2>
-            <div class="professional-table-wrap">
+    <div class="staff-dashboard-grid">
+        <section class="staff-panel staff-panel-wide">
+            <div class="staff-panel-heading">
+                <h2>Tournois actifs</h2>
+                <span>{{ overview.active_tournaments | length }} affiché(s)</span>
+            </div>
+            <div class="staff-table-wrap">
                 <table>
                     <thead>
                         <tr>
                             <th>Code</th>
                             <th>Nom</th>
+                            <th>Format</th>
                             <th>Statut</th>
                             <th>Joueurs</th>
                             <th>Ronde</th>
@@ -63,23 +72,35 @@
                     <tbody data-staff-tournaments>
                     {% for tournament in overview.active_tournaments %}
                         <tr>
-                            <td><code>{{ tournament.code }}</code></td>
+                            <td>
+                                <a href="/tournaments/{{ tournament.id }}">
+                                    <code>{{ tournament.code }}</code>
+                                </a>
+                            </td>
                             <td>{{ tournament.name }}</td>
+                            <td>{{ tournament.format or "—" }}</td>
                             <td>{{ tournament.status }}</td>
-                            <td>{{ tournament.participant_count }}/{{ tournament.max_players }}</td>
-                            <td>{{ tournament.current_round }}/{{ tournament.total_rounds }}</td>
+                            <td>
+                                {{ tournament.participant_count or 0 }}/{{ tournament.max_players or 0 }}
+                            </td>
+                            <td>
+                                {{ tournament.current_round or 0 }}/{{ tournament.total_rounds or 0 }}
+                            </td>
                         </tr>
                     {% else %}
-                        <tr><td colspan="5">Aucun tournoi actif.</td></tr>
+                        <tr><td colspan="6">Aucun tournoi actif.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
             </div>
         </section>
 
-        <section class="professional-card">
-            <h2>Résultats en attente</h2>
-            <div class="professional-table-wrap">
+        <section class="staff-panel">
+            <div class="staff-panel-heading">
+                <h2>Résultats en attente</h2>
+                <span>{{ overview.pending_results | length }}</span>
+            </div>
+            <div class="staff-table-wrap">
                 <table>
                     <thead>
                         <tr>
@@ -94,7 +115,7 @@
                         <tr>
                             <td><code>{{ result.tournament_code }}</code></td>
                             <td>{{ result.match_kind }}:{{ result.match_id }}</td>
-                            <td>{{ result.player1_score }}-{{ result.player2_score }}</td>
+                            <td>{{ result.player1_score }}–{{ result.player2_score }}</td>
                             <td>{{ result.status }}</td>
                         </tr>
                     {% else %}
@@ -103,34 +124,47 @@
                     </tbody>
                 </table>
             </div>
-            <p class="professional-hint">
-                Les validations restent effectuées dans Discord afin de conserver
-                l’identité du membre du staff et les confirmations existantes.
+            <p class="staff-hint">
+                La validation reste effectuée sur Discord pour conserver les
+                confirmations et l’identité du membre du staff.
             </p>
         </section>
 
-        <section class="professional-card">
-            <h2>Incohérences détectées</h2>
+        <section class="staff-panel">
+            <div class="staff-panel-heading">
+                <h2>Incohérences détectées</h2>
+                <span>{{ overview.invalid_matches | length }}</span>
+            </div>
             <div data-staff-invalid>
             {% for match in overview.invalid_matches %}
-                <article class="professional-issue">
+                <article class="staff-issue">
                     <strong>{{ match.tournament_code }} · Match #{{ match.id }}</strong>
-                    <span>{{ match.player1_name or "?" }} contre {{ match.player2_name or "?" }}</span>
+                    <span>
+                        {{ match.player1_name or "?" }} contre
+                        {{ match.player2_name or "?" }}
+                    </span>
                     <code>{{ match.status }}</code>
                 </article>
             {% else %}
-                <p>Aucune incohérence détectée.</p>
+                <p class="staff-empty-success">Aucune incohérence détectée.</p>
             {% endfor %}
             </div>
         </section>
 
-        <section class="professional-card">
-            <h2>Journal d’audit</h2>
-            <div data-staff-audit>
+        <section class="staff-panel staff-panel-wide">
+            <div class="staff-panel-heading">
+                <h2>Journal d’audit</h2>
+                <span>{{ overview.recent_audit | length }} action(s)</span>
+            </div>
+            <div class="staff-audit-list" data-staff-audit>
             {% for entry in overview.recent_audit %}
-                <article class="professional-audit-entry">
-                    <strong>{{ entry.action }}</strong>
-                    <span>{{ entry.actor_name or entry.actor_id or "Système" }}</span>
+                <article class="staff-audit-entry">
+                    <div>
+                        <strong>{{ entry.action }}</strong>
+                        <span>
+                            {{ entry.actor_name or entry.actor_id or "Système" }}
+                        </span>
+                    </div>
                     <time>{{ entry.created_at }}</time>
                 </article>
             {% else %}
@@ -140,4 +174,6 @@
         </section>
     </div>
 </section>
+
+<script src="/static/staff_dashboard.js" defer></script>
 {% endblock %}
