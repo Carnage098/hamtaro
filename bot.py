@@ -72,10 +72,12 @@ REQUIRED_COGS = (
     "cogs.tournament_export",
     "cogs.system_health",
     "cogs.professional_tools",
+    # Doit être chargé avant public_website afin d'enregistrer les routes /staff.
     "cogs.professional_web",
     "cogs.public_website",
     "cogs.hamtaro_hub",
-]
+)
+
 OPTIONAL_COGS = (
     "cogs.graphics_preview",
     "cogs.swiss_graphics",
