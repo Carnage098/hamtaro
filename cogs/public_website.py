@@ -25,7 +25,7 @@ from services.bracket_export_service import (
 
 
 LOGGER = logging.getLogger(__name__)
-HAMTARO_SITE_BUILD = "diag-2026-08-04-2119"
+HAMTARO_SITE_BUILD = "interaction-fix-2026-08-04-2133"
 
 
 def _truthy(value: str | None, default: bool = True) -> bool:
@@ -1321,7 +1321,6 @@ class PublicWebsiteCog(commands.Cog):
         interaction: discord.Interaction,
     ) -> None:
         started = time.perf_counter()
-
         interaction_age = max(
             0.0,
             (
@@ -1332,8 +1331,8 @@ class PublicWebsiteCog(commands.Cog):
 
         LOGGER.warning(
             (
-                "[HAMTARO_SITE] START "
-                "version=%s id=%s age=%.3fs gateway=%.3fs"
+                "[HAMTARO_SITE] START version=%s id=%s "
+                "age=%.3fs gateway=%.3fs"
             ),
             HAMTARO_SITE_BUILD,
             interaction.id,
@@ -1341,161 +1340,83 @@ class PublicWebsiteCog(commands.Cog):
             float(getattr(self.bot, "latency", 0.0) or 0.0),
         )
 
-        try:
-            defer_started = time.perf_counter()
+        website_url = os.getenv(
+            "WEBSITE_BASE_URL",
+            "https://worker-production-5a11.up.railway.app",
+        ).strip().rstrip("/")
 
-            await interaction.response.defer(
-                ephemeral=False,
-                thinking=True,
+        if not website_url.startswith(("http://", "https://")):
+            LOGGER.error(
+                "[HAMTARO_SITE] WEBSITE_BASE_URL invalide : %r",
+                website_url,
             )
-
-            defer_duration = time.perf_counter() - defer_started
-
-            LOGGER.warning(
+            await interaction.response.send_message(
                 (
-                    "[HAMTARO_SITE] DEFER_OK "
-                    "id=%s defer=%.3fs total=%.3fs"
+                    "❌ L'adresse du site Hamtaro est invalide. "
+                    "Vérifie `WEBSITE_BASE_URL` dans Railway."
                 ),
-                interaction.id,
-                defer_duration,
-                time.perf_counter() - started,
+                ephemeral=True,
             )
+            return
 
-            website_url = os.getenv(
-                "WEBSITE_BASE_URL",
-                "",
-            ).strip().rstrip("/")
+        embed = discord.Embed(
+            title="🌐 Site public Hamtaro",
+            description=(
+                "Consulte les tournois, les résultats, "
+                "les archives et les brackets officiels."
+            ),
+            url=website_url,
+            colour=discord.Colour.gold(),
+        )
+        embed.add_field(
+            name="Lien du site",
+            value=f"[Ouvrir le site Hamtaro]({website_url})",
+            inline=False,
+        )
 
-            if not website_url:
-                await interaction.edit_original_response(
-                    content=(
-                        "❌ Le site est activé, mais "
-                        "`WEBSITE_BASE_URL` n'est pas encore "
-                        "configurée dans Railway."
-                    ),
-                    embed=None,
-                    view=None,
-                )
-
-                LOGGER.warning(
-                    (
-                        "[HAMTARO_SITE] END_NO_URL "
-                        "id=%s total=%.3fs"
-                    ),
-                    interaction.id,
-                    time.perf_counter() - started,
-                )
-                return
-
-            if not website_url.startswith(("http://", "https://")):
-                await interaction.edit_original_response(
-                    content=(
-                        "❌ `WEBSITE_BASE_URL` doit commencer par "
-                        "`https://` ou `http://`."
-                    ),
-                    embed=None,
-                    view=None,
-                )
-
-                LOGGER.warning(
-                    (
-                        "[HAMTARO_SITE] END_BAD_URL "
-                        "id=%s total=%.3fs url=%r"
-                    ),
-                    interaction.id,
-                    time.perf_counter() - started,
-                    website_url,
-                )
-                return
-
-            embed = discord.Embed(
-                title="🌐 Site public Hamtaro",
-                description=(
-                    "Consulte les tournois, les résultats, "
-                    "les archives et les brackets officiels."
-                ),
+        view = discord.ui.View(timeout=None)
+        view.add_item(
+            discord.ui.Button(
+                label="Ouvrir le site",
                 url=website_url,
-                colour=discord.Colour.gold(),
+                emoji="🌐",
+                style=discord.ButtonStyle.link,
             )
+        )
 
-            embed.add_field(
-                name="Lien du site",
-                value=(
-                    f"[Ouvrir le site Hamtaro]"
-                    f"({website_url})"
-                ),
-                inline=False,
-            )
-
-            view = discord.ui.View(timeout=None)
-            view.add_item(
-                discord.ui.Button(
-                    label="Ouvrir le site",
-                    url=website_url,
-                    emoji="🌐",
-                )
-            )
-
-            edit_started = time.perf_counter()
-
-            await interaction.edit_original_response(
-                content=None,
+        try:
+            # Un seul appel à Discord : aucune base de données,
+            # aucune requête HTTP et aucun rendu du site avant la réponse.
+            await interaction.response.send_message(
                 embed=embed,
                 view=view,
+                ephemeral=False,
             )
-
-            edit_duration = time.perf_counter() - edit_started
-            total_duration = time.perf_counter() - started
-
-            LOGGER.warning(
-                (
-                    "[HAMTARO_SITE] END_OK "
-                    "id=%s edit=%.3fs total=%.3fs"
-                ),
-                interaction.id,
-                edit_duration,
-                total_duration,
-            )
-
         except discord.NotFound as error:
             LOGGER.warning(
                 (
-                    "[HAMTARO_SITE] NOT_FOUND "
-                    "id=%s code=%s age_start=%.3fs total=%.3fs"
+                    "[HAMTARO_SITE] NOT_FOUND id=%s code=%s "
+                    "age=%.3fs total=%.3fs"
                 ),
                 interaction.id,
                 error.code,
                 interaction_age,
                 time.perf_counter() - started,
             )
-
             if error.code != 10062:
                 raise
-
-        except Exception:
-            LOGGER.exception(
-                (
-                    "[HAMTARO_SITE] ERROR "
-                    "id=%s total=%.3fs"
-                ),
-                interaction.id,
-                time.perf_counter() - started,
+            return
+        except discord.InteractionResponded:
+            await interaction.followup.send(
+                content=f"🌐 Site public Hamtaro : {website_url}",
+                ephemeral=False,
             )
 
-            try:
-                if interaction.response.is_done():
-                    await interaction.edit_original_response(
-                        content="❌ Impossible d'afficher le lien du site.",
-                        embed=None,
-                        view=None,
-                    )
-                else:
-                    await interaction.response.send_message(
-                        "❌ Impossible d'afficher le lien du site.",
-                        ephemeral=False,
-                    )
-            except discord.HTTPException:
-                pass
+        LOGGER.warning(
+            "[HAMTARO_SITE] END_OK id=%s total=%.3fs",
+            interaction.id,
+            time.perf_counter() - started,
+        )
 
 
 async def setup(bot: commands.Bot) -> None:
