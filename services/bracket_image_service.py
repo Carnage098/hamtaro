@@ -809,6 +809,11 @@ class BracketImageService:
     
         self._avatar_cache: dict[str, Image.Image] = {}
         self._asset_cache: dict[str, Image.Image] = {}
+
+        # Pillow effectue un travail CPU synchrone. Une seule génération
+        # graphique est autorisée à la fois afin d'éviter les pics de CPU
+        # et de mémoire lorsque plusieurs brackets sont demandés ensemble.
+        self._render_lock = asyncio.Lock()
     
     # ==========================================================
     # RACCOURCIS VERS LE THÈME
@@ -4067,46 +4072,56 @@ class BracketImageService:
         glow_alpha: int | None = None,
     ) -> None:
         """
-        Dessine une ligne en trois couches :
-    
+        Dessine une ligne en trois couches sur un calque local :
+
         - lueur floutée ;
         - ligne intermédiaire sombre ;
         - ligne principale lumineuse.
+
+        Les anciens calques avaient la taille du bracket complet pour chaque
+        connecteur. Sur 64 ou 128 joueurs, cela multipliait inutilement les
+        allocations et les flous de très grandes images.
         """
-    
+
         if len(points) < 2:
             return
-    
-        main_width = int(
-            self.theme.connector_width(
-                player_capacity
-            )
+
+        main_width = max(
+            1,
+            int(
+                self.theme.connector_width(
+                    player_capacity
+                )
+            ),
         )
+
         if player_capacity == 64 and image.width >= 2560:
             main_width = max(3, main_width)
-    
+
         middle_method = getattr(
             self.theme,
             "connector_middle_width",
             None,
         )
-    
-        middle_width = int(
-            middle_method(
-                player_capacity
-            )
-            if callable(
-                middle_method
-            )
-            else main_width + 2
+
+        middle_width = max(
+            main_width,
+            int(
+                middle_method(player_capacity)
+                if callable(middle_method)
+                else main_width + 2
+            ),
         )
-    
-        glow_width = int(
-            self.theme.connector_glow_width(
-                player_capacity
-            )
+
+        glow_width = max(
+            middle_width,
+            int(
+                self.theme.connector_glow_width(
+                    player_capacity
+                )
+            ),
         )
-    
+
         if glow_alpha is None:
             glow_alpha = int(
                 getattr(
@@ -4115,10 +4130,59 @@ class BracketImageService:
                     90,
                 )
             )
-    
+
+        glow_alpha = max(0, min(255, int(glow_alpha)))
+        blur_radius = max(
+            0,
+            int(
+                getattr(
+                    self.theme,
+                    "connector_blur_radius",
+                    5,
+                )
+            ),
+        )
+        joint_radius = max(
+            0,
+            int(
+                getattr(
+                    self.theme,
+                    "connector_joint_radius",
+                    2,
+                )
+            ),
+        )
+
+        padding = max(
+            4,
+            glow_width // 2 + blur_radius * 3 + 2,
+            middle_width // 2 + joint_radius + 2,
+        )
+
+        minimum_x = min(point[0] for point in points)
+        minimum_y = min(point[1] for point in points)
+        maximum_x = max(point[0] for point in points)
+        maximum_y = max(point[1] for point in points)
+
+        layer_x = minimum_x - padding
+        layer_y = minimum_y - padding
+        layer_width = max(1, maximum_x - minimum_x + padding * 2 + 1)
+        layer_height = max(1, maximum_y - minimum_y + padding * 2 + 1)
+
+        local_points = [
+            (
+                point_x - layer_x,
+                point_y - layer_y,
+            )
+            for point_x, point_y in points
+        ]
+
         glow_layer = Image.new(
             "RGBA",
-            image.size,
+            (
+                layer_width,
+                layer_height,
+            ),
             (
                 0,
                 0,
@@ -4126,13 +4190,9 @@ class BracketImageService:
                 0,
             ),
         )
-    
-        glow_draw = ImageDraw.Draw(
-            glow_layer
-        )
-    
+        glow_draw = ImageDraw.Draw(glow_layer)
         glow_draw.line(
-            points,
+            local_points,
             fill=(
                 *color,
                 glow_alpha,
@@ -4140,26 +4200,25 @@ class BracketImageService:
             width=glow_width,
             joint="curve",
         )
-    
-        glow_layer = glow_layer.filter(
-            ImageFilter.GaussianBlur(
-                int(
-                    getattr(
-                        self.theme,
-                        "connector_blur_radius",
-                        5,
-                    )
-                )
+
+        if blur_radius > 0:
+            glow_layer = glow_layer.filter(
+                ImageFilter.GaussianBlur(blur_radius)
             )
+
+        self._alpha_composite_local(
+            image,
+            glow_layer,
+            layer_x,
+            layer_y,
         )
-    
-        image.alpha_composite(
-            glow_layer
-        )
-    
+
         line_layer = Image.new(
             "RGBA",
-            image.size,
+            (
+                layer_width,
+                layer_height,
+            ),
             (
                 0,
                 0,
@@ -4167,19 +4226,16 @@ class BracketImageService:
                 0,
             ),
         )
-    
-        line_draw = ImageDraw.Draw(
-            line_layer
-        )
-    
+        line_draw = ImageDraw.Draw(line_layer)
+
         dark_color = self._blend_color(
             color,
             self.BG,
             0.58,
         )
-    
+
         line_draw.line(
-            points,
+            local_points,
             fill=(
                 *dark_color,
                 245,
@@ -4187,9 +4243,8 @@ class BracketImageService:
             width=middle_width,
             joint="curve",
         )
-    
         line_draw.line(
-            points,
+            local_points,
             fill=(
                 *color,
                 255,
@@ -4197,36 +4252,29 @@ class BracketImageService:
             width=main_width,
             joint="curve",
         )
-    
-        joint_radius = int(
-            getattr(
-                self.theme,
-                "connector_joint_radius",
-                2,
-            )
-        )
-    
+
         if joint_radius > 0:
-            for x, y in points[
-                1:-1
-            ]:
+            for point_x, point_y in local_points[1:-1]:
                 line_draw.ellipse(
                     (
-                        x - joint_radius,
-                        y - joint_radius,
-                        x + joint_radius,
-                        y + joint_radius,
+                        point_x - joint_radius,
+                        point_y - joint_radius,
+                        point_x + joint_radius,
+                        point_y + joint_radius,
                     ),
                     fill=(
                         *color,
                         255,
                     ),
                 )
-    
-        image.alpha_composite(
-            line_layer
+
+        self._alpha_composite_local(
+            image,
+            line_layer,
+            layer_x,
+            layer_y,
         )
-    
+
     def _draw_connectors(
         self,
         image: Image.Image,
@@ -4540,6 +4588,57 @@ class BracketImageService:
     # OMBRES ET LUEURS DES CARTES
     # ==========================================================
     
+    @staticmethod
+    def _alpha_composite_local(
+        image: Image.Image,
+        overlay: Image.Image,
+        x: int,
+        y: int,
+    ) -> None:
+        """Superpose un petit calque en le rognant aux limites du canvas."""
+
+        destination_x = max(0, x)
+        destination_y = max(0, y)
+        source_x = max(0, -x)
+        source_y = max(0, -y)
+
+        visible_width = min(
+            overlay.width - source_x,
+            image.width - destination_x,
+        )
+        visible_height = min(
+            overlay.height - source_y,
+            image.height - destination_y,
+        )
+
+        if visible_width <= 0 or visible_height <= 0:
+            return
+
+        if (
+            source_x == 0
+            and source_y == 0
+            and visible_width == overlay.width
+            and visible_height == overlay.height
+        ):
+            visible_overlay = overlay
+        else:
+            visible_overlay = overlay.crop(
+                (
+                    source_x,
+                    source_y,
+                    source_x + visible_width,
+                    source_y + visible_height,
+                )
+            )
+
+        image.alpha_composite(
+            visible_overlay,
+            (
+                destination_x,
+                destination_y,
+            ),
+        )
+
     def _draw_card_shadow(
         self,
         image: Image.Image,
@@ -4551,23 +4650,12 @@ class BracketImageService:
     ) -> None:
         """
         Dessine une ombre légère derrière une carte.
+
+        Le calque est limité à la zone de la carte au lieu d'avoir la taille
+        du bracket complet. Cela réduit fortement le coût des flous Pillow,
+        particulièrement sur les tableaux de 64 ou 128 joueurs.
         """
-    
-        shadow_layer = Image.new(
-            "RGBA",
-            image.size,
-            (
-                0,
-                0,
-                0,
-                0,
-            ),
-        )
-    
-        shadow_draw = ImageDraw.Draw(
-            shadow_layer
-        )
-    
+
         offset_x = int(
             getattr(
                 self.theme,
@@ -4579,7 +4667,7 @@ class BracketImageService:
                 ),
             )
         )
-    
+
         offset_y = int(
             getattr(
                 self.theme,
@@ -4591,23 +4679,65 @@ class BracketImageService:
                 ),
             )
         )
-    
-        alpha = int(
-            getattr(
-                self.theme,
-                "panel_shadow_alpha",
-                115,
-            )
+
+        alpha = max(
+            0,
+            min(
+                255,
+                int(
+                    getattr(
+                        self.theme,
+                        "panel_shadow_alpha",
+                        115,
+                    )
+                ),
+            ),
         )
-    
+
+        blur_radius = max(
+            0,
+            int(
+                getattr(
+                    self.theme,
+                    "match_shadow_blur_radius",
+                    5,
+                )
+            ),
+        )
+
+        padding = max(
+            4,
+            blur_radius * 3 + 2,
+            abs(offset_x) + blur_radius * 2,
+            abs(offset_y) + blur_radius * 2,
+        )
+
+        local_width = max(1, width + padding * 2)
+        local_height = max(1, height + padding * 2)
+
+        shadow_layer = Image.new(
+            "RGBA",
+            (
+                local_width,
+                local_height,
+            ),
+            (
+                0,
+                0,
+                0,
+                0,
+            ),
+        )
+
+        shadow_draw = ImageDraw.Draw(shadow_layer)
         shadow_draw.rounded_rectangle(
             (
-                x + offset_x,
-                y + offset_y,
-                x + width + offset_x,
-                y + height + offset_y,
+                padding + offset_x,
+                padding + offset_y,
+                padding + width + offset_x,
+                padding + height + offset_y,
             ),
-            radius=radius,
+            radius=max(0, radius),
             fill=(
                 0,
                 0,
@@ -4615,25 +4745,19 @@ class BracketImageService:
                 alpha,
             ),
         )
-    
-        blur_radius = int(
-            getattr(
-                self.theme,
-                "match_shadow_blur_radius",
-                5,
+
+        if blur_radius > 0:
+            shadow_layer = shadow_layer.filter(
+                ImageFilter.GaussianBlur(blur_radius)
             )
+
+        self._alpha_composite_local(
+            image,
+            shadow_layer,
+            x - padding,
+            y - padding,
         )
-    
-        shadow_layer = shadow_layer.filter(
-            ImageFilter.GaussianBlur(
-                blur_radius
-            )
-        )
-    
-        image.alpha_composite(
-            shadow_layer
-        )
-    
+
     def _draw_card_glow(
         self,
         image: Image.Image,
@@ -4648,12 +4772,28 @@ class BracketImageService:
         glow_width: int = 5,
     ) -> None:
         """
-        Dessine une lueur extérieure autour d'une carte.
+        Dessine une lueur extérieure autour d'une carte avec un petit calque
+        local, afin de ne pas flouter le canvas complet à chaque match.
         """
-    
+
+        alpha = max(0, min(255, int(alpha)))
+        blur_radius = max(0, int(blur_radius))
+        glow_width = max(1, int(glow_width))
+
+        padding = max(
+            4,
+            glow_width + blur_radius * 3 + 2,
+        )
+
+        local_width = max(1, width + padding * 2)
+        local_height = max(1, height + padding * 2)
+
         glow_layer = Image.new(
             "RGBA",
-            image.size,
+            (
+                local_width,
+                local_height,
+            ),
             (
                 0,
                 0,
@@ -4661,42 +4801,35 @@ class BracketImageService:
                 0,
             ),
         )
-    
-        glow_draw = ImageDraw.Draw(
-            glow_layer
-        )
-    
+
+        glow_draw = ImageDraw.Draw(glow_layer)
         glow_draw.rounded_rectangle(
             (
-                x - glow_width,
-                y - glow_width,
-                x + width + glow_width,
-                y + height + glow_width,
+                padding - glow_width,
+                padding - glow_width,
+                padding + width + glow_width,
+                padding + height + glow_width,
             ),
-            radius=(
-                radius
-                + glow_width
-            ),
+            radius=max(0, radius + glow_width),
             outline=(
                 *color,
                 alpha,
             ),
-            width=max(
-                2,
-                glow_width,
-            ),
+            width=max(2, glow_width),
         )
-    
-        glow_layer = glow_layer.filter(
-            ImageFilter.GaussianBlur(
-                blur_radius
+
+        if blur_radius > 0:
+            glow_layer = glow_layer.filter(
+                ImageFilter.GaussianBlur(blur_radius)
             )
+
+        self._alpha_composite_local(
+            image,
+            glow_layer,
+            x - padding,
+            y - padding,
         )
-    
-        image.alpha_composite(
-            glow_layer
-        )
-    
+
     # ==========================================================
     # LIGNES DES JOUEURS
     # ==========================================================
@@ -7035,6 +7168,48 @@ class BracketImageService:
         final_mode: bool = False,
     ) -> io.BytesIO:
         """
+        Prépare les avatars de façon asynchrone, puis exécute tout le rendu
+        Pillow dans un thread afin de ne jamais bloquer les commandes Discord.
+        Une seule génération lourde est autorisée à la fois.
+        """
+
+        if not bracket:
+            raise ValueError(
+                "Aucun bracket n'a été généré "
+                "pour ce tournoi."
+            )
+
+        all_matches = [
+            match
+            for matches in bracket.values()
+            for match in matches
+        ]
+
+        async with self._render_lock:
+            avatar_map = await self._resolve_avatar_map(
+                all_matches,
+                avatar_urls,
+            )
+
+            return await asyncio.to_thread(
+                self._render_sync,
+                tournament,
+                bracket,
+                avatar_urls=avatar_urls,
+                avatar_map=avatar_map,
+                final_mode=final_mode,
+            )
+
+    def _render_sync(
+        self,
+        tournament: Any,
+        bracket: dict[int, list[Any]],
+        *,
+        avatar_urls: dict[str, str] | None = None,
+        avatar_map: dict[str, Image.Image],
+        final_mode: bool = False,
+    ) -> io.BytesIO:
+        """
         Génère l'image PNG complète du bracket.
     
         final_mode=False :
@@ -7211,20 +7386,6 @@ class BracketImageService:
             player_capacity,
         )
     
-        # ------------------------------------------------------
-        # Chargement des avatars
-        # ------------------------------------------------------
-    
-        all_matches = [
-            match
-            for matches in bracket.values()
-            for match in matches
-        ]
-    
-        avatar_map = await self._resolve_avatar_map(
-            all_matches,
-            avatar_urls,
-        )
     
         seed_map = self._build_seed_map(
             bracket
@@ -7318,8 +7479,8 @@ class BracketImageService:
         ).save(
             output,
             format="PNG",
-            optimize=True,
-            compress_level=7,
+            optimize=False,
+            compress_level=4,
         )
     
         output.seek(
