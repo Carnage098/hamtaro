@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Tableau de bord staff · Hamtaro{% endblock %}
+
+{% block content %}
+<section
+    class="professional-dashboard"
+    data-staff-dashboard
+    data-refresh-url="/staff/api/overview"
+>
+    <header class="professional-dashboard-header">
+        <div>
+            <p class="professional-eyebrow">HAMTARO STAFF</p>
+            <h1>Tableau de bord du tournoi</h1>
+            <p>
+                Vue protégée des tournois actifs, résultats en attente,
+                incohérences et dernières actions sensibles.
+            </p>
+        </div>
+        <a class="professional-button-secondary" href="/staff/logout">
+            Se déconnecter
+        </a>
+    </header>
+
+    <div class="professional-live-line" aria-live="polite">
+        <span class="professional-live-dot"></span>
+        <span data-staff-last-update>Mise à jour automatique toutes les 15 secondes</span>
+    </div>
+
+    <section class="professional-stat-grid" data-staff-stats>
+        <article>
+            <strong>{{ overview.totals.active_tournaments }}</strong>
+            <span>Tournois actifs</span>
+        </article>
+        <article>
+            <strong>{{ overview.totals.registrations }}</strong>
+            <span>Inscriptions enregistrées</span>
+        </article>
+        <article>
+            <strong>{{ overview.totals.pending_results }}</strong>
+            <span>Résultats en attente</span>
+        </article>
+        <article class="{% if overview.totals.invalid_matches %}is-danger{% endif %}">
+            <strong>{{ overview.totals.invalid_matches }}</strong>
+            <span>Matchs incohérents</span>
+        </article>
+    </section>
+
+    <div class="professional-dashboard-grid">
+        <section class="professional-card">
+            <h2>Tournois actifs</h2>
+            <div class="professional-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Nom</th>
+                            <th>Statut</th>
+                            <th>Joueurs</th>
+                            <th>Ronde</th>
+                        </tr>
+                    </thead>
+                    <tbody data-staff-tournaments>
+                    {% for tournament in overview.active_tournaments %}
+                        <tr>
+                            <td><code>{{ tournament.code }}</code></td>
+                            <td>{{ tournament.name }}</td>
+                            <td>{{ tournament.status }}</td>
+                            <td>{{ tournament.participant_count }}/{{ tournament.max_players }}</td>
+                            <td>{{ tournament.current_round }}/{{ tournament.total_rounds }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="5">Aucun tournoi actif.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="professional-card">
+            <h2>Résultats en attente</h2>
+            <div class="professional-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tournoi</th>
+                            <th>Match</th>
+                            <th>Score</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody data-staff-results>
+                    {% for result in overview.pending_results %}
+                        <tr>
+                            <td><code>{{ result.tournament_code }}</code></td>
+                            <td>{{ result.match_kind }}:{{ result.match_id }}</td>
+                            <td>{{ result.player1_score }}-{{ result.player2_score }}</td>
+                            <td>{{ result.status }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="4">Aucun résultat en attente.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="professional-hint">
+                Les validations restent effectuées dans Discord afin de conserver
+                l’identité du membre du staff et les confirmations existantes.
+            </p>
+        </section>
+
+        <section class="professional-card">
+            <h2>Incohérences détectées</h2>
+            <div data-staff-invalid>
+            {% for match in overview.invalid_matches %}
+                <article class="professional-issue">
+                    <strong>{{ match.tournament_code }} · Match #{{ match.id }}</strong>
+                    <span>{{ match.player1_name or "?" }} contre {{ match.player2_name or "?" }}</span>
+                    <code>{{ match.status }}</code>
+                </article>
+            {% else %}
+                <p>Aucune incohérence détectée.</p>
+            {% endfor %}
+            </div>
+        </section>
+
+        <section class="professional-card">
+            <h2>Journal d’audit</h2>
+            <div data-staff-audit>
+            {% for entry in overview.recent_audit %}
+                <article class="professional-audit-entry">
+                    <strong>{{ entry.action }}</strong>
+                    <span>{{ entry.actor_name or entry.actor_id or "Système" }}</span>
+                    <time>{{ entry.created_at }}</time>
+                </article>
+            {% else %}
+                <p>Aucune action enregistrée.</p>
+            {% endfor %}
+            </div>
+        </section>
+    </div>
+</section>
+{% endblock %}

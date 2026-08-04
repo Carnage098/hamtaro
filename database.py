@@ -1,8 +1,13 @@
+import logging
+import re
+
 import aiosqlite
 
-from config import DATABASE
+from config import DATABASE, SQLITE_BUSY_TIMEOUT_MS
 
-DB_VERSION = 5
+LOGGER = logging.getLogger("hamtaro.database.schema")
+DB_VERSION = 9
+_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 async def table_exists(
@@ -39,6 +44,11 @@ async def column_exists(
 
     if not await table_exists(db, table_name):
         return False
+
+    if not _IDENTIFIER.fullmatch(table_name):
+        raise ValueError("Nom de table SQLite invalide.")
+    if not _IDENTIFIER.fullmatch(column_name):
+        raise ValueError("Nom de colonne SQLite invalide.")
 
     cursor = await db.execute(f"PRAGMA table_info({table_name})")
     columns = await cursor.fetchall()
@@ -186,7 +196,10 @@ async def run_migrations(
 
 
 async def init_db() -> None:
-    async with aiosqlite.connect(str(DATABASE), timeout=30) as db:
+    async with aiosqlite.connect(
+        str(DATABASE),
+        timeout=SQLITE_BUSY_TIMEOUT_MS / 1000,
+    ) as db:
 
         # ==========================================================
         # SQLITE
@@ -195,7 +208,8 @@ async def init_db() -> None:
         await db.execute("PRAGMA foreign_keys = ON;")
         await db.execute("PRAGMA journal_mode = WAL;")
         await db.execute("PRAGMA synchronous = NORMAL;")
-        await db.execute("PRAGMA busy_timeout = 30000;")
+        await db.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS};")
+        await db.execute("PRAGMA temp_store = MEMORY;")
 
         # ==========================================================
         # META
@@ -475,6 +489,234 @@ async def init_db() -> None:
         """)
 
         # ==========================================================
+        # JOURNAL D'AUDIT SYSTÈME
+        # ==========================================================
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS audit_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id TEXT,
+            tournament_id INTEGER,
+            actor_id TEXT,
+            action TEXT NOT NULL,
+            details TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (tournament_id)
+                REFERENCES tournaments(id)
+                ON DELETE SET NULL
+        )
+        """)
+
+        # ==========================================================
+        # RÉSULTATS CENTRALISÉS
+        # ==========================================================
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS result_settings (
+            guild_id TEXT PRIMARY KEY,
+            validation_channel_id TEXT,
+            public_results_channel_id TEXT,
+            logs_channel_id TEXT,
+            staff_role_id TEXT,
+            auto_approve_confirmed INTEGER NOT NULL DEFAULT 0,
+            reminder_minutes INTEGER NOT NULL DEFAULT 30,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS result_requests (
+            match_kind TEXT NOT NULL,
+            match_id INTEGER NOT NULL,
+            guild_id TEXT NOT NULL,
+            tournament_id INTEGER NOT NULL,
+            reporter_id TEXT NOT NULL,
+            opponent_id TEXT,
+            result_type TEXT NOT NULL DEFAULT 'normal',
+            winner_slot TEXT,
+            player1_score INTEGER NOT NULL DEFAULT 0,
+            player2_score INTEGER NOT NULL DEFAULT 0,
+            proof_url TEXT,
+            proof_is_image INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'pending',
+            confirmation_channel_id TEXT,
+            confirmation_message_id TEXT,
+            validation_channel_id TEXT,
+            validation_message_id TEXT,
+            dispute_thread_id TEXT,
+            confirmed_by TEXT,
+            confirmed_at TIMESTAMP,
+            contested_by TEXT,
+            contest_reason TEXT,
+            decision_by TEXT,
+            decision_notes TEXT,
+            last_reminded_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (match_kind, match_id),
+            FOREIGN KEY (tournament_id)
+                REFERENCES tournaments(id)
+                ON DELETE CASCADE
+        )
+        """)
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS result_audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id TEXT NOT NULL,
+            match_kind TEXT NOT NULL,
+            match_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            actor_id TEXT,
+            details TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
+        # ==========================================================
+        # AUDIT PROFESSIONNEL ET OPÉRATIONS SENSIBLES
+        # ==========================================================
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id TEXT NOT NULL,
+            actor_id TEXT,
+            actor_name TEXT,
+            action TEXT NOT NULL,
+            entity_type TEXT,
+            entity_id TEXT,
+            tournament_id INTEGER,
+            details TEXT NOT NULL DEFAULT '{}',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (tournament_id)
+                REFERENCES tournaments(id)
+                ON DELETE SET NULL
+        )
+        """)
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS result_operation_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            match_kind TEXT NOT NULL,
+            match_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            actor_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'processing',
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            finished_at TIMESTAMP,
+            CHECK (match_kind IN ('bracket', 'swiss')),
+            CHECK (status IN ('processing', 'completed', 'failed'))
+        )
+        """)
+
+        # ==========================================================
+        # GARDE-FOUS SQLITE
+        # ==========================================================
+
+        await db.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_tournament_capacity_insert
+        BEFORE INSERT ON tournaments
+        WHEN NEW.max_players NOT IN (4, 8, 16, 32, 64, 128)
+        BEGIN
+            SELECT RAISE(ABORT, 'Capacité de tournoi invalide');
+        END
+        """)
+
+        await db.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_tournament_capacity_update
+        BEFORE UPDATE OF max_players ON tournaments
+        WHEN NEW.max_players NOT IN (4, 8, 16, 32, 64, 128)
+        BEGIN
+            SELECT RAISE(ABORT, 'Capacité de tournoi invalide');
+        END
+        """)
+
+        await db.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_match_players_distinct_insert
+        BEFORE INSERT ON matches
+        WHEN NEW.player1_id IS NOT NULL
+         AND NEW.player2_id IS NOT NULL
+         AND NEW.player1_id = NEW.player2_id
+        BEGIN
+            SELECT RAISE(ABORT, 'Un joueur ne peut pas affronter lui-même');
+        END
+        """)
+
+        await db.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_match_players_distinct_update
+        BEFORE UPDATE OF player1_id, player2_id ON matches
+        WHEN NEW.player1_id IS NOT NULL
+         AND NEW.player2_id IS NOT NULL
+         AND NEW.player1_id = NEW.player2_id
+        BEGIN
+            SELECT RAISE(ABORT, 'Un joueur ne peut pas affronter lui-même');
+        END
+        """)
+
+        await db.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_match_winner_is_participant
+        BEFORE UPDATE OF winner_id ON matches
+        WHEN NEW.winner_id IS NOT NULL
+         AND NEW.winner_id IS NOT NEW.player1_id
+         AND NEW.winner_id IS NOT NEW.player2_id
+        BEGIN
+            SELECT RAISE(ABORT, 'Le gagnant doit participer au match');
+        END
+        """)
+
+        await db.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_match_scores_nonnegative
+        BEFORE UPDATE OF player1_score, player2_score ON matches
+        WHEN NEW.player1_score < 0 OR NEW.player2_score < 0
+        BEGIN
+            SELECT RAISE(ABORT, 'Un score ne peut pas être négatif');
+        END
+        """)
+
+        await db.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_swiss_winner_is_participant
+        BEFORE UPDATE OF winner_id ON swiss_matches
+        WHEN NEW.winner_id IS NOT NULL
+         AND NEW.winner_id IS NOT NEW.player1_id
+         AND NEW.winner_id IS NOT NEW.player2_id
+        BEGIN
+            SELECT RAISE(ABORT, 'Le gagnant suisse doit participer au match');
+        END
+        """)
+
+        await db.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_swiss_scores_nonnegative
+        BEFORE UPDATE OF player1_score, player2_score ON swiss_matches
+        WHEN NEW.player1_score < 0 OR NEW.player2_score < 0
+        BEGIN
+            SELECT RAISE(ABORT, 'Un score suisse ne peut pas être négatif');
+        END
+        """)
+
+        await db.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_result_request_status_insert
+        BEFORE INSERT ON result_requests
+        WHEN NEW.status NOT IN (
+            'pending', 'confirmed', 'contested', 'processing', 'approved', 'rejected'
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'Statut de demande de résultat invalide');
+        END
+        """)
+
+        await db.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_result_request_status_update
+        BEFORE UPDATE OF status ON result_requests
+        WHEN NEW.status NOT IN (
+            'pending', 'confirmed', 'contested', 'processing', 'approved', 'rejected'
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'Statut de demande de résultat invalide');
+        END
+        """)
+
+        # ==========================================================
         # MIGRATIONS POUR ANCIENNE BASE
         # ==========================================================
 
@@ -623,6 +865,41 @@ async def init_db() -> None:
         )
         """)
 
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_audit_events_created
+        ON audit_events(created_at DESC)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_audit_events_tournament
+        ON audit_events(tournament_id, created_at DESC)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_result_requests_status
+        ON result_requests(guild_id, status, created_at)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_result_audit_match
+        ON result_audit_logs(match_kind, match_id, created_at)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_guild
+        ON audit_logs(guild_id, created_at DESC)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_tournament
+        ON audit_logs(tournament_id, created_at DESC)
+        """)
+
+        await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_result_operation_match
+        ON result_operation_log(match_kind, match_id, started_at DESC)
+        """)
+
         # ==========================================================
         # PLUS DE CHECK-IN OBLIGATOIRE
         # ==========================================================
@@ -639,6 +916,7 @@ async def init_db() -> None:
         WHERE key = 'db_version'
         """, (str(DB_VERSION),))
 
+        await db.execute("PRAGMA optimize;")
         await db.commit()
 
-    print("✅ Base de données Hamtaro initialisée.")
+    LOGGER.info("Base de données Hamtaro initialisée (version %s).", DB_VERSION)
