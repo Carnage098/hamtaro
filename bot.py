@@ -75,8 +75,7 @@ REQUIRED_COGS = (
     "cogs.professional_web",
     "cogs.public_website",
     "cogs.hamtaro_hub",
-)
-
+]
 OPTIONAL_COGS = (
     "cogs.graphics_preview",
     "cogs.swiss_graphics",
