@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import signal
 import time
 import traceback
 from contextlib import suppress
@@ -71,11 +70,12 @@ REQUIRED_COGS = (
     "cogs.tournament_progression",
     "cogs.deck_stats",
     "cogs.tournament_export",
+    "cogs.system_health",
+    "cogs.professional_tools",
+    # Doit être chargé avant public_website afin d'enregistrer les routes /staff.
     "cogs.professional_web",
     "cogs.public_website",
     "cogs.hamtaro_hub",
-    "cogs.system_health",
-    "cogs.professional_tools",
 )
 
 OPTIONAL_COGS = (
