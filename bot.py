@@ -35,6 +35,7 @@ COGS = [
     "cogs.deck_stats",
     "cogs.tournament_export",
     "cogs.public_website",
+    "cogs.hamtaro_hub",
 ]
 
 
