@@ -1,6 +1,7 @@
 import aiosqlite
 
-DATABASE = "database.db"
+from config import DATABASE
+
 DB_VERSION = 5
 
 
@@ -185,7 +186,7 @@ async def run_migrations(
 
 
 async def init_db() -> None:
-    async with aiosqlite.connect(DATABASE) as db:
+    async with aiosqlite.connect(str(DATABASE), timeout=30) as db:
 
         # ==========================================================
         # SQLITE
@@ -194,6 +195,7 @@ async def init_db() -> None:
         await db.execute("PRAGMA foreign_keys = ON;")
         await db.execute("PRAGMA journal_mode = WAL;")
         await db.execute("PRAGMA synchronous = NORMAL;")
+        await db.execute("PRAGMA busy_timeout = 30000;")
 
         # ==========================================================
         # META
