@@ -14,6 +14,7 @@ from utils.tournament_resolver import resolve_tournament
 
 LOGGER = logging.getLogger(__name__)
 HUB_TIMEOUT_SECONDS = 300
+DEFAULT_WEBSITE_URL = "https://worker-production-5a11.up.railway.app"
 
 STATUS_LABELS = {
     "registration": "🟢 Inscriptions ouvertes",
@@ -900,43 +901,58 @@ class HamtaroHubCog(commands.Cog):
         await safe_ephemeral_send(interaction, embed=embed)
 
     async def open_website(self, interaction: discord.Interaction) -> None:
-        if isinstance(
-            self.bot.tree.get_command("hamtaro_site"),
-            app_commands.Command,
-        ):
-            await self.invoke_public_command(interaction, "hamtaro_site")
-            return
+        """Affiche immédiatement le lien du site sans relancer une commande slash."""
 
-        website_url = os.getenv("WEBSITE_BASE_URL", "").strip().rstrip("/")
-        if not website_url:
+        website_url = os.getenv(
+            "WEBSITE_BASE_URL",
+            DEFAULT_WEBSITE_URL,
+        ).strip().rstrip("/")
+
+        if not website_url.startswith(("http://", "https://")):
+            LOGGER.error(
+                "WEBSITE_BASE_URL invalide : %r",
+                website_url,
+            )
             await safe_ephemeral_send(
                 interaction,
                 content=(
-                    "❌ Le site Hamtaro n'est pas configuré. "
-                    "Ajoute `WEBSITE_BASE_URL` dans Railway."
+                    "❌ L'adresse du site Hamtaro est invalide. "
+                    "Vérifie `WEBSITE_BASE_URL` dans Railway."
                 ),
             )
             return
 
-        view = discord.ui.View()
+        embed = discord.Embed(
+            title="🌐 Site public Hamtaro",
+            description=(
+                "Consulte les tournois, les résultats, les profils, "
+                "les archives et les brackets."
+            ),
+            url=website_url,
+            colour=discord.Colour.gold(),
+        )
+
+        if self.bot.user is not None:
+            embed.set_thumbnail(url=self.bot.user.display_avatar.url)
+
+        embed.set_footer(
+            text="Hamtaro • Le bot officiel de Jjetgames du serveur Fun Row"
+        )
+
+        view = discord.ui.View(timeout=None)
         view.add_item(
             discord.ui.Button(
                 label="Ouvrir le site Hamtaro",
                 emoji="🌐",
+                style=discord.ButtonStyle.link,
                 url=website_url,
             )
         )
+
+        # Aucune base de données ni requête HTTP avant cette réponse.
         await safe_ephemeral_send(
             interaction,
-            embed=discord.Embed(
-                title="🌐 Site public Hamtaro",
-                description=(
-                    "Consulte les tournois, les résultats, les profils, "
-                    "les archives et les brackets."
-                ),
-                url=website_url,
-                colour=discord.Colour.gold(),
-            ),
+            embed=embed,
             view=view,
         )
 
