@@ -112,25 +112,7 @@ EVENT_LOOP_WARNING_SECONDS = max(
     float(os.getenv("EVENT_LOOP_WARNING_SECONDS", "2.0")),
 )
 
-
-# Fonctionnalités professionnelles
-PROFESSIONAL_TOOLS_ENABLED = env_bool("PROFESSIONAL_TOOLS_ENABLED", True)
-STAFF_DASHBOARD_ENABLED = env_bool("STAFF_DASHBOARD_ENABLED", True)
-STAFF_DASHBOARD_TOKEN = os.getenv("STAFF_DASHBOARD_TOKEN", "").strip()
-LIVE_SITE_REFRESH_SECONDS = env_int(
-    "LIVE_SITE_REFRESH_SECONDS",
-    15,
-    minimum=5,
-    maximum=300,
-)
-DOCTOR_MAX_ROWS = env_int(
-    "DOCTOR_MAX_ROWS",
-    100,
-    minimum=10,
-    maximum=1000,
-)
-
 BOT_BUILD = os.getenv(
     "HAMTARO_BUILD",
-    "professional-suite-2026-08-05",
+    "production-hardening-2026-08-05",
 ).strip()

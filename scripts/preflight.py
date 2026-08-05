@@ -125,53 +125,12 @@ def check_database() -> bool:
     return False
 
 
-
-def check_professional_configuration() -> bool:
-    valid = True
-    enabled = os.getenv("STAFF_DASHBOARD_ENABLED", "true").strip().lower() not in {
-        "0", "false", "no", "off", "disabled", ""
-    }
-    token = os.getenv("STAFF_DASHBOARD_TOKEN", "").strip()
-    if enabled and len(token) < 24:
-        message = (
-            "STAFF_DASHBOARD_TOKEN doit contenir au moins 24 caractères "
-            "lorsque le tableau staff est activé."
-        )
-        if os.getenv("RAILWAY_ENVIRONMENT"):
-            failure(message)
-            valid = False
-        else:
-            warning(message)
-    elif enabled:
-        ok("Le jeton du tableau de bord staff est suffisamment long.")
-    else:
-        ok("Le tableau de bord staff est volontairement désactivé.")
-
-    required = (
-        "cogs/professional_web.py",
-        "cogs/professional_tools.py",
-        "services/integrity_service.py",
-        "services/self_test_service.py",
-        "services/audit_service.py",
-        "web/templates/staff_dashboard.html",
-        ".github/workflows/quality.yml",
-    )
-    missing = [name for name in required if not (ROOT / name).exists()]
-    if missing:
-        failure("Fichiers professionnels manquants : " + ", ".join(missing))
-        valid = False
-    else:
-        ok("Tous les modules professionnels sont présents.")
-    return valid
-
-
 def main() -> int:
     print("Préflight Hamtaro\n")
     checks = (
         check_python_syntax(),
         check_environment(),
         check_repository_hygiene(),
-        check_professional_configuration(),
         check_database(),
     )
     print()
