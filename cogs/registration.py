@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import discord
-
-from discord.ext import commands
 from discord import app_commands
+from discord.ext import commands
 
-from utils.embeds import success_embed, error_embed, info_embed
+from utils.embeds import error_embed, info_embed, success_embed
 from utils.tournament_resolver import (
     active_tournament_code_autocomplete,
     resolve_tournament,
@@ -13,11 +12,7 @@ from utils.tournament_resolver import (
 
 
 class RegistrationCog(commands.Cog):
-
-    def __init__(
-        self,
-        bot: commands.Bot,
-    ):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.db = bot.db
 
@@ -25,15 +20,11 @@ class RegistrationCog(commands.Cog):
     # OUTILS INTERNES
     # ==========================================================
 
-    def _guild_id(
-        self,
-        interaction: discord.Interaction,
-    ) -> str:
+    def _guild_id(self, interaction: discord.Interaction) -> str:
         if interaction.guild is None:
             raise ValueError(
                 "Cette commande doit être utilisée dans un serveur."
             )
-
         return str(interaction.guild.id)
 
     async def _get_active_tournament(
@@ -47,39 +38,30 @@ class RegistrationCog(commands.Cog):
             code=code,
         )
 
-    def _display_name(
-        self,
-        user,
-    ) -> str:
+    @staticmethod
+    def _display_name(user: discord.abc.User) -> str:
         return (
             user.display_name
             if hasattr(user, "display_name")
             else user.name
         )
 
-    def _avatar_url(
-        self,
-        user,
-    ) -> str | None:
+    @staticmethod
+    def _avatar_url(user: discord.abc.User) -> str | None:
         avatar = getattr(user, "display_avatar", None)
+        return avatar.url if avatar is not None else None
 
-        if avatar is None:
-            return None
-
-        return avatar.url
-
+    @staticmethod
     async def _send_error(
-        self,
         interaction: discord.Interaction,
         title: str,
         description: str,
         ephemeral: bool = True,
-    ):
+    ) -> None:
         embed = error_embed(
             title=title,
             description=description,
         )
-
         await interaction.followup.send(
             embed=embed,
             ephemeral=ephemeral,
@@ -91,28 +73,25 @@ class RegistrationCog(commands.Cog):
 
     @app_commands.command(
         name="register",
-        description="S'inscrire au tournoi sélectionné"
+        description="S'inscrire au tournoi sélectionné",
     )
     @app_commands.describe(
         deck="Deck que tu joues pour ce tournoi",
-        code="Code facultatif du tournoi"
+        code="Code facultatif du tournoi",
     )
     @app_commands.autocomplete(
-        code=active_tournament_code_autocomplete
+        code=active_tournament_code_autocomplete,
     )
     async def register(
         self,
         interaction: discord.Interaction,
         deck: str | None = None,
         code: str | None = None,
-    ):
-        await interaction.response.defer(
-            ephemeral=True
-        )
+    ) -> None:
+        await interaction.response.defer(ephemeral=True)
 
         try:
             guild_id = self._guild_id(interaction)
-
             tournament = await self._get_active_tournament(
                 interaction,
                 code,
@@ -122,7 +101,9 @@ class RegistrationCog(commands.Cog):
                 await self._send_error(
                     interaction=interaction,
                     title="Aucun tournoi actif",
-                    description="Aucun tournoi actif avec inscriptions ouvertes.",
+                    description=(
+                        "Aucun tournoi actif avec inscriptions ouvertes."
+                    ),
                 )
                 return
 
@@ -139,7 +120,6 @@ class RegistrationCog(commands.Cog):
                 display_name=username,
                 avatar_url=avatar_url,
             )
-
             current = await self.db.count_registrations(
                 tournament.id
             )
@@ -156,28 +136,24 @@ class RegistrationCog(commands.Cog):
             title="Inscription validée",
             description=(
                 f"{interaction.user.mention}, tu es bien inscrit au tournoi.\n\n"
-                "Aucun check-in n'est nécessaire : ton inscription confirme ta disponibilité."
+                "Ton inscription confirme directement ta disponibilité."
             ),
         )
-
         embed.add_field(
             name="🏆 Tournoi",
             value=f"**{tournament.name}** (`{tournament.code}`)",
             inline=False,
         )
-
         embed.add_field(
             name="🎴 Deck",
             value=f"`{registration.deck or 'Non renseigné'}`",
             inline=True,
         )
-
         embed.add_field(
             name="📊 Inscrits",
             value=f"**{current}/{tournament.max_players}**",
             inline=True,
         )
-
         embed.set_footer(
             text="Hamtaro Tournament Manager"
         )
@@ -193,22 +169,20 @@ class RegistrationCog(commands.Cog):
 
     @app_commands.command(
         name="unregister",
-        description="Se désinscrire du tournoi sélectionné"
+        description="Se désinscrire du tournoi sélectionné",
     )
     @app_commands.describe(
-        code="Code facultatif du tournoi"
+        code="Code facultatif du tournoi",
     )
     @app_commands.autocomplete(
-        code=active_tournament_code_autocomplete
+        code=active_tournament_code_autocomplete,
     )
     async def unregister(
         self,
         interaction: discord.Interaction,
         code: str | None = None,
-    ):
-        await interaction.response.defer(
-            ephemeral=True
-        )
+    ) -> None:
+        await interaction.response.defer(ephemeral=True)
 
         try:
             tournament = await self._get_active_tournament(
@@ -220,7 +194,9 @@ class RegistrationCog(commands.Cog):
                 await self._send_error(
                     interaction=interaction,
                     title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    description=(
+                        "Il n'y a actuellement aucun tournoi actif."
+                    ),
                 )
                 return
 
@@ -244,7 +220,6 @@ class RegistrationCog(commands.Cog):
                 f"**{tournament.name}**."
             ),
         )
-
         embed.set_footer(
             text="Hamtaro Tournament Manager"
         )
@@ -255,84 +230,27 @@ class RegistrationCog(commands.Cog):
         )
 
     # ==========================================================
-    # CHECK-IN DÉSACTIVÉ
-    # ==========================================================
-
-    @app_commands.command(
-        name="checkin",
-        description="Ancienne commande de check-in"
-    )
-    async def checkin(
-        self,
-        interaction: discord.Interaction,
-    ):
-        embed = info_embed(
-            title="Check-in désactivé",
-            description=(
-                "Le check-in n'est plus nécessaire.\n\n"
-                "Si tu es inscrit au tournoi, tu es automatiquement considéré "
-                "comme disponible."
-            ),
-        )
-
-        embed.set_footer(
-            text="Hamtaro Tournament Manager"
-        )
-
-        await interaction.response.send_message(
-            embed=embed,
-            ephemeral=True,
-        )
-
-    @app_commands.command(
-        name="uncheckin",
-        description="Ancienne commande pour annuler le check-in"
-    )
-    async def uncheckin(
-        self,
-        interaction: discord.Interaction,
-    ):
-        embed = info_embed(
-            title="Check-in désactivé",
-            description=(
-                "Le système de check-in est désactivé.\n\n"
-                "Tu n'as rien à annuler : seule l'inscription compte maintenant."
-            ),
-        )
-
-        embed.set_footer(
-            text="Hamtaro Tournament Manager"
-        )
-
-        await interaction.response.send_message(
-            embed=embed,
-            ephemeral=True,
-        )
-
-    # ==========================================================
-    # MODIFIER DECK
+    # MODIFIER LE DECK
     # ==========================================================
 
     @app_commands.command(
         name="deck",
-        description="Modifier le deck déclaré pour le tournoi sélectionné"
+        description="Modifier le deck déclaré pour le tournoi sélectionné",
     )
     @app_commands.describe(
         deck="Nom du deck",
-        code="Code facultatif du tournoi"
+        code="Code facultatif du tournoi",
     )
     @app_commands.autocomplete(
-        code=active_tournament_code_autocomplete
+        code=active_tournament_code_autocomplete,
     )
     async def deck(
         self,
         interaction: discord.Interaction,
         deck: str,
         code: str | None = None,
-    ):
-        await interaction.response.defer(
-            ephemeral=True
-        )
+    ) -> None:
+        await interaction.response.defer(ephemeral=True)
 
         try:
             tournament = await self._get_active_tournament(
@@ -344,7 +262,9 @@ class RegistrationCog(commands.Cog):
                 await self._send_error(
                     interaction=interaction,
                     title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    description=(
+                        "Il n'y a actuellement aucun tournoi actif."
+                    ),
                 )
                 return
 
@@ -381,13 +301,11 @@ class RegistrationCog(commands.Cog):
                 f"{interaction.user.mention}, ton deck a bien été modifié."
             ),
         )
-
         embed.add_field(
             name="🎴 Nouveau deck",
             value=f"`{deck}`",
             inline=False,
         )
-
         embed.set_footer(
             text="Hamtaro Tournament Manager"
         )
@@ -403,22 +321,20 @@ class RegistrationCog(commands.Cog):
 
     @app_commands.command(
         name="players",
-        description="Voir les joueurs du tournoi sélectionné"
+        description="Voir les joueurs du tournoi sélectionné",
     )
     @app_commands.describe(
-        code="Code facultatif du tournoi"
+        code="Code facultatif du tournoi",
     )
     @app_commands.autocomplete(
-        code=active_tournament_code_autocomplete
+        code=active_tournament_code_autocomplete,
     )
     async def players(
         self,
         interaction: discord.Interaction,
         code: str | None = None,
-    ):
-        await interaction.response.defer(
-            ephemeral=False
-        )
+    ) -> None:
+        await interaction.response.defer(ephemeral=False)
 
         try:
             tournament = await self._get_active_tournament(
@@ -430,7 +346,9 @@ class RegistrationCog(commands.Cog):
                 await self._send_error(
                     interaction=interaction,
                     title="Aucun tournoi actif",
-                    description="Il n'y a actuellement aucun tournoi actif.",
+                    description=(
+                        "Il n'y a actuellement aucun tournoi actif."
+                    ),
                     ephemeral=True,
                 )
                 return
@@ -451,9 +369,10 @@ class RegistrationCog(commands.Cog):
         if not registrations:
             embed = info_embed(
                 title="Aucun joueur inscrit",
-                description="Aucun joueur n'est inscrit pour le moment.",
+                description=(
+                    "Aucun joueur n'est inscrit pour le moment."
+                ),
             )
-
             embed.set_footer(
                 text="Hamtaro Tournament Manager"
             )
@@ -465,13 +384,11 @@ class RegistrationCog(commands.Cog):
             return
 
         lines = []
-
         for index, registration in enumerate(
             registrations,
             start=1,
         ):
             deck = registration.deck or "Non renseigné"
-
             lines.append(
                 f"{index}. ✅ **{registration.username}** — `{deck}`"
             )
@@ -480,18 +397,19 @@ class RegistrationCog(commands.Cog):
             title=f"Joueurs inscrits — {tournament.name}",
             description="\n".join(lines),
         )
-
         embed.add_field(
             name="📌 Disponibilité",
             value=(
-                "Tous les joueurs inscrits sont automatiquement considérés "
-                "comme disponibles."
+                "Tous les joueurs inscrits sont automatiquement "
+                "considérés comme disponibles."
             ),
             inline=False,
         )
-
         embed.set_footer(
-            text=f"{len(registrations)}/{tournament.max_players} joueurs inscrits"
+            text=(
+                f"{len(registrations)}/{tournament.max_players} "
+                "joueurs inscrits"
+            ),
         )
 
         await interaction.followup.send(
@@ -499,9 +417,7 @@ class RegistrationCog(commands.Cog):
         )
 
 
-async def setup(
-    bot: commands.Bot,
-):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(
         RegistrationCog(bot)
     )
