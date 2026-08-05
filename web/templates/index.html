@@ -3,12 +3,7 @@
 {% block title %}Tournois — Hamtaro{% endblock %}
 
 {% macro tournament_card(tournament) %}
-<a
-    class="tournament-card"
-    href="/tournaments/{{ tournament.id }}"
-    data-tournament-card
-    data-search="{{ (tournament.name ~ ' ' ~ tournament.code ~ ' ' ~ tournament.format ~ ' ' ~ tournament.status) | lower }}"
->
+<a class="tournament-card" href="/tournaments/{{ tournament.id }}">
     <div class="card-topline">
         <span class="status status-{{ tournament.status | lower }}">
             {{ tournament.status or "inconnu" }}
@@ -37,21 +32,6 @@
         Suis les inscriptions, les matchs et les brackets officiels
         depuis une seule interface.
     </p>
-</section>
-
-<section class="professional-tournament-toolbar" aria-label="Recherche de tournois">
-    <label for="tournament-search">Rechercher un tournoi</label>
-    <input
-        id="tournament-search"
-        type="search"
-        placeholder="Nom, code, format ou statut…"
-        autocomplete="off"
-        data-tournament-search
-    >
-    <span class="professional-live-line">
-        <span class="professional-live-dot"></span>
-        <span data-tournament-last-update>Liste synchronisée automatiquement</span>
-    </span>
 </section>
 
 <section class="content-section">

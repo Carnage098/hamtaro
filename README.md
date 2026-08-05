@@ -1,109 +1,92 @@
-# Hamtaro — Professional Tournament Suite
+# Hamtaro — gestion de tournois Yu-Gi-Oh!
 
-Hamtaro est le système de tournois Yu-Gi-Oh! du serveur Fun Row. Cette version renforce le projet existant sans supprimer ses commandes, ses brackets, ses rondes suisses ni son site public.
+Hamtaro est un bot Discord de gestion de tournois individuels avec :
 
-## Fonctions principales
+- inscriptions et profils joueurs ;
+- élimination directe et rondes suisses ;
+- signalement puis validation des résultats ;
+- brackets, classements, statistiques et historique ;
+- sélection de plusieurs tournois par code et par salon ;
+- site public synchronisé avec la base SQLite ;
+- stockage persistant, sauvegardes automatiques et contrôle d'intégrité.
 
-- tournois à élimination directe et rondes suisses ;
-- inscriptions jusqu'à **128 joueurs** ;
-- résultats envoyés par les joueurs puis validés par le staff ;
-- garde-fous SQLite contre les gagnants invalides, scores négatifs et doubles joueurs ;
-- annulation sécurisée déjà intégrée au projet, avec journal unifié ;
-- menu `/hamtaro` adapté à l'état réel du joueur ;
-- diagnostic `/hamtaro_doctor` ;
-- test complet non persistant `/hamtaro_test` ;
-- journal `/audit_history` ;
-- nettoyage prudent `/hamtaro_cleanup` ;
-- tableau de bord staff protégé sur `/staff` ;
-- site actualisé automatiquement, recherche de tournois et affichage mobile ;
-- tests automatiques GitHub Actions ;
-- stockage SQLite persistant sur un volume Railway.
+## Installation rapide
 
-## Installation
-
-À la racine du dépôt Hamtaro :
+1. Monte un volume Railway sur le service Hamtaro avec le chemin `/data`.
+2. Configure les variables à partir de `.env.example`.
+3. Conserve un seul service et un seul réplica utilisant le token Discord.
+4. Installe les dépendances :
 
 ```bash
-python /chemin/vers/hamtaro_professional_suite/apply_hamtaro_upgrade.py
-python -m compileall .
 pip install -r requirements.txt
-python scripts/preflight.py
-python -m pytest -q
 ```
 
-Puis :
+5. Vérifie le projet :
 
 ```bash
-git add .
-git commit -m "Hamtaro professional suite"
-git push
+python scripts/preflight.py
+python -m compileall .
 ```
 
-L'installateur conserve une copie des fichiers remplacés dans `upgrade_backup/`.
+6. Lance Hamtaro :
 
-## Railway
+```bash
+python bot.py
+```
 
-Conserve exactement :
+## Variables essentielles
 
-- un seul service Hamtaro ;
-- un seul réplica ;
-- un volume monté sur `/data` ;
-- `SYNC_GUILD_COMMANDS=true` ;
-- `SYNC_GLOBAL_COMMANDS=false` hors publication globale.
+| Variable | Rôle |
+|---|---|
+| `DISCORD_TOKEN` | Token du bot Discord |
+| `GUILD_ID` | Serveur utilisé pour la synchronisation rapide |
+| `PUBLIC_GUILD_ID` | Serveur affiché sur le site public |
+| `WEBSITE_BASE_URL` | Adresse publique du site |
+| `SYNC_GUILD_COMMANDS` | Synchronisation immédiate sur le serveur |
+| `SYNC_GLOBAL_COMMANDS` | Synchronisation mondiale, à activer seulement lors d'une publication |
+| `DATABASE_BACKUPS_ENABLED` | Active les sauvegardes SQLite |
 
-Variables importantes :
+Railway fournit automatiquement `RAILWAY_VOLUME_MOUNT_PATH` lorsqu'un volume est attaché. Avec un montage `/data`, la base est stockée dans `/data/database.db`.
+
+## Synchronisation des commandes
+
+En développement :
 
 ```env
-WEBSITE_ENABLED=true
-WEBSITE_BASE_URL=https://ton-site.up.railway.app
-PROFESSIONAL_TOOLS_ENABLED=true
-STAFF_DASHBOARD_ENABLED=true
-STAFF_DASHBOARD_TOKEN=une-valeur-aleatoire-tres-longue
-DATABASE_BACKUPS_ENABLED=true
-DATABASE_BACKUP_INTERVAL_HOURS=12
-SQLITE_BUSY_TIMEOUT_MS=30000
-DEBUG_INTERACTIONS=false
-FAIL_ON_COG_ERROR=true
+SYNC_GUILD_COMMANDS=true
+SYNC_GLOBAL_COMMANDS=false
 ```
 
-Railway fournit `RAILWAY_VOLUME_MOUNT_PATH` lorsque le volume est attaché. Avec `/data`, la base devient `/data/database.db`.
+Pour publier les commandes globalement, active temporairement :
 
-## Commandes professionnelles
+```env
+SYNC_GLOBAL_COMMANDS=true
+```
 
-### `/hamtaro_doctor`
+Après un déploiement réussi, remets la valeur à `false` afin d'éviter une synchronisation globale à chaque redémarrage.
 
-Contrôle la base, le volume, les permissions, les salons, les cogs, le site, les tournois bloqués et les matchs incohérents.
+## Sauvegardes
 
-### `/hamtaro_test`
+Hamtaro crée :
 
-Crée dans une transaction temporaire un tournoi de quatre joueurs, simule le bracket, les demi-finales, la finale et la clôture, puis annule toutes les données fictives.
+- une sauvegarde avant le démarrage et les migrations ;
+- une sauvegarde périodique ;
+- une sauvegarde à l'arrêt propre ;
+- une sauvegarde manuelle avec `/hamtaro_backup`.
 
-### `/audit_history`
+La commande `/hamtaro_health` contrôle la connexion Discord, les cogs, le site, la base et la persistance.
 
-Affiche les dernières validations, annulations, opérations web et actions professionnelles enregistrées.
+## Test fonctionnel minimum
 
-### `/hamtaro_cleanup`
+1. Créer un tournoi de 4 joueurs.
+2. Inscrire quatre comptes.
+3. Lancer le tournoi.
+4. Envoyer, rejeter puis renvoyer un résultat.
+5. Valider les demi-finales et la finale.
+6. Vérifier le bracket, les profils, l'historique et le site.
+7. Redéployer Railway et vérifier que le tournoi est toujours présent.
+8. Refaire le test en rondes suisses avec un double loss.
 
-Supprime uniquement les références orphelines après une confirmation explicite. Aucun tournoi valide n'est supprimé.
+## Sécurité
 
-### `/staff_dashboard`
-
-Donne au staff le lien vers `/staff`. Le tableau de bord est protégé par un jeton Railway, une session `HttpOnly`, un contrôle des tentatives et des en-têtes de sécurité. Les validations sensibles restent volontairement dans Discord afin de conserver l'identité du modérateur et les confirmations existantes.
-
-## Vérification après déploiement
-
-1. Lance `/hamtaro_doctor`.
-2. Lance `/hamtaro_test`.
-3. Crée un tournoi de quatre joueurs.
-4. Teste inscription, lancement, rejet, validation, finale et annulation.
-5. Vérifie `/staff`, `/tournaments` et `/health`.
-6. Redéploie Railway puis vérifie que le tournoi existe toujours.
-
-## Choix volontairement exclus
-
-Cette version n'ajoute pas :
-
-- la restauration complète de sauvegardes depuis Discord ;
-- une gestion complexe des absences, preuves de contact et prolongations.
-
-Les sauvegardes automatiques essentielles et les forfaits manuels existants restent conservés.
+Ne versionne jamais `.env`, `database.db`, les sauvegardes ou le token Discord. Si un secret a été publié, retire le fichier du dépôt puis régénère immédiatement le secret concerné.
