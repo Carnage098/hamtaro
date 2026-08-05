@@ -1,0 +1,10 @@
+0c6548f39693cc0d59da85fb7c02b6ede1ab4fe5f3c5b58da1660c0cbc4f3ec9  ./AUDIT.md
+00475d971dfa6556db0d15c5a06f29b32016ac5d137acb2254263a34eeb3b306  ./CONTENU_DU_PACK.txt
+8e6ef25256484cf2a534466d3b567420711cc1d2a98a5a10256dbc30fae714e6  ./INSTALLATION.md
+6ccfd9bec58cd811f13d83c1632f3d53d7471dd38f497b5cbdc2e0b51506c395  ./apply_fixes.py
+0a554009fced111283d994d56cd3946de14d039322090fe89a29ef2d361e464b  ./files/.env.example
+fbaddfe3a0a72f77e07fd77477a6aa5b3798f19651db4912bb116bea877056b8  ./files/.github/workflows/tests.yml
+55b812d5a982abe69b5a0ea53776af81fc22d455dee968ee8fcccb61198ff763  ./files/.gitignore
+30068f9edcf1a42fb74ff91aa8e9c18cdd1e578ff0bb47650978c5b724f26f2f  ./files/requirements-dev.txt
+5b446c8cef407b16e6468cc9a25c8a4ae23fdf91697511304327784088cf120e  ./files/tests/test_professional_suite.py
+76eb337093ee3c19d9a625711c46f4cec93cc6d318817c7145cfcda7cf3bd8b5  ./files/tests/test_upgrade_static.py
