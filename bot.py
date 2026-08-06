@@ -80,6 +80,9 @@ REQUIRED_COGS = (
     "cogs.setup_assistant", 
     "cogs.expansion_tasks",
     "cogs.expansion_hub",
+    "cogs.casual_results_plus",
+    "cogs.community_tools",
+    "cogs.tournament_start_preview",
 )
 
 OPTIONAL_COGS = (
