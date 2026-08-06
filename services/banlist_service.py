@@ -14,6 +14,7 @@ from aiohttp import ClientSession, ClientTimeout
 
 
 LOGGER = logging.getLogger(__name__)
+BANLIST_SERVICE_BUILD = "repository-raw-parser-v2-2026-08-06"
 
 YAML_YUGI_BASE_URL = (
     "https://dawnbrandbots.github.io/"
@@ -41,9 +42,12 @@ YAML_YUGI_CURRENT_URLS = {
     ),
 }
 
-YAML_YUGI_RAW_BASE_URL = (
-    "https://dawnbrandbots.github.io/"
-    "yaml-yugi-limit-regulation"
+# Les fichiers vectoriels courants sont publiés sur GitHub Pages,
+# mais les fichiers raw datés restent servis directement depuis le dépôt.
+YAML_YUGI_REPOSITORY_RAW_BASE_URL = (
+    "https://raw.githubusercontent.com/"
+    "DawnbrandBots/yaml-yugi-limit-regulation/"
+    "master/data"
 )
 YAML_YUGI_RUSH_CARD_BASE_URL = (
     "https://cdn.jsdelivr.net/gh/"
@@ -143,6 +147,11 @@ class BanlistService:
         self._runtime_cache = self._load_runtime_cache()
         self._sync_lock = asyncio.Lock()
         self._sync_in_progress = False
+        LOGGER.info(
+            "[BANLISTS] version=%s raw_base=%s",
+            BANLIST_SERVICE_BUILD,
+            YAML_YUGI_REPOSITORY_RAW_BASE_URL,
+        )
 
     # ==========================================================
     # CHARGEMENT LOCAL ET FUSION
@@ -637,7 +646,7 @@ class BanlistService:
         # Le TCG publie des listes par statut contenant namefra/nameeng.
         if dataset in {"tcg", "genesys"}:
             raw_url = (
-                f"{YAML_YUGI_RAW_BASE_URL}/{dataset}/"
+                f"{YAML_YUGI_REPOSITORY_RAW_BASE_URL}/{dataset}/"
                 f"{source_date}.raw.json"
             )
             raw = await self._fetch_json(session, raw_url)
@@ -699,13 +708,46 @@ class BanlistService:
         cls,
         raw: dict[str, Any],
     ) -> dict[str, int]:
-        # Genesys : mapping direct {nom: points}.
+        """Normalise les différents fichiers ``*.raw.json`` officiels.
+
+        Structures actuellement prises en charge :
+        - TCG : clés ``0``, ``1`` et ``2`` contenant des listes de cartes ;
+        - Genesys : ``Result.Results`` avec ``Name``/``DisplayCardName`` et
+          ``Points`` ;
+        - mapping simple ``{nom: valeur}`` pour rester compatible avec les
+          anciennes variantes du fournisseur.
+        """
+
+        # Genesys : réponse de l'API contenant une liste détaillée de cartes.
+        genesys_container = raw.get("Result")
+        if isinstance(genesys_container, dict):
+            genesys_entries = genesys_container.get("Results")
+            if isinstance(genesys_entries, list):
+                genesys_result: dict[str, int] = {}
+                for entry in genesys_entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    name = str(
+                        entry.get("DisplayCardName")
+                        or entry.get("Name")
+                        or ""
+                    ).strip()
+                    try:
+                        points = int(entry.get("Points"))
+                    except (TypeError, ValueError):
+                        continue
+                    if name and points > 0:
+                        genesys_result[name] = points
+                if genesys_result:
+                    return genesys_result
+
+        # Mapping direct historique : {nom: limitation/points}.
         direct = cls._extract_regulation(raw)
         if direct and not all(name.isdigit() for name in direct):
             return direct
 
         # TCG : clés 0/1/2 contenant des objets multilingues.
-        result: dict[str, int] = {}
+        tcg_result: dict[str, int] = {}
         for raw_value, entries in raw.items():
             try:
                 restriction = int(raw_value)
@@ -718,8 +760,8 @@ class BanlistService:
                     continue
                 name = cls._extract_card_name(entry)
                 if name:
-                    result[name] = restriction
-        return result
+                    tcg_result[name] = restriction
+        return tcg_result
 
     async def _resolve_rush_names(
         self,
