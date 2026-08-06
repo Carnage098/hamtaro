@@ -17,16 +17,132 @@ from jinja2 import (
 )
 
 from services.analytics_service import AnalyticsService
-from services.banlist_routes import register_banlist_routes
 from services.bracket_export_service import (
     BracketExportService,
     FINISHED_STATUSES,
 )
-from services.web_extension_routes import register_expansion_routes
 
 
 LOGGER = logging.getLogger(__name__)
-HAMTARO_SITE_BUILD = "complete-expansion-2026-08-06"
+
+
+GUIDE_ROLE_META: dict[str, dict[str, str]] = {
+    "community": {
+        "label": "Joueur",
+        "icon": "👤",
+        "description": "Commande accessible aux membres du serveur.",
+    },
+    "staff": {
+        "label": "Staff",
+        "icon": "🛡️",
+        "description": "Commande réservée à l'organisation et aux arbitres.",
+    },
+    "admin": {
+        "label": "Administration",
+        "icon": "⚙️",
+        "description": "Commande sensible de configuration ou de maintenance.",
+    },
+}
+
+
+GUIDE_CATEGORY_META: tuple[dict[str, str], ...] = (
+    {
+        "slug": "getting-started",
+        "title": "Premiers pas",
+        "icon": "🏠",
+        "description": "Découvrir Hamtaro, ouvrir l'aide et accéder au site.",
+    },
+    {
+        "slug": "registration-decks",
+        "title": "Inscriptions et decks",
+        "icon": "📝",
+        "description": "S'inscrire, se désinscrire et gérer les decks déclarés.",
+    },
+    {
+        "slug": "tournaments",
+        "title": "Création et gestion des tournois",
+        "icon": "🏆",
+        "description": "Créer, sélectionner, lancer, modifier et terminer un tournoi.",
+    },
+    {
+        "slug": "matches-results",
+        "title": "Matchs et résultats",
+        "icon": "⚔️",
+        "description": "Trouver un match, déclarer un score et traiter les validations.",
+    },
+    {
+        "slug": "brackets-rounds",
+        "title": "Brackets et rondes",
+        "icon": "🌳",
+        "description": "Consulter et administrer les tableaux à élimination directe.",
+    },
+    {
+        "slug": "swiss",
+        "title": "Rondes suisses",
+        "icon": "🇨🇭",
+        "description": "Pairings, résultats, classements et images des rondes suisses.",
+    },
+    {
+        "slug": "casual",
+        "title": "Matchs casuals",
+        "icon": "🎮",
+        "description": "Rechercher un adversaire et gérer un résultat hors tournoi.",
+    },
+    {
+        "slug": "profiles",
+        "title": "Profils et expérience joueur",
+        "icon": "👤",
+        "description": "Profils, succès, préférences, notifications et bibliothèque de decks.",
+    },
+    {
+        "slug": "competition",
+        "title": "Compétition, ELO et saisons",
+        "icon": "📈",
+        "description": "Classements par format, historique ELO et gestion des saisons.",
+    },
+    {
+        "slug": "statistics",
+        "title": "Statistiques et métagame",
+        "icon": "📊",
+        "description": "Statistiques de decks, comparaisons et informations sur le métagame.",
+    },
+    {
+        "slug": "configuration",
+        "title": "Configuration du serveur",
+        "icon": "⚙️",
+        "description": "Configurer les salons, rôles, centres de match et automatisations.",
+    },
+    {
+        "slug": "maintenance",
+        "title": "Diagnostic, réparation et historique",
+        "icon": "🧰",
+        "description": "Contrôler la santé du bot, réparer et annuler des actions.",
+    },
+    {
+        "slug": "graphics",
+        "title": "Images et affichages",
+        "icon": "🖼️",
+        "description": "Prévisualisations et rendus graphiques spéciaux.",
+    },
+    {
+        "slug": "community",
+        "title": "Communauté et événements",
+        "icon": "📢",
+        "description": "Sondages, matchs vedettes, annonces et outils communautaires.",
+    },
+    {
+        "slug": "advanced",
+        "title": "Outils avancés de tournoi",
+        "icon": "🧩",
+        "description": "Modèles, listes d'attente, arbitrage et fonctions avancées.",
+    },
+    {
+        "slug": "other",
+        "title": "Autres commandes",
+        "icon": "🐹",
+        "description": "Commandes qui ne correspondent pas encore à une catégorie dédiée.",
+    },
+)
 
 
 def _truthy(value: str | None, default: bool = True) -> bool:
@@ -71,12 +187,6 @@ class PublicWebsiteCog(commands.Cog):
         self.application: web.Application | None = None
 
     async def cog_load(self) -> None:
-        LOGGER.warning(
-            "[HAMTARO_SITE] version=%s fichier=%s",
-            HAMTARO_SITE_BUILD,
-            __file__,
-        )
-
         if not _truthy(os.getenv("WEBSITE_ENABLED"), default=True):
             LOGGER.info("Site public Hamtaro désactivé.")
             return
@@ -130,13 +240,6 @@ class PublicWebsiteCog(commands.Cog):
         application.router.add_get("/decks", self.decks_page)
         application.router.add_get("/archives", self.archives_page)
         application.router.add_get("/health", self.health_page)
-
-        # Classement compétitif, profils enrichis et API associée.
-        register_expansion_routes(application, self)
-
-        # Catalogue public et synchronisation périodique des banlists.
-        register_banlist_routes(application, self)
-
         application.router.add_get("/favicon.ico", self.favicon)
 
         if self.static_directory.exists():
@@ -365,8 +468,11 @@ class PublicWebsiteCog(commands.Cog):
         Les contrôles de permissions définis dans les cogs Discord
         restent toujours prioritaires.
         """
-
-        normalized = command_name.lower().replace(" ", "_")
+        raw_name = command_name.lower().strip()
+        normalized = raw_name.replace(" ", "_")
+        parts = raw_name.split()
+        root = parts[0] if parts else normalized
+        subcommand = parts[-1] if len(parts) > 1 else ""
 
         admin_keywords = {
             "admin",
@@ -375,38 +481,104 @@ class PublicWebsiteCog(commands.Cog):
             "delete",
             "remove",
             "force",
-            "end_tournament",
-            "tournament_export",
             "staff_logs",
             "configuration",
             "settings",
             "setup",
             "reset",
             "purge",
+            "doctor",
+            "cleanup",
+            "audit",
+            "self_test",
+            "system_health",
         }
-
+        staff_exact = {
+            "create_tournament",
+            "start_tournament",
+            "cancel_tournament",
+            "end_tournament",
+            "change_tournament_format",
+            "export_tournament",
+            "tournament_context_set",
+            "tournament_context_clear",
+            "approve_result",
+            "reject_result",
+            "pending_results",
+            "admin_win",
+            "special_result",
+            "publish_matches",
+            "generate_next_round",
+            "pause_tournament",
+            "resume_tournament",
+            "graphics_preview",
+            "final_bracket",
+            "bracket_full",
+            "result_setup",
+            "match_center_setup",
+            "match_center_repair",
+            "progression_setup",
+            "progression_status",
+        }
         staff_keywords = {
             "approve",
             "reject",
             "pending",
-            "create_tournament",
-            "start_tournament",
-            "open_registration",
-            "close_registration",
-            "swiss_start",
-            "swiss_pair",
-            "swiss_report",
-            "pair",
             "validate",
             "validation",
-            "progression",
-            "graphics_preview",
-            "swiss_preview",
-            "final_bracket",
-            "bracket_full",
-            "manage",
             "moderation",
+            "manage",
         }
+
+        if root == "competitive":
+            if subcommand in {
+                "sync",
+                "rebuild",
+                "season_create",
+                "season_close",
+            }:
+                return "admin"
+            return "community"
+
+        if root == "setup_plus":
+            return "admin"
+
+        if root == "duelist" and subcommand == "deck_lock":
+            return "staff"
+
+        if root == "community_poll":
+            return "community" if subcommand == "results" else "staff"
+
+        if root == "tourney_plus":
+            community_subcommands = {
+                "info",
+                "recap",
+                "waitlist_join",
+                "waitlist_leave",
+                "judge_call",
+                "match_issue",
+                "feature_status",
+                "swiss_tiebreakers",
+            }
+            if subcommand in community_subcommands:
+                return "community"
+            if subcommand in {"secure_history", "secure_revert", "staff_panel"}:
+                return "admin"
+            return "staff"
+
+        if normalized.startswith("swiss_"):
+            staff_swiss = {
+                "swiss_start",
+                "swiss_next",
+                "swiss_reset",
+                "swiss_pair",
+                "swiss_preview",
+            }
+            if normalized in staff_swiss:
+                return "staff"
+
+        if normalized in staff_exact:
+            return "staff"
 
         if any(keyword in normalized for keyword in admin_keywords):
             return "admin"
@@ -415,6 +587,173 @@ class PublicWebsiteCog(commands.Cog):
             return "staff"
 
         return "community"
+
+    @staticmethod
+    def _guide_category(command_name: str) -> str:
+        """Range une commande dans une catégorie fonctionnelle du guide."""
+        normalized = command_name.lower().strip().replace(" ", "_")
+        parts = command_name.lower().strip().split()
+        root = parts[0] if parts else normalized
+        subcommand = parts[-1] if len(parts) > 1 else ""
+
+        getting_started = {
+            "help",
+            "hamtaro",
+            "hamtaro_site",
+            "rules",
+        }
+        registration_decks = {
+            "register",
+            "unregister",
+            "deck",
+            "players",
+            "admin_add_player",
+            "add_player",
+            "remove_player",
+            "admin_change_deck",
+        }
+        tournaments = {
+            "create_tournament",
+            "tournament",
+            "tournament_list",
+            "start_tournament",
+            "cancel_tournament",
+            "end_tournament",
+            "change_tournament_format",
+            "tournament_status",
+            "tournament_context",
+            "tournament_context_set",
+            "tournament_context_clear",
+            "export_tournament",
+            "pause_tournament",
+            "resume_tournament",
+        }
+        matches_results = {
+            "nextmatch",
+            "matches",
+            "match_center",
+            "match_history",
+            "result",
+            "report_result",
+            "pending_results",
+            "approve_result",
+            "reject_result",
+            "admin_win",
+            "special_result",
+            "publish_matches",
+            "result_status",
+        }
+        brackets_rounds = {
+            "bracket",
+            "bracket_full",
+            "round",
+            "round_show",
+            "finale",
+            "final_bracket",
+            "winner",
+            "generate_next_round",
+            "admin_reset_bracket",
+            "admin_regenerate_bracket",
+            "admin_sync_round",
+        }
+        casual = {
+            "casual",
+            "cancel_casual",
+            "result_casual",
+        }
+        profiles = {
+            "profile",
+            "hamtaro_plus",
+        }
+        statistics = {
+            "deck_stats",
+            "meta",
+            "coinflip",
+            "dice",
+        }
+        configuration = {
+            "result_setup",
+            "match_center_setup",
+            "match_center_repair",
+            "progression_setup",
+            "progression_status",
+            "staff_logs_setup",
+            "staff_logs_channel",
+            "staff_logs_disable",
+        }
+        maintenance = {
+            "repair_tournament",
+            "undo_history",
+            "undo_tournament_action",
+            "tournament_check",
+            "system_health",
+            "admin_health",
+            "hamtaro_doctor",
+            "hamtaro_self_test",
+            "hamtaro_cleanup",
+            "audit_history",
+            "staff_logs_history",
+            "staff_log",
+        }
+        graphics = {
+            "graphics_preview",
+        }
+
+        if root == "competitive":
+            return "competition"
+        if root == "casual_result" or normalized in casual:
+            return "casual"
+        if root == "duelist" or normalized in profiles:
+            return "profiles"
+        if root == "setup_plus" or normalized in configuration:
+            return "configuration"
+        if root == "community_poll":
+            return "community"
+        if root == "swiss" or normalized.startswith("swiss_"):
+            return "swiss"
+
+        if root == "tourney_plus":
+            if subcommand in {"swiss_pair", "swiss_tiebreakers"}:
+                return "swiss"
+            if subcommand.startswith("feature_") or subcommand.startswith("schedule_"):
+                return "community"
+            if subcommand.startswith("judge_") or subcommand == "match_issue":
+                return "matches-results"
+            if subcommand in {"staff_panel", "secure_history", "secure_revert"}:
+                return "maintenance"
+            return "advanced"
+
+        if normalized in getting_started:
+            return "getting-started"
+        if normalized in registration_decks:
+            return "registration-decks"
+        if normalized in tournaments:
+            return "tournaments"
+        if normalized in matches_results:
+            return "matches-results"
+        if normalized in brackets_rounds:
+            return "brackets-rounds"
+        if normalized in statistics:
+            return "statistics"
+        if normalized in maintenance:
+            return "maintenance"
+        if normalized in graphics:
+            return "graphics"
+
+        if "deck" in normalized and "deck_stats" not in normalized:
+            return "registration-decks"
+        if any(word in normalized for word in ("result", "match", "approve", "reject")):
+            return "matches-results"
+        if any(word in normalized for word in ("bracket", "round", "finale", "winner")):
+            return "brackets-rounds"
+        if any(word in normalized for word in ("setup", "configuration", "settings")):
+            return "configuration"
+        if any(word in normalized for word in ("repair", "undo", "health", "audit", "cleanup")):
+            return "maintenance"
+        if any(word in normalized for word in ("poll", "feature", "schedule", "community")):
+            return "community"
+
+        return "other"
 
     @staticmethod
     def _parameter_syntax(parameter: Any) -> str:
@@ -474,10 +813,11 @@ class PublicWebsiteCog(commands.Cog):
 
         description = str(
             getattr(command, "description", "")
-            or "Commande Hamtaro."
+            or "Commande Hamtaro sans description détaillée."
         )
 
         role = cls._guide_role(qualified_name)
+        category = cls._guide_category(qualified_name)
 
         return {
             "name": qualified_name,
@@ -485,6 +825,7 @@ class PublicWebsiteCog(commands.Cog):
             "syntax": syntax,
             "description": description,
             "role": role,
+            "category": category,
             "options": options,
             "search_text": " ".join(
                 [
@@ -492,6 +833,7 @@ class PublicWebsiteCog(commands.Cog):
                     syntax,
                     description,
                     role,
+                    category,
                     *[
                         (
                             f"{option['name']} "
@@ -549,13 +891,11 @@ class PublicWebsiteCog(commands.Cog):
         self,
     ) -> dict[str, list[dict[str, Any]]]:
         catalog: dict[str, list[dict[str, Any]]] = {
-            "community": [],
-            "staff": [],
-            "admin": [],
+            item["slug"]: []
+            for item in GUIDE_CATEGORY_META
         }
 
         seen: set[str] = set()
-
         commands = list(self.bot.tree.get_commands())
 
         guild_id = self._public_guild_id()
@@ -576,10 +916,11 @@ class PublicWebsiteCog(commands.Cog):
                     continue
 
                 seen.add(name)
-                catalog[entry["role"]].append(entry)
+                category = entry.get("category") or "other"
+                catalog.setdefault(category, []).append(entry)
 
-        for role_entries in catalog.values():
-            role_entries.sort(
+        for category_entries in catalog.values():
+            category_entries.sort(
                 key=lambda entry: entry["name"].lower()
             )
 
@@ -749,16 +1090,37 @@ class PublicWebsiteCog(commands.Cog):
         )
 
         role_counts = {
-            role: len(commands)
-            for role, commands in command_catalog.items()
+            role: 0
+            for role in GUIDE_ROLE_META
         }
+        for commands in command_catalog.values():
+            for command in commands:
+                role = str(command.get("role") or "community")
+                role_counts[role] = role_counts.get(role, 0) + 1
+
+        guide_categories = []
+        for metadata in GUIDE_CATEGORY_META:
+            slug = metadata["slug"]
+            commands = command_catalog.get(slug, [])
+            if not commands:
+                continue
+
+            guide_categories.append(
+                {
+                    **metadata,
+                    "commands": commands,
+                    "count": len(commands),
+                }
+            )
 
         return self.render(
             "guide.html",
             request=request,
-            command_catalog=command_catalog,
+            guide_categories=guide_categories,
             command_count=command_count,
             role_counts=role_counts,
+            role_meta=GUIDE_ROLE_META,
+            category_count=len(guide_categories),
         )
     async def results_page(
         self,
