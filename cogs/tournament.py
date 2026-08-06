@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from services.bracket_service import BracketService
+from services.tournament_start_service import TournamentStartService
 from utils.tournament_resolver import (
     active_tournament_code_autocomplete,
     tournament_code_autocomplete,
@@ -37,6 +38,9 @@ class TournamentCog(commands.Cog):
         self.db = bot.db
         self.brackets = BracketService(
             self.db
+        )
+        self.start_previews = TournamentStartService(
+            bot
         )
 
     def _guild_id(
@@ -377,6 +381,204 @@ class TournamentCog(commands.Cog):
         await interaction.followup.send(
             embed=embed,
             ephemeral=False,
+        )
+
+    # ==========================================================
+    # MODIFIER LE FORMAT D'UN TOURNOI
+    # ==========================================================
+
+    @app_commands.command(
+        name="change_tournament_format",
+        description="Modifier le format d'un tournoi avant son lancement",
+    )
+    @app_commands.describe(
+        code="Code facultatif du tournoi à modifier",
+        nouveau_format="Nouveau format du tournoi",
+    )
+    @app_commands.autocomplete(
+        code=active_tournament_code_autocomplete
+    )
+    @app_commands.choices(
+        nouveau_format=[
+            app_commands.Choice(
+                name=format_name,
+                value=format_name,
+            )
+            for format_name in FORMATS
+        ]
+    )
+    @app_commands.default_permissions(
+        manage_guild=True
+    )
+    async def change_tournament_format(
+        self,
+        interaction: discord.Interaction,
+        nouveau_format: app_commands.Choice[str],
+        code: str | None = None,
+    ) -> None:
+        """
+        Modifie uniquement le format d'un tournoi encore en inscriptions.
+
+        Le code du tournoi, les inscriptions et le type de compétition
+        restent inchangés. Un éventuel brouillon de démarrage est annulé
+        afin qu'il soit recréé avec le nouveau format.
+        """
+        acknowledged = await self._safe_defer(
+            interaction,
+            ephemeral=True,
+        )
+        if not acknowledged:
+            return
+
+        try:
+            tournament = await self._resolve_tournament(
+                interaction,
+                code,
+                require_active=True,
+            )
+
+            if tournament is None:
+                await interaction.followup.send(
+                    "❌ Aucun tournoi actif trouvé.",
+                    ephemeral=True,
+                )
+                return
+
+            status = getattr(
+                tournament.status,
+                "value",
+                str(tournament.status),
+            ).lower().strip()
+
+            if status != "registration":
+                await interaction.followup.send(
+                    (
+                        "❌ Le format ne peut être modifié que pendant "
+                        "la phase d'inscription. Ce tournoi est déjà "
+                        f"dans l'état `{status}`."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            ancien_format = str(tournament.format)
+            format_cible = str(nouveau_format.value)
+
+            if ancien_format == format_cible:
+                await interaction.followup.send(
+                    (
+                        f"ℹ️ Le tournoi `{tournament.code}` utilise déjà "
+                        f"le format **{format_cible}**."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            preview_cancelled = False
+            pending_preview = await self.start_previews.pending_for_tournament(
+                int(tournament.id)
+            )
+            if pending_preview is not None:
+                await self.start_previews.cancel_preview(
+                    int(pending_preview["id"]),
+                    str(interaction.user.id),
+                )
+                preview_cancelled = True
+
+            changed_rows = await self.db.update(
+                """
+                UPDATE tournaments
+                SET format = ?
+                WHERE id = ?
+                  AND status = 'registration'
+                """,
+                (
+                    format_cible,
+                    int(tournament.id),
+                ),
+            )
+
+            if changed_rows != 1:
+                raise RuntimeError(
+                    "Le tournoi a changé d'état pendant la modification."
+                )
+
+            updated_tournament = await self.db.get_tournament(
+                int(tournament.id)
+            )
+            if updated_tournament is None:
+                raise RuntimeError(
+                    "Le tournoi a été modifié mais ne peut plus être relu."
+                )
+
+        except ValueError as error:
+            await interaction.followup.send(
+                f"❌ {error}",
+                ephemeral=True,
+            )
+            return
+
+        except Exception as error:
+            print(
+                "❌ Erreur /change_tournament_format :",
+                repr(error),
+            )
+            await interaction.followup.send(
+                (
+                    "❌ Le format du tournoi n'a pas pu être modifié. "
+                    f"Détail : `{error}`"
+                ),
+                ephemeral=True,
+            )
+            return
+
+        embed = discord.Embed(
+            title="✅ Format du tournoi modifié",
+            description=(
+                "Le tournoi reste en phase d'inscription. "
+                "Les joueurs déjà inscrits sont conservés."
+            ),
+            color=discord.Color.green(),
+        )
+        embed.add_field(
+            name="Tournoi",
+            value=updated_tournament.name,
+            inline=False,
+        )
+        embed.add_field(
+            name="Code",
+            value=f"`{updated_tournament.code}`",
+            inline=True,
+        )
+        embed.add_field(
+            name="Ancien format",
+            value=ancien_format,
+            inline=True,
+        )
+        embed.add_field(
+            name="Nouveau format",
+            value=format_cible,
+            inline=True,
+        )
+        embed.add_field(
+            name="Brouillon de démarrage",
+            value=(
+                "♻️ Ancien brouillon annulé"
+                if preview_cancelled
+                else "Aucun brouillon à annuler"
+            ),
+            inline=False,
+        )
+        embed.set_footer(
+            text=(
+                "Le code du tournoi ne change pas. "
+                "Relance /start_tournament pour préparer un nouveau tirage."
+            )
+        )
+
+        await interaction.followup.send(
+            embed=embed,
+            ephemeral=True,
         )
 
     # ==========================================================
