@@ -383,3 +383,23 @@
         }
     }
 })();
+
+// HAMTARO_DECKS_FIX_20260806
+(() => {
+    "use strict";
+
+    const form = document.querySelector("[data-deck-filter-form]");
+    if (!form) {
+        return;
+    }
+
+    form.querySelectorAll("[data-deck-filter-auto]").forEach((field) => {
+        field.addEventListener("change", () => {
+            if (typeof form.requestSubmit === "function") {
+                form.requestSubmit();
+            } else {
+                form.submit();
+            }
+        });
+    });
+})();

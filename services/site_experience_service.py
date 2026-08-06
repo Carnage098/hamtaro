@@ -670,34 +670,112 @@ class SiteExperienceService:
         tournament_id: int | None = None,
         minimum_matches: int = 0,
     ) -> dict[str, Any]:
-        format_name = (
-            normalize_format(format_name)
-            if format_name and format_name.strip()
-            else None
-        )
+        """Construit les statistiques publiques des decks.
+
+        Le calcul est volontairement réalisé à partir des inscriptions et des
+        résultats validés. Il reste compatible avec les anciennes bases :
+        les tables ou colonnes facultatives sont contrôlées avant utilisation.
+        """
+
+        selected_format = " ".join((format_name or "").split()).strip() or None
         minimum_matches = max(0, min(_safe_int(minimum_matches), 999))
-        params: list[Any] = [guild_id]
-        filters = [
-            "t.guild_id=?",
-            "r.deck IS NOT NULL",
-            "TRIM(r.deck)<>''",
-        ]
-        if format_name:
-            filters.append("t.format=?")
-            params.append(format_name)
-        if tournament_id:
-            filters.append("t.id=?")
-            params.append(int(tournament_id))
 
         decks: list[dict[str, Any]] = []
         tournaments: list[dict[str, Any]] = []
         formats: list[str] = []
+        actual_match_keys: set[str] = set()
+        aggregate: dict[tuple[str, str], dict[str, Any]] = {}
+        registration_deck: dict[tuple[int, str], tuple[str, str]] = {}
+
+        def ensure_entry(
+            deck_name: str,
+            tournament_format: str,
+        ) -> tuple[tuple[str, str], dict[str, Any]]:
+            key = (
+                " ".join(deck_name.split()).casefold(),
+                " ".join(tournament_format.split()).casefold(),
+            )
+            entry = aggregate.get(key)
+            if entry is None:
+                entry = {
+                    "_names": Counter(),
+                    "_formats": Counter(),
+                    "_players": set(),
+                    "_tournaments": set(),
+                    "appearances": 0,
+                    "matches": 0,
+                    "wins": 0,
+                    "losses": 0,
+                }
+                aggregate[key] = entry
+
+            entry["_names"][" ".join(deck_name.split())] += 1
+            entry["_formats"][" ".join(tournament_format.split())] += 1
+            return key, entry
+
+        def record_result(
+            source_key: str,
+            tournament: int,
+            player1_id: Any,
+            player2_id: Any,
+            winner_id: Any,
+        ) -> None:
+            winner = str(winner_id or "").strip()
+            if not winner:
+                return
+
+            matched = False
+            for raw_player_id in (player1_id, player2_id):
+                player_id = str(raw_player_id or "").strip()
+                if not player_id:
+                    continue
+
+                key = registration_deck.get((tournament, player_id))
+                if key is None:
+                    continue
+
+                entry = aggregate.get(key)
+                if entry is None:
+                    continue
+
+                entry["matches"] += 1
+                if player_id == winner:
+                    entry["wins"] += 1
+                else:
+                    entry["losses"] += 1
+                matched = True
+
+            if matched:
+                actual_match_keys.add(source_key)
+
         async with expansion_connection() as db:
-            if await table_exists(db, "registrations") and await table_exists(db, "tournaments"):
-                query = f"""
-                    WITH deck_registrations AS (
+            has_registrations = await table_exists(db, "registrations")
+            has_tournaments = await table_exists(db, "tournaments")
+
+            if has_registrations and has_tournaments:
+                conditions = [
+                    "t.guild_id=?",
+                    "r.deck IS NOT NULL",
+                    "TRIM(r.deck)<>''",
+                ]
+                parameters: list[Any] = [guild_id]
+
+                # Comparaison insensible à la casse : GOAT reste GOAT et ne
+                # devient plus « Goat » lors du filtrage.
+                if selected_format:
+                    conditions.append(
+                        "LOWER(TRIM(t.format))=LOWER(TRIM(?))"
+                    )
+                    parameters.append(selected_format)
+
+                if tournament_id:
+                    conditions.append("t.id=?")
+                    parameters.append(int(tournament_id))
+
+                registration_rows = await (
+                    await db.execute(
+                        f"""
                         SELECT
-                            t.guild_id,
                             t.id AS tournament_id,
                             t.name AS tournament_name,
                             t.code AS tournament_code,
@@ -706,109 +784,37 @@ class SiteExperienceService:
                             TRIM(r.deck) AS deck_name
                         FROM registrations r
                         JOIN tournaments t ON t.id=r.tournament_id
-                        WHERE {' AND '.join(filters)}
-                    ),
-                    played AS (
-                        SELECT
-                            dr.deck_name,
-                            dr.format,
-                            COUNT(DISTINCT dr.tournament_id) AS tournaments,
-                            COUNT(DISTINCT dr.discord_id) AS players
-                        FROM deck_registrations dr
-                        GROUP BY LOWER(dr.deck_name), dr.format
-                    ),
-                    player_results AS (
-                        SELECT
-                            m.tournament_id,
-                            m.player1_id AS discord_id,
-                            m.winner_id
-                        FROM matches m
-                        WHERE m.status IN ('validated','completed')
-                          AND COALESCE(m.is_bye,0)=0
-                          AND m.player1_id IS NOT NULL
-                          AND m.player2_id IS NOT NULL
-                          AND m.winner_id IS NOT NULL
-                        UNION ALL
-                        SELECT
-                            m.tournament_id,
-                            m.player2_id AS discord_id,
-                            m.winner_id
-                        FROM matches m
-                        WHERE m.status IN ('validated','completed')
-                          AND COALESCE(m.is_bye,0)=0
-                          AND m.player1_id IS NOT NULL
-                          AND m.player2_id IS NOT NULL
-                          AND m.winner_id IS NOT NULL
-                        UNION ALL
-                        SELECT
-                            sm.tournament_id,
-                            sm.player1_id AS discord_id,
-                            sm.winner_id
-                        FROM swiss_matches sm
-                        WHERE sm.status='completed'
-                          AND COALESCE(sm.is_bye,0)=0
-                          AND COALESCE(sm.is_double_loss,0)=0
-                          AND sm.player2_id IS NOT NULL
-                          AND sm.winner_id IS NOT NULL
-                        UNION ALL
-                        SELECT
-                            sm.tournament_id,
-                            sm.player2_id AS discord_id,
-                            sm.winner_id
-                        FROM swiss_matches sm
-                        WHERE sm.status='completed'
-                          AND COALESCE(sm.is_bye,0)=0
-                          AND COALESCE(sm.is_double_loss,0)=0
-                          AND sm.player2_id IS NOT NULL
-                          AND sm.winner_id IS NOT NULL
-                    ),
-                    results AS (
-                        SELECT
-                            dr.deck_name,
-                            dr.format,
-                            SUM(
-                                CASE
-                                    WHEN pr.winner_id=dr.discord_id THEN 1
-                                    ELSE 0
-                                END
-                            ) AS wins,
-                            SUM(
-                                CASE
-                                    WHEN pr.winner_id IS NOT NULL
-                                     AND pr.winner_id<>dr.discord_id THEN 1
-                                    ELSE 0
-                                END
-                            ) AS losses,
-                            COUNT(pr.winner_id) AS matches
-                        FROM deck_registrations dr
-                        LEFT JOIN player_results pr
-                          ON pr.tournament_id=dr.tournament_id
-                         AND pr.discord_id=dr.discord_id
-                        GROUP BY LOWER(dr.deck_name), dr.format
-                    )
-                    SELECT
-                        p.deck_name,
-                        p.format,
-                        p.players,
-                        p.tournaments,
-                        COALESCE(r.wins,0) AS wins,
-                        COALESCE(r.losses,0) AS losses,
-                        COALESCE(r.matches,0) AS matches
-                    FROM played p
-                    LEFT JOIN results r
-                      ON LOWER(r.deck_name)=LOWER(p.deck_name)
-                     AND r.format=p.format
-                    WHERE COALESCE(r.matches,0)>=?
-                    ORDER BY matches DESC, players DESC, deck_name
-                    LIMIT 250
-                """
-                rows = await (
-                    await db.execute(
-                        query,
-                        (*params, minimum_matches),
+                        WHERE {' AND '.join(conditions)}
+                        ORDER BY t.id DESC, r.id ASC
+                        """,
+                        tuple(parameters),
                     )
                 ).fetchall()
-                decks = _dicts(rows)
+
+                for row in registration_rows:
+                    item = dict(row)
+                    deck_name = str(item.get("deck_name") or "").strip()
+                    tournament_format = str(
+                        item.get("format") or "Format non renseigné"
+                    ).strip()
+                    player_id = str(item.get("discord_id") or "").strip()
+                    current_tournament_id = _safe_int(
+                        item.get("tournament_id")
+                    )
+
+                    if not deck_name or not player_id or not current_tournament_id:
+                        continue
+
+                    key, entry = ensure_entry(
+                        deck_name,
+                        tournament_format,
+                    )
+                    entry["_players"].add(player_id)
+                    entry["_tournaments"].add(current_tournament_id)
+                    entry["appearances"] += 1
+                    registration_deck[
+                        (current_tournament_id, player_id)
+                    ] = key
 
                 tournament_rows = await (
                     await db.execute(
@@ -817,7 +823,7 @@ class SiteExperienceService:
                         FROM tournaments
                         WHERE guild_id=?
                         ORDER BY id DESC
-                        LIMIT 150
+                        LIMIT 200
                         """,
                         (guild_id,),
                     )
@@ -827,38 +833,236 @@ class SiteExperienceService:
                 format_rows = await (
                     await db.execute(
                         """
-                        SELECT DISTINCT format
+                        SELECT DISTINCT TRIM(format) AS format
                         FROM tournaments
                         WHERE guild_id=?
-                        ORDER BY format
+                          AND format IS NOT NULL
+                          AND TRIM(format)<>''
+                        ORDER BY LOWER(TRIM(format))
                         """,
                         (guild_id,),
                     )
                 ).fetchall()
-                formats = [str(row["format"]) for row in format_rows]
+                formats = [
+                    str(row["format"])
+                    for row in format_rows
+                    if str(row["format"] or "").strip()
+                ]
 
-        for deck in decks:
-            matches = _safe_int(deck.get("matches"))
-            wins = _safe_int(deck.get("wins"))
-            deck["win_rate"] = round((wins / matches) * 100, 1) if matches else 0.0
-            deck["sample_warning"] = matches < 5
+                common_conditions = ["t.guild_id=?"]
+                common_parameters: list[Any] = [guild_id]
+                if selected_format:
+                    common_conditions.append(
+                        "LOWER(TRIM(t.format))=LOWER(TRIM(?))"
+                    )
+                    common_parameters.append(selected_format)
+                if tournament_id:
+                    common_conditions.append("t.id=?")
+                    common_parameters.append(int(tournament_id))
 
+                # Matchs à élimination directe.
+                if await table_exists(db, "matches"):
+                    match_columns = await columns_for(db, "matches")
+                    required_columns = {
+                        "id",
+                        "tournament_id",
+                        "player1_id",
+                        "player2_id",
+                        "winner_id",
+                    }
+                    if required_columns.issubset(match_columns):
+                        status_filter = (
+                            "m.status IN ('validated','completed')"
+                            if "status" in match_columns
+                            else "1=1"
+                        )
+                        bye_filter = (
+                            "COALESCE(m.is_bye,0)=0"
+                            if "is_bye" in match_columns
+                            else "1=1"
+                        )
+                        rows = await (
+                            await db.execute(
+                                f"""
+                                SELECT
+                                    m.id,
+                                    m.tournament_id,
+                                    m.player1_id,
+                                    m.player2_id,
+                                    m.winner_id
+                                FROM matches m
+                                JOIN tournaments t
+                                  ON t.id=m.tournament_id
+                                WHERE {' AND '.join(common_conditions)}
+                                  AND {status_filter}
+                                  AND {bye_filter}
+                                  AND m.player1_id IS NOT NULL
+                                  AND m.player2_id IS NOT NULL
+                                  AND m.winner_id IS NOT NULL
+                                """,
+                                tuple(common_parameters),
+                            )
+                        ).fetchall()
+
+                        for row in rows:
+                            item = dict(row)
+                            record_result(
+                                f"bracket:{item.get('id')}",
+                                _safe_int(item.get("tournament_id")),
+                                item.get("player1_id"),
+                                item.get("player2_id"),
+                                item.get("winner_id"),
+                            )
+
+                # Matchs de rondes suisses.
+                if await table_exists(db, "swiss_matches"):
+                    swiss_columns = await columns_for(db, "swiss_matches")
+                    required_columns = {
+                        "id",
+                        "tournament_id",
+                        "player1_id",
+                        "player2_id",
+                        "winner_id",
+                    }
+                    if required_columns.issubset(swiss_columns):
+                        status_filter = (
+                            "sm.status IN ('completed','validated')"
+                            if "status" in swiss_columns
+                            else "1=1"
+                        )
+                        bye_filter = (
+                            "COALESCE(sm.is_bye,0)=0"
+                            if "is_bye" in swiss_columns
+                            else "1=1"
+                        )
+                        double_loss_filter = (
+                            "COALESCE(sm.is_double_loss,0)=0"
+                            if "is_double_loss" in swiss_columns
+                            else "1=1"
+                        )
+                        rows = await (
+                            await db.execute(
+                                f"""
+                                SELECT
+                                    sm.id,
+                                    sm.tournament_id,
+                                    sm.player1_id,
+                                    sm.player2_id,
+                                    sm.winner_id
+                                FROM swiss_matches sm
+                                JOIN tournaments t
+                                  ON t.id=sm.tournament_id
+                                WHERE {' AND '.join(common_conditions)}
+                                  AND {status_filter}
+                                  AND {bye_filter}
+                                  AND {double_loss_filter}
+                                  AND sm.player1_id IS NOT NULL
+                                  AND sm.player2_id IS NOT NULL
+                                  AND sm.winner_id IS NOT NULL
+                                """,
+                                tuple(common_parameters),
+                            )
+                        ).fetchall()
+
+                        for row in rows:
+                            item = dict(row)
+                            record_result(
+                                f"swiss:{item.get('id')}",
+                                _safe_int(item.get("tournament_id")),
+                                item.get("player1_id"),
+                                item.get("player2_id"),
+                                item.get("winner_id"),
+                            )
+
+        all_players: set[str] = set()
+        total_appearances = 0
+
+        for entry in aggregate.values():
+            names: Counter[str] = entry.pop("_names")
+            format_names: Counter[str] = entry.pop("_formats")
+            player_ids: set[str] = entry.pop("_players")
+            tournament_ids: set[int] = entry.pop("_tournaments")
+
+            deck_name = sorted(
+                names.items(),
+                key=lambda item: (-item[1], item[0].casefold()),
+            )[0][0]
+            tournament_format = sorted(
+                format_names.items(),
+                key=lambda item: (-item[1], item[0].casefold()),
+            )[0][0]
+
+            matches = _safe_int(entry.get("matches"))
+            wins = _safe_int(entry.get("wins"))
+            losses = _safe_int(entry.get("losses"))
+            appearances = _safe_int(entry.get("appearances"))
+
+            if matches < minimum_matches:
+                continue
+
+            all_players.update(player_ids)
+            total_appearances += appearances
+            decks.append(
+                {
+                    "deck_name": deck_name,
+                    "format": tournament_format,
+                    "players": len(player_ids),
+                    "appearances": appearances,
+                    "tournaments": len(tournament_ids),
+                    "matches": matches,
+                    "wins": wins,
+                    "losses": losses,
+                    "win_rate": (
+                        round((wins / matches) * 100, 1)
+                        if matches
+                        else 0.0
+                    ),
+                    "sample_warning": matches < 5,
+                }
+            )
+
+        decks.sort(
+            key=lambda item: (
+                -_safe_int(item.get("matches")),
+                -_safe_int(item.get("appearances")),
+                str(item.get("deck_name") or "").casefold(),
+            )
+        )
+
+        performance_minimum = max(5, minimum_matches)
         popular = sorted(
             decks,
             key=lambda item: (
+                _safe_int(item.get("appearances")),
                 _safe_int(item.get("players")),
                 _safe_int(item.get("matches")),
             ),
             reverse=True,
         )[:5]
         performing = sorted(
-            [item for item in decks if _safe_int(item.get("matches")) >= 5],
+            [
+                item
+                for item in decks
+                if _safe_int(item.get("matches")) >= performance_minimum
+            ],
             key=lambda item: (
                 _safe_float(item.get("win_rate")),
                 _safe_int(item.get("matches")),
+                _safe_int(item.get("appearances")),
             ),
             reverse=True,
         )[:5]
+
+        selected_format_display = ""
+        if selected_format:
+            selected_format_display = next(
+                (
+                    item
+                    for item in formats
+                    if item.casefold() == selected_format.casefold()
+                ),
+                selected_format,
+            )
 
         return {
             "decks": decks,
@@ -866,13 +1070,19 @@ class SiteExperienceService:
             "performing": performing,
             "formats": formats,
             "tournaments": tournaments,
-            "selected_format": format_name or "",
+            "selected_format": selected_format_display,
             "selected_tournament": tournament_id,
             "minimum_matches": minimum_matches,
+            "performance_minimum": performance_minimum,
             "stats": {
                 "decks": len(decks),
-                "players": sum(_safe_int(item.get("players")) for item in decks),
-                "matches": sum(_safe_int(item.get("matches")) for item in decks),
+                "players": len(all_players),
+                "appearances": total_appearances,
+                "matches": len(actual_match_keys),
+                "deck_match_records": sum(
+                    _safe_int(item.get("matches"))
+                    for item in decks
+                ),
             },
         }
 
