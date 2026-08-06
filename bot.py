@@ -46,8 +46,7 @@ logging.basicConfig(
 )
 LOGGER = logging.getLogger("hamtaro")
 
-# Un échec sur un module essentiel empêche un bot partiellement cassé
-# d'apparaître en ligne. Les modules graphiques restent facultatifs.
+
 REQUIRED_COGS = (
     "cogs.registration",
     "cogs.tournament",
@@ -75,6 +74,12 @@ REQUIRED_COGS = (
     "cogs.system_health",
     "cogs.professional_tools",
     "cogs.public_website",
+    "cogs.competitive",
+    "cogs.player_experience", 
+    "cogs.tournament_extensions", 
+    "cogs.setup_assistant", 
+    "cogs.expansion_tasks",
+    "cogs.expansion_hub",
 )
 
 OPTIONAL_COGS = (
