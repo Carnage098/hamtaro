@@ -1,13 +1,24 @@
 {% extends "base.html" %}
 
-{% block title %}{{ title }} — Hamtaro{% endblock %}
+{% block title %}Erreur {{ status }} · Hamtaro{% endblock %}
 
 {% block content %}
-<section class="error-page">
-    <p class="error-code">{{ status }}</p>
-    <p class="eyebrow">HAMTARO</p>
+<section class="hx-error-page">
+    <div class="hx-error-mascot" aria-hidden="true">🐹</div>
+    <span class="hx-error-code">{{ status }}</span>
     <h1>{{ title }}</h1>
-    <p class="hero-text">{{ message }}</p>
-    <a class="primary-button" href="/">Retour aux tournois</a>
+    <p>{{ message }}</p>
+    <div class="hx-hero-actions">
+        <a class="hx-button" href="{{ action_url or '/' }}">
+            {{ action_label or "Retour à l'accueil" }}
+        </a>
+        <button
+            class="hx-button hx-button-secondary"
+            type="button"
+            onclick="window.history.back()"
+        >
+            Page précédente
+        </button>
+    </div>
 </section>
 {% endblock %}

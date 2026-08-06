@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Recherche · Hamtaro{% endblock %}
+
+{% block content %}
+<section class="hx-hero">
+    <span class="hx-kicker">RECHERCHE GLOBALE</span>
+    <h1>Tout retrouver sur Hamtaro</h1>
+    <p>
+        Recherche un joueur, un tournoi, un deck ou une commande depuis
+        une seule page.
+    </p>
+
+    <form class="hx-global-search-form" action="/search" method="get">
+        <input
+            type="search"
+            name="q"
+            value="{{ query }}"
+            placeholder="Nom d’un joueur, tournoi, deck, commande…"
+            minlength="2"
+            required
+            autofocus
+        >
+        <button class="hx-button" type="submit">Rechercher</button>
+    </form>
+</section>
+
+{% if query %}
+<section class="hx-section">
+    <header class="hx-section-heading">
+        <div>
+            <span class="hx-kicker">RÉSULTATS</span>
+            <h2>« {{ query }} »</h2>
+        </div>
+        <span class="hx-count-pill">{{ total }}</span>
+    </header>
+
+    {% if total == 0 %}
+    <div class="hx-empty-state">
+        <span aria-hidden="true">🔎</span>
+        <h3>Aucun résultat trouvé</h3>
+        <p>Essaie un nom plus court, un format ou le code d’un tournoi.</p>
+    </div>
+    {% endif %}
+
+    {% if results.players %}
+    <section class="hx-search-group">
+        <h3>👤 Joueurs</h3>
+        <div class="hx-search-results">
+            {% for player in results.players %}
+            <a href="/players/{{ player.discord_id }}">
+                <strong>{{ player.display_name or player.username }}</strong>
+                <span>
+                    {{ player.wins }}V / {{ player.losses }}D ·
+                    {{ player.tournaments_played }} tournoi(s)
+                </span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if results.tournaments %}
+    <section class="hx-search-group">
+        <h3>🏆 Tournois</h3>
+        <div class="hx-search-results">
+            {% for tournament in results.tournaments %}
+            <a href="/tournaments/{{ tournament.id }}">
+                <strong>{{ tournament.name }}</strong>
+                <span>
+                    {{ tournament.code }} · {{ tournament.format }} ·
+                    {{ tournament.status }}
+                </span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if results.decks %}
+    <section class="hx-search-group">
+        <h3>🎴 Decks</h3>
+        <div class="hx-search-results">
+            {% for deck in results.decks %}
+            <a href="/decks?format={{ deck.format | urlencode }}">
+                <strong>{{ deck.deck_name }}</strong>
+                <span>
+                    {{ deck.format }} · {{ deck.players }} joueur(s) ·
+                    {{ deck.tournaments }} tournoi(s)
+                </span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if results.commands %}
+    <section class="hx-search-group">
+        <h3>📖 Commandes</h3>
+        <div class="hx-search-results">
+            {% for command in results.commands %}
+            <a href="/guide?search={{ command.name | urlencode }}">
+                <strong>{{ command.slash_name }}</strong>
+                <span>{{ command.description }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</section>
+{% endif %}
+{% endblock %}

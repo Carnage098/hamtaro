@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Saisons compétitives · Hamtaro{% endblock %}
+
+{% block content %}
+<section class="hx-hero hx-hero-split">
+    <div>
+        <span class="hx-kicker">ARCHIVES COMPÉTITIVES</span>
+        <h1>Saisons Hamtaro</h1>
+        <p>
+            Retrouve les saisons actives et les classements finaux archivés,
+            avec leur podium général et leurs champions par format.
+        </p>
+    </div>
+    <div class="hx-hero-actions">
+        <a class="hx-button hx-button-secondary" href="/competitive">
+            Classement actuel
+        </a>
+        <button class="hx-button" type="button" data-share-page>
+            Partager les saisons
+        </button>
+    </div>
+</section>
+
+{% for group_title, group_description, seasons in [
+    ("Saison active", "La compétition actuellement en cours.", data.active),
+    ("Saisons programmées", "Les prochaines saisons déjà prévues.", data.scheduled),
+    ("Saisons terminées", "Les classements finaux conservés dans les archives.", data.closed)
+] %}
+<section class="hx-section">
+    <header class="hx-section-heading">
+        <div>
+            <span class="hx-kicker">SAISONS</span>
+            <h2>{{ group_title }}</h2>
+            <p>{{ group_description }}</p>
+        </div>
+        <span class="hx-count-pill">{{ seasons | length }}</span>
+    </header>
+
+    <div class="hx-season-grid">
+        {% for summary in seasons %}
+        {% set season = summary.season %}
+        <article class="hx-season-card">
+            <div class="hx-season-card-top">
+                <span class="hx-status hx-status-{{ season.status }}">
+                    {{ season.status | title }}
+                </span>
+                <code>#{{ season.id }}</code>
+            </div>
+
+            <h3>{{ season.name }}</h3>
+            <p class="hx-muted">
+                Du {{ season.starts_at or "date inconnue" }}
+                {% if season.ends_at %}
+                au {{ season.ends_at }}
+                {% endif %}
+            </p>
+
+            <div class="hx-mini-stat-grid">
+                <div>
+                    <strong>{{ summary.players }}</strong>
+                    <span>joueurs</span>
+                </div>
+                <div>
+                    <strong>{{ summary.matches }}</strong>
+                    <span>matchs</span>
+                </div>
+                <div>
+                    <strong>{{ summary.minimum_games }}</strong>
+                    <span>minimum</span>
+                </div>
+            </div>
+
+            <div class="hx-season-podium">
+                <h4>Podium général</h4>
+                {% for row in summary.podium %}
+                <a href="/players/{{ row.discord_id }}">
+                    <span>
+                        {{ "🥇" if loop.index == 1 else ("🥈" if loop.index == 2 else "🥉") }}
+                    </span>
+                    <strong>{{ row.player_name }}</strong>
+                    <em>{{ row.rating }} ELO</em>
+                </a>
+                {% else %}
+                <p class="hx-muted">Aucun podium enregistré.</p>
+                {% endfor %}
+            </div>
+
+            {% if summary.format_champions %}
+            <details class="hx-details">
+                <summary>
+                    Champions par format
+                    <span>{{ summary.format_champions | length }}</span>
+                </summary>
+                <div class="hx-champion-list">
+                    {% for row in summary.format_champions %}
+                    <a href="/players/{{ row.discord_id }}">
+                        <strong>{{ row.format }}</strong>
+                        <span>{{ row.player_name }} · {{ row.rating }} ELO</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+        </article>
+        {% else %}
+        <div class="hx-empty-state hx-empty-state-wide">
+            <span aria-hidden="true">📅</span>
+            <h3>Aucune saison dans cette catégorie</h3>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endfor %}
+{% endblock %}
