@@ -55,148 +55,405 @@ class SiteExperienceService:
         *,
         limit: int = 300,
     ) -> dict[str, Any]:
+        """Retourne les matchs publics à jouer ou en validation.
+
+        Les requêtes sont construites à partir des colonnes réellement
+        présentes dans SQLite. Une ancienne base Railway ne doit donc plus
+        provoquer une erreur 500 lorsqu'une colonne facultative manque.
+        """
+
         matches: list[dict[str, Any]] = []
         limit = max(1, min(int(limit), 500))
 
         async with expansion_connection() as db:
-            if await table_exists(db, "matches") and await table_exists(db, "tournaments"):
-                rows = await (
-                    await db.execute(
-                        """
-                        SELECT
-                            m.id AS match_id,
-                            'bracket' AS match_type,
-                            m.status,
-                            m.round AS round_number,
-                            m.match_number,
-                            m.player1_id,
-                            m.player1_name,
-                            m.player2_id,
-                            m.player2_name,
-                            m.player1_score,
-                            m.player2_score,
-                            m.score,
-                            m.reported_by,
-                            m.reported_at,
-                            m.created_at,
-                            t.id AS tournament_id,
-                            t.code AS tournament_code,
-                            t.name AS tournament_name,
-                            t.format,
-                            t.tournament_type,
-                            t.status AS tournament_status
-                        FROM matches m
-                        JOIN tournaments t ON t.id=m.tournament_id
-                        WHERE t.guild_id=?
-                          AND COALESCE(m.is_bye, 0)=0
-                          AND m.status IN (
-                              'waiting', 'playing', 'reported',
-                              'pending_validation', 'validation'
-                          )
-                        ORDER BY
-                            CASE m.status
-                                WHEN 'reported' THEN 0
-                                WHEN 'pending_validation' THEN 0
-                                WHEN 'validation' THEN 0
-                                WHEN 'playing' THEN 1
-                                ELSE 2
-                            END,
-                            COALESCE(m.reported_at, m.created_at) DESC,
-                            m.id DESC
-                        LIMIT ?
-                        """,
-                        (guild_id, limit),
-                    )
-                ).fetchall()
-                for row in rows:
-                    item = dict(row)
-                    item["reference"] = f"bracket:{item['match_id']}"
-                    item["round_label"] = f"Ronde {item.get('round_number') or '?'}"
-                    item["score_display"] = (
-                        item.get("score")
-                        or f"{_safe_int(item.get('player1_score'))}-{_safe_int(item.get('player2_score'))}"
-                    )
-                    item["stage"] = (
-                        "validation"
-                        if str(item.get("status") or "").lower() in VALIDATION_MATCH_STATUSES
-                        or item.get("reported_at")
-                        else "waiting"
-                    )
-                    matches.append(item)
+            has_tournaments = await table_exists(db, "tournaments")
+            tournament_columns = (
+                await columns_for(db, "tournaments")
+                if has_tournaments
+                else set()
+            )
 
-            if await table_exists(db, "swiss_matches") and await table_exists(db, "tournaments"):
-                swiss_columns = await columns_for(db, "swiss_matches")
-                has_reported_at = "reported_at" in swiss_columns
-                has_reported_by = "reported_by" in swiss_columns
-                reported_at_sql = "sm.reported_at" if has_reported_at else "NULL"
-                reported_by_sql = "sm.reported_by" if has_reported_by else "NULL"
-                rows = await (
-                    await db.execute(
-                        f"""
-                        SELECT
-                            sm.id AS match_id,
-                            'swiss' AS match_type,
-                            sm.status,
-                            sm.round_number,
-                            sm.table_number AS match_number,
-                            sm.player1_id,
-                            sm.player1_name,
-                            sm.player2_id,
-                            sm.player2_name,
-                            sm.player1_score,
-                            sm.player2_score,
-                            NULL AS score,
-                            {reported_by_sql} AS reported_by,
-                            {reported_at_sql} AS reported_at,
-                            sm.created_at,
-                            t.id AS tournament_id,
-                            t.code AS tournament_code,
-                            t.name AS tournament_name,
-                            t.format,
-                            t.tournament_type,
-                            t.status AS tournament_status
-                        FROM swiss_matches sm
-                        JOIN tournaments t ON t.id=sm.tournament_id
-                        WHERE t.guild_id=?
-                          AND COALESCE(sm.is_bye, 0)=0
-                          AND sm.status NOT IN ('completed', 'validated', 'cancelled')
-                        ORDER BY
-                            CASE WHEN {reported_at_sql} IS NOT NULL THEN 0 ELSE 1 END,
-                            COALESCE({reported_at_sql}, sm.created_at) DESC,
-                            sm.id DESC
-                        LIMIT ?
-                        """,
-                        (guild_id, limit),
+            # ------------------------------------------------------
+            # MATCHS À ÉLIMINATION DIRECTE
+            # ------------------------------------------------------
+            if has_tournaments and await table_exists(db, "matches"):
+                match_columns = await columns_for(db, "matches")
+                required = {
+                    "id",
+                    "tournament_id",
+                    "player1_id",
+                    "player2_id",
+                }
+
+                if required.issubset(match_columns):
+                    def bracket_column(
+                        name: str,
+                        fallback: str = "NULL",
+                    ) -> str:
+                        return (
+                            f"m.{name}"
+                            if name in match_columns
+                            else fallback
+                        )
+
+                    tournament_type_sql = (
+                        "t.tournament_type"
+                        if "tournament_type" in tournament_columns
+                        else "'single_elimination'"
                     )
-                ).fetchall()
-                for row in rows:
-                    item = dict(row)
-                    item["reference"] = f"swiss:{item['match_id']}"
-                    item["round_label"] = (
-                        f"Ronde {item.get('round_number') or '?'}"
-                        f" · Table {item.get('match_number') or '?'}"
+                    status_sql = bracket_column(
+                        "status",
+                        "'waiting'",
                     )
-                    item["score_display"] = (
-                        f"{_safe_int(item.get('player1_score'))}-"
-                        f"{_safe_int(item.get('player2_score'))}"
+                    round_sql = bracket_column("round", "0")
+                    match_number_sql = bracket_column(
+                        "match_number",
+                        "0",
                     )
-                    item["stage"] = "validation" if item.get("reported_at") else "waiting"
-                    matches.append(item)
+                    player1_name_sql = bracket_column(
+                        "player1_name",
+                        "'Joueur 1'",
+                    )
+                    player2_name_sql = bracket_column(
+                        "player2_name",
+                        "'Joueur 2'",
+                    )
+                    player1_score_sql = bracket_column(
+                        "player1_score",
+                        "0",
+                    )
+                    player2_score_sql = bracket_column(
+                        "player2_score",
+                        "0",
+                    )
+                    score_sql = bracket_column("score")
+                    reported_by_sql = bracket_column("reported_by")
+                    reported_at_sql = bracket_column("reported_at")
+                    created_at_sql = bracket_column(
+                        "created_at",
+                        "CURRENT_TIMESTAMP",
+                    )
+
+                    bye_filter = (
+                        "AND COALESCE(m.is_bye, 0)=0"
+                        if "is_bye" in match_columns
+                        else ""
+                    )
+                    status_filter = (
+                        """
+                          AND m.status IN (
+                              'waiting',
+                              'playing',
+                              'reported',
+                              'pending_validation',
+                              'validation'
+                          )
+                        """
+                        if "status" in match_columns
+                        else ""
+                    )
+                    order_date_sql = (
+                        "COALESCE(m.reported_at, m.created_at)"
+                        if {
+                            "reported_at",
+                            "created_at",
+                        }.issubset(match_columns)
+                        else (
+                            "m.reported_at"
+                            if "reported_at" in match_columns
+                            else (
+                                "m.created_at"
+                                if "created_at" in match_columns
+                                else "m.id"
+                            )
+                        )
+                    )
+
+                    rows = await (
+                        await db.execute(
+                            f"""
+                            SELECT
+                                m.id AS match_id,
+                                'bracket' AS match_type,
+                                {status_sql} AS status,
+                                {round_sql} AS round_number,
+                                {match_number_sql} AS match_number,
+                                m.player1_id,
+                                {player1_name_sql} AS player1_name,
+                                m.player2_id,
+                                {player2_name_sql} AS player2_name,
+                                {player1_score_sql} AS player1_score,
+                                {player2_score_sql} AS player2_score,
+                                {score_sql} AS score,
+                                {reported_by_sql} AS reported_by,
+                                {reported_at_sql} AS reported_at,
+                                {created_at_sql} AS created_at,
+                                t.id AS tournament_id,
+                                t.code AS tournament_code,
+                                t.name AS tournament_name,
+                                t.format,
+                                {tournament_type_sql}
+                                    AS tournament_type,
+                                t.status AS tournament_status
+                            FROM matches m
+                            JOIN tournaments t
+                              ON t.id=m.tournament_id
+                            WHERE t.guild_id=?
+                              {bye_filter}
+                              {status_filter}
+                            ORDER BY
+                                CASE {status_sql}
+                                    WHEN 'reported' THEN 0
+                                    WHEN 'pending_validation' THEN 0
+                                    WHEN 'validation' THEN 0
+                                    WHEN 'playing' THEN 1
+                                    ELSE 2
+                                END,
+                                {order_date_sql} DESC,
+                                m.id DESC
+                            LIMIT ?
+                            """,
+                            (guild_id, limit),
+                        )
+                    ).fetchall()
+
+                    for row in rows:
+                        item = dict(row)
+                        item["reference"] = (
+                            f"bracket:{item['match_id']}"
+                        )
+                        item["round_label"] = (
+                            f"Ronde "
+                            f"{item.get('round_number') or '?'}"
+                        )
+                        item["score_display"] = (
+                            item.get("score")
+                            or (
+                                f"{_safe_int(item.get('player1_score'))}"
+                                f"-"
+                                f"{_safe_int(item.get('player2_score'))}"
+                            )
+                        )
+                        item["stage"] = (
+                            "validation"
+                            if (
+                                str(
+                                    item.get("status") or ""
+                                ).lower()
+                                in VALIDATION_MATCH_STATUSES
+                                or item.get("reported_at")
+                            )
+                            else "waiting"
+                        )
+                        matches.append(item)
+
+            # ------------------------------------------------------
+            # MATCHS SUISSES
+            # ------------------------------------------------------
+            if (
+                has_tournaments
+                and await table_exists(db, "swiss_matches")
+            ):
+                swiss_columns = await columns_for(
+                    db,
+                    "swiss_matches",
+                )
+                required = {
+                    "id",
+                    "tournament_id",
+                    "player1_id",
+                    "player2_id",
+                }
+
+                if required.issubset(swiss_columns):
+                    def swiss_column(
+                        name: str,
+                        fallback: str = "NULL",
+                    ) -> str:
+                        return (
+                            f"sm.{name}"
+                            if name in swiss_columns
+                            else fallback
+                        )
+
+                    tournament_type_sql = (
+                        "t.tournament_type"
+                        if "tournament_type" in tournament_columns
+                        else "'swiss'"
+                    )
+                    status_sql = swiss_column(
+                        "status",
+                        "'pending'",
+                    )
+                    round_sql = swiss_column(
+                        "round_number",
+                        "0",
+                    )
+                    table_sql = swiss_column(
+                        "table_number",
+                        "0",
+                    )
+                    player1_name_sql = swiss_column(
+                        "player1_name",
+                        "'Joueur 1'",
+                    )
+                    player2_name_sql = swiss_column(
+                        "player2_name",
+                        "'Joueur 2'",
+                    )
+                    player1_score_sql = swiss_column(
+                        "player1_score",
+                        "0",
+                    )
+                    player2_score_sql = swiss_column(
+                        "player2_score",
+                        "0",
+                    )
+                    reported_by_sql = swiss_column(
+                        "reported_by",
+                    )
+                    reported_at_sql = swiss_column(
+                        "reported_at",
+                    )
+                    created_at_sql = swiss_column(
+                        "created_at",
+                        "CURRENT_TIMESTAMP",
+                    )
+
+                    bye_filter = (
+                        "AND COALESCE(sm.is_bye, 0)=0"
+                        if "is_bye" in swiss_columns
+                        else ""
+                    )
+                    status_filter = (
+                        """
+                          AND sm.status NOT IN (
+                              'completed',
+                              'validated',
+                              'cancelled'
+                          )
+                        """
+                        if "status" in swiss_columns
+                        else ""
+                    )
+                    order_date_sql = (
+                        "COALESCE(sm.reported_at, sm.created_at)"
+                        if {
+                            "reported_at",
+                            "created_at",
+                        }.issubset(swiss_columns)
+                        else (
+                            "sm.reported_at"
+                            if "reported_at" in swiss_columns
+                            else (
+                                "sm.created_at"
+                                if "created_at" in swiss_columns
+                                else "sm.id"
+                            )
+                        )
+                    )
+
+                    rows = await (
+                        await db.execute(
+                            f"""
+                            SELECT
+                                sm.id AS match_id,
+                                'swiss' AS match_type,
+                                {status_sql} AS status,
+                                {round_sql} AS round_number,
+                                {table_sql} AS match_number,
+                                sm.player1_id,
+                                {player1_name_sql} AS player1_name,
+                                sm.player2_id,
+                                {player2_name_sql} AS player2_name,
+                                {player1_score_sql}
+                                    AS player1_score,
+                                {player2_score_sql}
+                                    AS player2_score,
+                                NULL AS score,
+                                {reported_by_sql} AS reported_by,
+                                {reported_at_sql} AS reported_at,
+                                {created_at_sql} AS created_at,
+                                t.id AS tournament_id,
+                                t.code AS tournament_code,
+                                t.name AS tournament_name,
+                                t.format,
+                                {tournament_type_sql}
+                                    AS tournament_type,
+                                t.status AS tournament_status
+                            FROM swiss_matches sm
+                            JOIN tournaments t
+                              ON t.id=sm.tournament_id
+                            WHERE t.guild_id=?
+                              {bye_filter}
+                              {status_filter}
+                            ORDER BY
+                                CASE
+                                    WHEN {reported_at_sql}
+                                         IS NOT NULL
+                                    THEN 0
+                                    ELSE 1
+                                END,
+                                {order_date_sql} DESC,
+                                sm.id DESC
+                            LIMIT ?
+                            """,
+                            (guild_id, limit),
+                        )
+                    ).fetchall()
+
+                    for row in rows:
+                        item = dict(row)
+                        item["reference"] = (
+                            f"swiss:{item['match_id']}"
+                        )
+                        item["round_label"] = (
+                            f"Ronde "
+                            f"{item.get('round_number') or '?'}"
+                            f" · Table "
+                            f"{item.get('match_number') or '?'}"
+                        )
+                        item["score_display"] = (
+                            f"{_safe_int(item.get('player1_score'))}"
+                            f"-"
+                            f"{_safe_int(item.get('player2_score'))}"
+                        )
+                        item["stage"] = (
+                            "validation"
+                            if item.get("reported_at")
+                            else "waiting"
+                        )
+                        matches.append(item)
 
         matches.sort(
             key=lambda item: (
                 0 if item.get("stage") == "validation" else 1,
-                str(item.get("reported_at") or item.get("created_at") or ""),
+                str(
+                    item.get("reported_at")
+                    or item.get("created_at")
+                    or ""
+                ),
                 _safe_int(item.get("match_id")),
             ),
             reverse=False,
         )
-        waiting = [item for item in matches if item.get("stage") == "waiting"]
-        validation = [item for item in matches if item.get("stage") == "validation"]
+
+        waiting = [
+            item
+            for item in matches
+            if item.get("stage") == "waiting"
+        ]
+        validation = [
+            item
+            for item in matches
+            if item.get("stage") == "validation"
+        ]
 
         tournaments: dict[int, dict[str, Any]] = {}
         for item in matches:
-            tournament_id = _safe_int(item.get("tournament_id"))
+            tournament_id = _safe_int(
+                item.get("tournament_id")
+            )
             tournaments[tournament_id] = {
                 "id": tournament_id,
                 "name": item.get("tournament_name"),
@@ -211,6 +468,7 @@ class SiteExperienceService:
             },
             key=str.casefold,
         )
+
         return {
             "waiting": waiting,
             "validation": validation,
@@ -222,7 +480,9 @@ class SiteExperienceService:
             },
             "tournaments": sorted(
                 tournaments.values(),
-                key=lambda item: str(item.get("name") or "").casefold(),
+                key=lambda item: str(
+                    item.get("name") or ""
+                ).casefold(),
             ),
             "formats": formats,
         }
@@ -1134,8 +1394,16 @@ class SiteExperienceService:
                 rows = await (
                     await db.execute(
                         """
-                        SELECT id, code, name, format, tournament_type, status,
-                               current_round, total_rounds, winner_name
+                        SELECT
+                            id,
+                            code,
+                            name,
+                            format,
+                            'single_elimination' AS tournament_type,
+                            status,
+                            current_round,
+                            total_rounds,
+                            winner_name
                         FROM tournaments
                         WHERE guild_id=?
                           AND (
