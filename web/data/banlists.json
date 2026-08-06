@@ -1,0 +1,527 @@
+{
+  "schema_version": 3,
+  "updated_at": "Synchronisation automatique active",
+  "disclaimer": "Les listes actuelles et numériques peuvent changer. La source officielle ou la règle publiée pour le tournoi Hamtaro prévaut toujours sur le catalogue.",
+  "formats": [
+    {
+      "slug": "format-actuel",
+      "name": "Format Actuel — TCG",
+      "icon": "⚖️",
+      "family": "current",
+      "category_label": "FORMAT COMPÉTITIF",
+      "authority": "official",
+      "authority_label": "Officiel",
+      "kind": "banlist",
+      "kind_label": "Banlist",
+      "effective_date": "18 mai 2026",
+      "completeness_label": "Synchronisation automatique périodique",
+      "summary": "La liste Interdite, Limitée et Semi-Limitée utilisée pour les tournois TCG Hamtaro en format actuel.",
+      "notice": "La liste est synchronisée automatiquement depuis une source JSON suivie quotidiennement. La page officielle Konami reste prioritaire en cas de différence.",
+      "rules": [
+        "Interdite : 0 exemplaire dans le Main Deck, l’Extra Deck et le Side Deck.",
+        "Limitée : 1 exemplaire maximum au total.",
+        "Semi-limitée : 2 exemplaires maximum au total."
+      ],
+      "source_label": "Ouvrir la liste officielle Konami",
+      "source_url": "https://www.yugioh-card.com/eu/play/forbidden-and-limited-list/",
+      "provider": {
+        "type": "yaml_yugi",
+        "dataset": "tcg",
+        "mode": "limit"
+      },
+      "sections": []
+    },
+    {
+      "slug": "master-duel",
+      "name": "Master Duel",
+      "icon": "🎮",
+      "family": "digital",
+      "category_label": "SIMULATEUR OFFICIEL",
+      "authority": "official",
+      "authority_label": "Données synchronisées",
+      "kind": "banlist",
+      "kind_label": "Banlist numérique",
+      "effective_date": "5 août 2026",
+      "completeness_label": "Synchronisation automatique périodique",
+      "summary": "La Forbidden/Limited List propre à Yu-Gi-Oh! MASTER DUEL, différente de la liste TCG papier.",
+      "notice": "La liste générale est synchronisée automatiquement. Master Duel peut néanmoins appliquer des restrictions particulières à certains événements : vérifie aussi les règles affichées dans le jeu.",
+      "rules": [],
+      "source_label": "Consulter la liste Master Duel",
+      "source_url": "https://www.masterduelmeta.com/forbidden-limited-list",
+      "provider": {
+        "type": "yaml_yugi",
+        "dataset": "master-duel",
+        "mode": "limit"
+      },
+      "sections": []
+    },
+    {
+      "slug": "genesys",
+      "name": "Genesys",
+      "icon": "🧬",
+      "family": "alternative",
+      "category_label": "FORMAT À POINTS",
+      "authority": "official",
+      "authority_label": "Officiel",
+      "kind": "points",
+      "kind_label": "Points",
+      "effective_date": "Liste officielle en vigueur",
+      "completeness_label": "Liste complète de points synchronisée automatiquement",
+      "summary": "Genesys n’utilise pas la banlist TCG : les cartes puissantes valent des points et le deck doit respecter le plafond de l’événement.",
+      "notice": "La liste des points est synchronisée automatiquement. Les monstres Link et Pendule sont interdits. Le plafond standard est généralement de 100 points, sauf règle différente annoncée par l’organisateur.",
+      "rules": [
+        "Maximum habituel de 3 exemplaires par carte.",
+        "Main Deck, Extra Deck et Side Deck partagent le même total de points.",
+        "Les cartes à 0 point n’apparaissent pas dans l’aperçu ci-dessous."
+      ],
+      "source_label": "Ouvrir la liste officielle Genesys",
+      "source_url": "https://www.yugioh-card.com/en/genesys/",
+      "provider": {
+        "type": "yaml_yugi",
+        "dataset": "genesys",
+        "mode": "points"
+      },
+      "sections": []
+    },
+    {
+      "slug": "goat",
+      "name": "GOAT Format",
+      "icon": "🐐",
+      "family": "retro",
+      "category_label": "TIME WIZARD — AVRIL 2005",
+      "authority": "community",
+      "authority_label": "Référence rétro",
+      "kind": "banlist",
+      "kind_label": "Banlist historique",
+      "effective_date": "Avril 2005",
+      "completeness_label": "Liste intégrée + chargement de vérification",
+      "summary": "La liste historique communément utilisée pour le GOAT Format, avec le pool de cartes et les règles de cette période.",
+      "notice": "Pour un tournoi Time Wizard, la date et le règlement annoncés par l’organisateur restent prioritaires.",
+      "rules": [],
+      "source_label": "Consulter la référence GOAT",
+      "source_url": "https://www.goatformat.com/home/card-pool",
+      "provider": {
+        "type": "ygoprodeck",
+        "banlist": "goat",
+        "field": "ban_goat"
+      },
+      "sections": [
+        {
+          "label": "Interdites",
+          "entries": [
+            {
+              "name": "Chaos Emperor Dragon - Envoy of the End"
+            },
+            {
+              "name": "Fiber Jar"
+            },
+            {
+              "name": "Magical Scientist"
+            },
+            {
+              "name": "Makyura the Destructor"
+            },
+            {
+              "name": "Witch of the Black Forest"
+            },
+            {
+              "name": "Yata-Garasu"
+            },
+            {
+              "name": "Butterfly Dagger - Elma"
+            },
+            {
+              "name": "Change of Heart"
+            },
+            {
+              "name": "Confiscation"
+            },
+            {
+              "name": "Dark Hole"
+            },
+            {
+              "name": "Harpie's Feather Duster"
+            },
+            {
+              "name": "Mirage of Nightmare"
+            },
+            {
+              "name": "Monster Reborn"
+            },
+            {
+              "name": "Painful Choice"
+            },
+            {
+              "name": "Raigeki"
+            },
+            {
+              "name": "The Forceful Sentry"
+            },
+            {
+              "name": "Imperial Order"
+            }
+          ]
+        },
+        {
+          "label": "Limitées",
+          "entries": [
+            {
+              "name": "Black Luster Soldier - Envoy of the Beginning"
+            },
+            {
+              "name": "Breaker the Magical Warrior"
+            },
+            {
+              "name": "Cyber Jar"
+            },
+            {
+              "name": "Dark Magician of Chaos"
+            },
+            {
+              "name": "D.D. Warrior Lady"
+            },
+            {
+              "name": "Exodia the Forbidden One"
+            },
+            {
+              "name": "Exiled Force"
+            },
+            {
+              "name": "Injection Fairy Lily"
+            },
+            {
+              "name": "Jinzo"
+            },
+            {
+              "name": "Left Arm of the Forbidden One"
+            },
+            {
+              "name": "Left Leg of the Forbidden One"
+            },
+            {
+              "name": "Morphing Jar"
+            },
+            {
+              "name": "Protector of the Sanctuary"
+            },
+            {
+              "name": "Reflect Bounder"
+            },
+            {
+              "name": "Right Arm of the Forbidden One"
+            },
+            {
+              "name": "Right Leg of the Forbidden One"
+            },
+            {
+              "name": "Sacred Phoenix of Nephthys"
+            },
+            {
+              "name": "Sangan"
+            },
+            {
+              "name": "Sinister Serpent"
+            },
+            {
+              "name": "Tribe-Infecting Virus"
+            },
+            {
+              "name": "Twin-Headed Behemoth"
+            },
+            {
+              "name": "Card Destruction"
+            },
+            {
+              "name": "Delinquent Duo"
+            },
+            {
+              "name": "Graceful Charity"
+            },
+            {
+              "name": "Heavy Storm"
+            },
+            {
+              "name": "Lightning Vortex"
+            },
+            {
+              "name": "Mage Power"
+            },
+            {
+              "name": "Mystical Space Typhoon"
+            },
+            {
+              "name": "Pot of Greed"
+            },
+            {
+              "name": "Premature Burial"
+            },
+            {
+              "name": "Snatch Steal"
+            },
+            {
+              "name": "Swords of Revealing Light"
+            },
+            {
+              "name": "United We Stand"
+            },
+            {
+              "name": "Call of the Haunted"
+            },
+            {
+              "name": "Ceasefire"
+            },
+            {
+              "name": "Deck Devastation Virus"
+            },
+            {
+              "name": "Magic Cylinder"
+            },
+            {
+              "name": "Mirror Force"
+            },
+            {
+              "name": "Reckless Greed"
+            },
+            {
+              "name": "Ring of Destruction"
+            },
+            {
+              "name": "Torrential Tribute"
+            }
+          ]
+        },
+        {
+          "label": "Semi-limitées",
+          "entries": [
+            {
+              "name": "Abyss Soldier"
+            },
+            {
+              "name": "Dark Scorpion - Chick the Yellow"
+            },
+            {
+              "name": "Manticore of Darkness"
+            },
+            {
+              "name": "Marauding Captain"
+            },
+            {
+              "name": "Night Assailant"
+            },
+            {
+              "name": "Vampire Lord"
+            },
+            {
+              "name": "Creature Swap"
+            },
+            {
+              "name": "Emergency Provisions"
+            },
+            {
+              "name": "Level Limit - Area B"
+            },
+            {
+              "name": "Nobleman of Crossout"
+            },
+            {
+              "name": "Reinforcement of the Army"
+            },
+            {
+              "name": "Upstart Goblin"
+            },
+            {
+              "name": "Good Goblin Housekeeping"
+            },
+            {
+              "name": "Gravity Bind"
+            },
+            {
+              "name": "Last Turn"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "edison",
+      "name": "Edison Format",
+      "icon": "💡",
+      "family": "retro",
+      "category_label": "TIME WIZARD — MARS 2010",
+      "authority": "community",
+      "authority_label": "Référence rétro",
+      "kind": "banlist",
+      "kind_label": "Banlist historique",
+      "effective_date": "Mars 2010",
+      "completeness_label": "Liste complète via la référence",
+      "summary": "Edison suit la Forbidden & Limited List TCG de mars 2010 et le pool de cartes du tournoi correspondant.",
+      "notice": "La légalité dépend aussi de la date du pool de cartes, pas seulement de la banlist.",
+      "rules": [],
+      "source_label": "Ouvrir la banlist Edison",
+      "source_url": "https://edisonformat.net/rules/banlist",
+      "provider": null,
+      "sections": []
+    },
+    {
+      "slug": "hat",
+      "name": "HAT Format",
+      "icon": "🎩",
+      "family": "retro",
+      "category_label": "TIME WIZARD — 2014",
+      "authority": "community",
+      "authority_label": "Référence rétro",
+      "kind": "banlist",
+      "kind_label": "Banlist historique",
+      "effective_date": "Avril / juillet 2014 selon l’événement",
+      "completeness_label": "Liste complète via la référence",
+      "summary": "Format centré sur Hands, Artifacts et Traptrix, généralement joué avec le pool et la liste du printemps 2014.",
+      "notice": "Le nom HAT peut désigner plusieurs dates proches. Le règlement Hamtaro doit préciser la variante retenue.",
+      "rules": [],
+      "source_label": "Consulter la référence HAT",
+      "source_url": "https://www.formatlibrary.com/formats/hat",
+      "provider": null,
+      "sections": []
+    },
+    {
+      "slug": "tengu-plant",
+      "name": "Tengu Plant",
+      "icon": "🌱",
+      "family": "retro",
+      "category_label": "TIME WIZARD — SEPTEMBRE 2011",
+      "authority": "community",
+      "authority_label": "Référence rétro",
+      "kind": "banlist",
+      "kind_label": "Banlist historique",
+      "effective_date": "Septembre 2011",
+      "completeness_label": "Liste complète via la référence",
+      "summary": "Format Synchro historique utilisant la liste TCG de septembre 2011 et le pool de cartes de YCS Toronto.",
+      "notice": "Ne pas confondre avec d’autres variantes 2011 : la date exacte doit être indiquée dans le tournoi.",
+      "rules": [],
+      "source_label": "Ouvrir la banlist Tengu",
+      "source_url": "https://tenguformat.com/banlist/",
+      "provider": null,
+      "sections": []
+    },
+    {
+      "slug": "dragon-ruler",
+      "name": "Dragon Ruler — Ravine Ruler",
+      "icon": "🐉",
+      "family": "retro",
+      "category_label": "TIME WIZARD — SEPTEMBRE 2013",
+      "authority": "community",
+      "authority_label": "Référence rétro",
+      "kind": "banlist",
+      "kind_label": "Banlist historique",
+      "effective_date": "Septembre 2013",
+      "completeness_label": "Liste complète via la référence",
+      "summary": "Variante Dragon Ruler postérieure à la première limitation des petits Dragon Rulers, souvent appelée Ravine Ruler.",
+      "notice": "Hamtaro doit nommer clairement la variante : Baby Ruler et Ravine Ruler n’utilisent pas exactement la même liste.",
+      "rules": [],
+      "source_label": "Consulter la référence Ravine Ruler",
+      "source_url": "https://www.formatlibrary.com/formats/ravine-ruler",
+      "provider": null,
+      "sections": []
+    },
+    {
+      "slug": "teledad",
+      "name": "TeleDAD",
+      "icon": "📡",
+      "family": "retro",
+      "category_label": "TIME WIZARD — SEPTEMBRE 2008",
+      "authority": "community",
+      "authority_label": "Référence rétro",
+      "kind": "banlist",
+      "kind_label": "Banlist historique",
+      "effective_date": "Septembre 2008",
+      "completeness_label": "Liste complète via la référence",
+      "summary": "Format historique basé sur Emergency Teleport, Dark Armed Dragon et le pool de cartes de l’automne 2008.",
+      "notice": "La liste et les règles doivent correspondre à la date exacte choisie pour le tournoi Time Wizard.",
+      "rules": [],
+      "source_label": "Consulter la référence TeleDAD",
+      "source_url": "https://www.formatlibrary.com/formats/teledad",
+      "provider": null,
+      "sections": []
+    },
+    {
+      "slug": "rush-duel",
+      "name": "Rush Duel",
+      "icon": "⚡",
+      "family": "alternative",
+      "category_label": "JEU ET RÈGLES DISTINCTS",
+      "authority": "official",
+      "authority_label": "Officiel",
+      "kind": "banlist",
+      "kind_label": "Banlist Rush Duel",
+      "effective_date": "Selon la région et le produit",
+      "completeness_label": "Synchronisation automatique périodique",
+      "summary": "Rush Duel possède son propre pool de cartes, ses propres règles et ses propres restrictions selon la région.",
+      "notice": "La liste synchronisée correspond à la réglementation Rush Duel suivie par la source. Le staff doit toujours préciser la région et le pool de cartes retenus pour le tournoi.",
+      "rules": [],
+      "source_label": "Ouvrir le portail officiel Rush Duel",
+      "source_url": "https://www.konami.com/yugioh/rushduel/",
+      "provider": {
+        "type": "yaml_yugi",
+        "dataset": "rush",
+        "mode": "limit"
+      },
+      "sections": []
+    },
+    {
+      "slug": "speed-duel",
+      "name": "Speed Duel",
+      "icon": "🏁",
+      "family": "alternative",
+      "category_label": "FORMAT ÉVÉNEMENTIEL",
+      "authority": "official",
+      "authority_label": "Officiel",
+      "kind": "event",
+      "kind_label": "Liste d’événement",
+      "effective_date": "Selon l’événement",
+      "completeness_label": "Règle officielle et légalité",
+      "summary": "Speed Duel ne possède pas une banlist générale permanente : une liste spéciale peut être imposée pour un événement précis.",
+      "notice": "Consulte la page de l’événement et la légalité régionale des cartes avant de construire le deck.",
+      "rules": [
+        "Une liste événementielle peut utiliser des groupes Limited 1, Limited 2 ou Limited 3.",
+        "La légalité d’une carte dépend aussi de sa sortie officielle dans la région concernée."
+      ],
+      "source_label": "Lire la règle officielle Speed Duel",
+      "source_url": "https://www.yugioh-card.com/eu/play/speed-duel-forbidden-limited-list/",
+      "provider": null,
+      "sections": []
+    }
+  ],
+  "categories": [
+    {
+      "slug": "current",
+      "name": "Format actuel — Jeu papier",
+      "short_name": "Format actuel",
+      "icon": "⚖️",
+      "description": "La banlist compétitive TCG actuellement utilisée pour les tournois papier Hamtaro.",
+      "order": 10
+    },
+    {
+      "slug": "digital",
+      "name": "Formats numériques",
+      "short_name": "Numériques",
+      "icon": "🎮",
+      "description": "Les listes propres aux jeux et simulateurs numériques, distinctes de la banlist TCG papier.",
+      "order": 20
+    },
+    {
+      "slug": "retro",
+      "name": "Formats historiques — Time Wizard",
+      "short_name": "Historiques",
+      "icon": "⏳",
+      "description": "Les banlists figées à une date précise pour GOAT, Edison, TeleDAD, HAT et les autres formats rétro.",
+      "order": 30
+    },
+    {
+      "slug": "alternative",
+      "name": "Formats alternatifs et règles spéciales",
+      "short_name": "Alternatifs",
+      "icon": "🧩",
+      "description": "Les formats qui utilisent un système différent : points Genesys, règles Rush Duel ou restrictions événementielles Speed Duel.",
+      "order": 40
+    }
+  ]
+}

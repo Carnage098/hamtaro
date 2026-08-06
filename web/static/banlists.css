@@ -1,0 +1,595 @@
+/* Hamtaro — page Banlists. Toutes les règles sont volontairement préfixées. */
+.banlist-hero {
+    position: relative;
+    overflow: hidden;
+}
+
+.banlist-hero::after {
+    content: "";
+    position: absolute;
+    width: 260px;
+    height: 260px;
+    right: -90px;
+    bottom: -140px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 187, 0, .24), transparent 68%);
+    pointer-events: none;
+}
+
+.banlist-hero-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 22px;
+}
+
+.banlist-hero-stats span {
+    padding: 9px 13px;
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 999px;
+    background: rgba(5, 11, 23, .42);
+}
+
+.banlist-toolbar {
+    display: grid;
+    gap: 18px;
+}
+
+.banlist-search {
+    display: grid;
+    gap: 8px;
+    font-weight: 700;
+}
+
+.banlist-search input {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 16px;
+    border: 1px solid rgba(255, 255, 255, .16);
+    border-radius: 12px;
+    background: rgba(7, 14, 28, .82);
+    color: inherit;
+    font: inherit;
+    outline: none;
+}
+
+.banlist-search input:focus {
+    border-color: #ffbd1a;
+    box-shadow: 0 0 0 3px rgba(255, 189, 26, .16);
+}
+
+.banlist-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.banlist-filters button {
+    appearance: none;
+    padding: 9px 14px;
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .05);
+    color: inherit;
+    font: inherit;
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.banlist-filters button:hover,
+.banlist-filters button.is-active {
+    border-color: #ffbd1a;
+    background: #ffbd1a;
+    color: #17120a;
+}
+
+.banlist-results {
+    min-height: 1.4em;
+    margin: 0;
+    opacity: .72;
+}
+
+.banlist-warning {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    border-left: 4px solid #ffbd1a;
+}
+
+.banlist-grid {
+    display: grid;
+    gap: 22px;
+}
+
+.banlist-format-card {
+    padding: clamp(18px, 3vw, 28px);
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 18px;
+    background: linear-gradient(145deg, rgba(18, 29, 51, .96), rgba(8, 15, 29, .96));
+    box-shadow: 0 18px 48px rgba(0, 0, 0, .2);
+    scroll-margin-top: 92px;
+}
+
+.banlist-format-card[hidden] {
+    display: none;
+}
+
+.banlist-card-header,
+.banlist-card-footer,
+.banlist-title-line,
+.banlist-badges,
+.banlist-section-title {
+    display: flex;
+    align-items: center;
+}
+
+.banlist-card-header,
+.banlist-card-footer {
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.banlist-title-line {
+    gap: 14px;
+}
+
+.banlist-title-line h2,
+.banlist-section-title h3 {
+    margin: 0;
+}
+
+.banlist-icon {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: rgba(255, 189, 26, .12);
+    font-size: 28px;
+}
+
+.banlist-badges {
+    gap: 7px;
+    flex-wrap: wrap;
+}
+
+.banlist-badge {
+    padding: 6px 9px;
+    border-radius: 999px;
+    font-size: .76rem;
+    font-weight: 850;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.banlist-badge-official {
+    background: rgba(48, 197, 117, .15);
+    color: #79e6aa;
+}
+
+.banlist-badge-community,
+.banlist-badge-reference {
+    background: rgba(92, 159, 255, .15);
+    color: #9ac4ff;
+}
+
+.banlist-badge-kind {
+    background: rgba(255, 189, 26, .13);
+    color: #ffd56f;
+}
+
+.banlist-summary {
+    margin: 18px 0 14px;
+    font-size: 1.02rem;
+    line-height: 1.65;
+    opacity: .88;
+}
+
+.banlist-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0 0 16px;
+}
+
+.banlist-meta div {
+    padding: 11px 13px;
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .035);
+}
+
+.banlist-meta dt {
+    margin-bottom: 4px;
+    font-size: .73rem;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    opacity: .58;
+}
+
+.banlist-meta dd {
+    margin: 0;
+    font-weight: 760;
+}
+
+.banlist-notice,
+.banlist-provider {
+    margin: 14px 0;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(255, 189, 26, .09);
+    color: #ffe39c;
+    line-height: 1.55;
+}
+
+.banlist-provider.is-error {
+    background: rgba(255, 86, 86, .10);
+    color: #ffb1b1;
+}
+
+.banlist-provider.is-ready {
+    background: rgba(48, 197, 117, .10);
+    color: #9aefbd;
+}
+
+.banlist-rules {
+    display: grid;
+    gap: 7px;
+    padding-left: 22px;
+    line-height: 1.55;
+}
+
+.banlist-columns {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.banlist-section {
+    min-width: 0;
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 14px;
+    overflow: hidden;
+    background: rgba(1, 6, 15, .28);
+}
+
+.banlist-section-title {
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 13px;
+    border-bottom: 1px solid rgba(255, 255, 255, .09);
+}
+
+.banlist-section-title h3 {
+    font-size: .98rem;
+}
+
+.banlist-section-title span {
+    min-width: 28px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .08);
+    text-align: center;
+    font-size: .78rem;
+    font-weight: 800;
+}
+
+.banlist-section ul {
+    max-height: 360px;
+    overflow: auto;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.banlist-section li {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 13px;
+    border-bottom: 1px solid rgba(255, 255, 255, .055);
+    font-size: .9rem;
+}
+
+.banlist-section li:last-child {
+    border-bottom: 0;
+}
+
+.banlist-section li strong {
+    color: #ffd56f;
+    white-space: nowrap;
+}
+
+.banlist-card-footer {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, .09);
+}
+
+.banlist-card-footer .button {
+    text-decoration: none;
+}
+
+.banlist-empty {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 850px) {
+    .banlist-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .banlist-meta {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 560px) {
+    .banlist-card-header,
+    .banlist-card-footer {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .banlist-title-line {
+        align-items: flex-start;
+    }
+}
+
+.hamtaro-banlists-floating-link {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 100;
+    padding: 10px 15px;
+    border-radius: 999px;
+    background: #ffbd1a;
+    color: #17120a;
+    font-weight: 850;
+    text-decoration: none;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .28);
+}
+
+/* ==========================================================
+   CLASSEMENT PAR CATÉGORIES DE FORMATS
+   ========================================================== */
+.banlist-directory {
+    display: grid;
+    gap: 20px;
+}
+
+.banlist-directory-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.banlist-directory-heading h2,
+.banlist-category-header h2 {
+    margin: 0;
+}
+
+.banlist-directory-heading > p {
+    max-width: 560px;
+    margin: 0;
+    line-height: 1.6;
+    opacity: .72;
+}
+
+.banlist-category-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.banlist-category-card {
+    appearance: none;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, .11);
+    border-radius: 15px;
+    background: linear-gradient(145deg, rgba(18, 29, 51, .86), rgba(8, 15, 29, .9));
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.banlist-category-card:hover,
+.banlist-category-card:focus-visible {
+    transform: translateY(-2px);
+    border-color: rgba(255, 189, 26, .72);
+    background: linear-gradient(145deg, rgba(33, 44, 67, .96), rgba(11, 19, 34, .96));
+    outline: none;
+}
+
+.banlist-category-card-icon,
+.banlist-category-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+    background: rgba(255, 189, 26, .12);
+    font-size: 25px;
+}
+
+.banlist-category-card-copy {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.banlist-category-card-copy strong {
+    font-size: 1rem;
+}
+
+.banlist-category-card-copy small {
+    line-height: 1.45;
+    opacity: .68;
+}
+
+.banlist-category-card-count,
+.banlist-category-total {
+    padding: 6px 10px;
+    border: 1px solid rgba(255, 189, 26, .3);
+    border-radius: 999px;
+    background: rgba(255, 189, 26, .1);
+    color: #ffd56f;
+    font-size: .79rem;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.banlist-category-list {
+    display: grid;
+    gap: 26px;
+}
+
+.banlist-category {
+    display: grid;
+    gap: 22px;
+    scroll-margin-top: 92px;
+}
+
+.banlist-category[hidden] {
+    display: none;
+}
+
+.banlist-category-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, .1);
+}
+
+.banlist-category-title {
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+}
+
+.banlist-category-title > div > p:last-child {
+    max-width: 780px;
+    margin: 7px 0 0;
+    line-height: 1.55;
+    opacity: .74;
+}
+
+.banlist-category .banlist-grid {
+    grid-template-columns: 1fr;
+}
+
+.banlist-category[data-banlist-category="retro"] .banlist-format-card {
+    border-left: 3px solid rgba(92, 159, 255, .72);
+}
+
+.banlist-category[data-banlist-category="current"] .banlist-format-card {
+    border-left: 3px solid rgba(48, 197, 117, .72);
+}
+
+.banlist-category[data-banlist-category="digital"] .banlist-format-card {
+    border-left: 3px solid rgba(177, 113, 255, .72);
+}
+
+.banlist-category[data-banlist-category="alternative"] .banlist-format-card {
+    border-left: 3px solid rgba(255, 189, 26, .78);
+}
+
+@media (max-width: 850px) {
+    .banlist-directory-heading,
+    .banlist-category-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .banlist-category-cards {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 560px) {
+    .banlist-category-card {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .banlist-category-card-count {
+        grid-column: 2;
+        justify-self: start;
+    }
+
+    .banlist-category-title {
+        flex-direction: column;
+    }
+}
+
+/* ==========================================================
+   SYNCHRONISATION AUTOMATIQUE
+   ========================================================== */
+.banlist-sync-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.banlist-sync-chip-ready strong {
+    color: #7ce6a8;
+}
+
+.banlist-sync-chip-partial strong,
+.banlist-sync-chip-pending strong {
+    color: #ffd56f;
+}
+
+.banlist-sync-chip-error strong {
+    color: #ff8d8d;
+}
+
+.banlist-auto-refresh {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 9px 15px;
+    margin-top: 18px;
+    padding: 12px 14px;
+    border: 1px solid rgba(124, 230, 168, .22);
+    border-radius: 13px;
+    background: rgba(25, 117, 70, .09);
+    font-size: .88rem;
+    line-height: 1.5;
+}
+
+.banlist-auto-refresh-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: #62d995;
+    box-shadow: 0 0 0 5px rgba(98, 217, 149, .12);
+}
+
+.banlist-provider-ready {
+    border-color: rgba(98, 217, 149, .28);
+    background: rgba(98, 217, 149, .08);
+}
+
+.banlist-provider-stale,
+.banlist-provider-pending {
+    border-color: rgba(255, 189, 26, .3);
+    background: rgba(255, 189, 26, .08);
+}
+
+.banlist-provider-error {
+    border-color: rgba(255, 109, 109, .3);
+    background: rgba(255, 109, 109, .08);
+}

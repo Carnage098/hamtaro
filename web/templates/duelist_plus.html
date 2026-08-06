@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}{{ display_name }} — Profil Hamtaro{% endblock %}
+
+{% block content %}
+<section class="expansion-hero">
+    <p class="eyebrow">CARTE DE DUELLISTE</p>
+    <h1>{{ display_name }}</h1>
+    <p>{{ data.profile.about or "Ce joueur n'a pas encore ajouté de présentation." }}</p>
+</section>
+
+<section class="content-section expansion-profile-grid">
+    <article class="expansion-card">
+        <h2>Préférences</h2>
+        <p><strong>Formats :</strong> {{ data.profile.favorite_formats or "Non renseignés" }}</p>
+        <p><strong>Simulateurs :</strong> {{ data.profile.simulators or "Non renseignés" }}</p>
+        <p><strong>Disponibilités :</strong> {{ data.profile.availability or "Non renseignées" }}</p>
+    </article>
+
+    <article class="expansion-card">
+        <h2>Palmarès</h2>
+        <p><strong>Tournois :</strong> {{ data.tournament_stats.tournaments or 0 }}</p>
+        <p><strong>Titres :</strong> {{ data.tournament_stats.titles or 0 }}</p>
+        <p><strong>Finales :</strong> {{ data.tournament_stats.finals or 0 }}</p>
+        <p><strong>Top 4 :</strong> {{ data.tournament_stats.top4 or 0 }}</p>
+    </article>
+
+    {% if data.active_deck %}
+    <article class="expansion-card">
+        <h2>Deck actif</h2>
+        <p><strong>{{ data.active_deck.name }}</strong></p>
+        <p>{{ data.active_deck.format }} · {{ data.active_deck.wins }}V / {{ data.active_deck.losses }}D</p>
+    </article>
+    {% endif %}
+</section>
+
+<section class="content-section">
+    <div class="section-heading"><h2>Classements ELO</h2></div>
+    <div class="card-grid">
+        {% for row in data.ratings %}
+        <article class="expansion-card">
+            <h3>{{ row.format }}</h3>
+            <p class="expansion-big-number">{{ row.rating }}</p>
+            <p>{{ row.wins }} victoire(s) · {{ row.losses }} défaite(s)</p>
+        </article>
+        {% else %}
+        <div class="empty-state">Aucun classement enregistré.</div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="content-section">
+    <div class="section-heading"><h2>Succès</h2></div>
+    <div class="card-grid">
+        {% for achievement in data.achievements %}
+        <article class="expansion-card">
+            <h3>{{ achievement.emoji }} {{ achievement.name }}</h3>
+            <p>{{ achievement.description }}</p>
+        </article>
+        {% else %}
+        <div class="empty-state">Aucun succès débloqué.</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
