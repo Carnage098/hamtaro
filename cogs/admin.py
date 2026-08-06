@@ -12,7 +12,10 @@ from models.enums import TournamentStatus
 
 from utils.embeds import success_embed, error_embed, info_embed
 from utils.permissions import staff_only
-from utils.tournament_resolver import resolve_tournament
+from utils.tournament_resolver import (
+    active_tournament_code_autocomplete,
+    resolve_tournament,
+)
 
 
 class AdminCog(commands.Cog):
@@ -44,11 +47,38 @@ class AdminCog(commands.Cog):
     async def _get_active_tournament(
         self,
         interaction: discord.Interaction,
+        code: str | None = None,
     ):
         return await resolve_tournament(
             interaction,
             self.db,
+            code=code,
         )
+
+    @staticmethod
+    def _normalize_deck_name(deck: str) -> str:
+        """Nettoie le nom du deck sans casser les acronymes déjà corrects."""
+        cleaned = " ".join(deck.split())
+
+        if not cleaned:
+            raise ValueError("Le nom du deck ne peut pas être vide.")
+
+        if len(cleaned) > 80:
+            raise ValueError(
+                "Le nom du deck est trop long : 80 caractères maximum."
+            )
+
+        normalized_words: list[str] = []
+        for word in cleaned.split(" "):
+            first = word[:1]
+            if first.isalpha() and first.islower():
+                normalized_words.append(
+                    first.upper() + word[1:].lower()
+                )
+            else:
+                normalized_words.append(word)
+
+        return " ".join(normalized_words)
 
     async def _send_error(
         self,
@@ -501,6 +531,157 @@ class AdminCog(commands.Cog):
             name="📊 Inscrits",
             value=f"**{current}/{tournament.max_players}**",
             inline=True,
+        )
+
+        await interaction.followup.send(
+            embed=embed,
+            ephemeral=True,
+        )
+
+    # ==========================================================
+    # MODIFIER LE DECK D'UN JOUEUR
+    # ==========================================================
+
+    @app_commands.command(
+        name="admin_change_deck",
+        description="Modifier le deck déclaré d'un joueur dans un tournoi"
+    )
+    @app_commands.describe(
+        joueur="Joueur dont le deck doit être modifié",
+        nouveau_deck="Nouveau nom du deck",
+        code="Code facultatif du tournoi"
+    )
+    @app_commands.autocomplete(
+        code=active_tournament_code_autocomplete
+    )
+    @app_commands.default_permissions(
+        manage_guild=True
+    )
+    @staff_only()
+    async def admin_change_deck(
+        self,
+        interaction: discord.Interaction,
+        joueur: discord.Member,
+        nouveau_deck: str,
+        code: str | None = None,
+    ):
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
+        try:
+            tournament = await self._get_active_tournament(
+                interaction,
+                code,
+            )
+
+            if tournament is None:
+                await self._send_error(
+                    interaction=interaction,
+                    title="Aucun tournoi sélectionné",
+                    description=(
+                        "Sélectionne un tournoi dans ce salon ou indique son code."
+                    ),
+                )
+                return
+
+            registration = await self.db.get_registration_by_user(
+                tournament_id=tournament.id,
+                discord_id=str(joueur.id),
+            )
+
+            if registration is None:
+                await self._send_error(
+                    interaction=interaction,
+                    title="Joueur non inscrit",
+                    description=(
+                        f"{joueur.mention} n'est pas inscrit au tournoi "
+                        f"**{tournament.name}** (`{tournament.code}`)."
+                    ),
+                )
+                return
+
+            deck_normalise = self._normalize_deck_name(
+                nouveau_deck
+            )
+            ancien_deck = registration.deck or "Non renseigné"
+
+            if ancien_deck == deck_normalise:
+                embed = info_embed(
+                    title="Aucune modification nécessaire",
+                    description=(
+                        f"Le deck de {joueur.mention} est déjà "
+                        f"**{deck_normalise}**."
+                    ),
+                )
+                await interaction.followup.send(
+                    embed=embed,
+                    ephemeral=True,
+                )
+                return
+
+            await self.db.update_registration_deck(
+                tournament_id=tournament.id,
+                discord_id=str(joueur.id),
+                deck=deck_normalise,
+            )
+
+            await self._log_action(
+                interaction=interaction,
+                action="admin_change_deck",
+                target=joueur,
+                tournament=tournament,
+                details=(
+                    f"Deck modifié : {ancien_deck} -> {deck_normalise}"
+                ),
+            )
+
+        except ValueError as error:
+            await self._send_error(
+                interaction=interaction,
+                title="Modification impossible",
+                description=str(error),
+            )
+            return
+
+        except Exception as error:
+            print(
+                "❌ Erreur /admin_change_deck :",
+                repr(error),
+            )
+            await self._send_error(
+                interaction=interaction,
+                title="Erreur inattendue",
+                description=(
+                    "Le deck n'a pas pu être modifié. "
+                    f"Détail : `{error}`"
+                ),
+            )
+            return
+
+        embed = success_embed(
+            title="Deck du joueur modifié",
+            description=(
+                f"Le deck déclaré de {joueur.mention} a été mis à jour."
+            ),
+        )
+        embed.add_field(
+            name="🏆 Tournoi",
+            value=f"**{tournament.name}** (`{tournament.code}`)",
+            inline=False,
+        )
+        embed.add_field(
+            name="🎴 Ancien deck",
+            value=f"`{ancien_deck}`",
+            inline=True,
+        )
+        embed.add_field(
+            name="🎴 Nouveau deck",
+            value=f"`{deck_normalise}`",
+            inline=True,
+        )
+        embed.set_footer(
+            text="Action staff enregistrée dans les logs Hamtaro"
         )
 
         await interaction.followup.send(
