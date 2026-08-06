@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Métagame et decks · Hamtaro{% endblock %}
+{% block title %}Decks et métagame · Hamtaro{% endblock %}
 
 {% block content %}
 <section class="hx-hero hx-hero-split">
@@ -8,18 +8,23 @@
         <span class="hx-kicker">MÉTAGAME HAMTARO</span>
         <h1>Decks et performances</h1>
         <p>
-            Popularité, résultats et taux de victoire des decks déclarés
-            dans les tournois du serveur.
+            Popularité et résultats des decks déclarés dans les tournois.
+            Seuls les matchs validés sont utilisés pour les performances.
         </p>
     </div>
     <div class="hx-hero-actions">
         <button class="hx-button" type="button" data-share-page>
-            Partager le métagame
+            ↗ Partager cette page
         </button>
     </div>
 </section>
 
-<form class="hx-panel hx-filter-panel" action="/decks" method="get">
+<form
+    class="hx-panel hx-filter-panel"
+    action="/decks"
+    method="get"
+    data-deck-filter-form
+>
     <div class="hx-filter-heading">
         <div>
             <span class="hx-kicker">FILTRES</span>
@@ -27,18 +32,21 @@
         </div>
         <a class="hx-link-button" href="/decks">Réinitialiser</a>
     </div>
+
     <div class="hx-filter-grid">
         <label class="hx-field">
-            <span>Rechercher un deck</span>
+            <span>Recherche instantanée</span>
             <input
                 type="search"
                 placeholder="Blue Eyes, Hero, Blackwing…"
+                autocomplete="off"
                 data-deck-search
             >
         </label>
+
         <label class="hx-field">
             <span>Format</span>
-            <select name="format">
+            <select name="format" data-deck-filter-auto>
                 <option value="">Tous les formats</option>
                 {% for format_name in data.formats %}
                 <option
@@ -50,9 +58,10 @@
                 {% endfor %}
             </select>
         </label>
+
         <label class="hx-field">
             <span>Tournoi</span>
-            <select name="tournament_id">
+            <select name="tournament_id" data-deck-filter-auto>
                 <option value="">Tous les tournois</option>
                 {% for tournament in data.tournaments %}
                 <option
@@ -64,9 +73,10 @@
                 {% endfor %}
             </select>
         </label>
+
         <label class="hx-field">
-            <span>Minimum de matchs</span>
-            <select name="minimum_matches">
+            <span>Minimum de matchs du deck</span>
+            <select name="minimum_matches" data-deck-filter-auto>
                 {% for amount in [0, 3, 5, 10, 20] %}
                 <option
                     value="{{ amount }}"
@@ -77,49 +87,57 @@
                 {% endfor %}
             </select>
         </label>
+
         <button class="hx-button hx-filter-submit" type="submit">
             Appliquer
         </button>
     </div>
 </form>
 
-<section class="hx-stat-grid">
+<section class="hx-stat-grid hx-stat-grid-four">
     <article class="hx-stat-card">
         <span>Decks recensés</span>
         <strong>{{ data.stats.decks }}</strong>
+        <small>noms de decks distincts</small>
+    </article>
+    <article class="hx-stat-card">
+        <span>Joueurs distincts</span>
+        <strong>{{ data.stats.players }}</strong>
         <small>dans la sélection</small>
     </article>
     <article class="hx-stat-card">
-        <span>Utilisations</span>
-        <strong>{{ data.stats.players }}</strong>
-        <small>inscriptions cumulées</small>
+        <span>Inscriptions</span>
+        <strong>{{ data.stats.appearances }}</strong>
+        <small>utilisations cumulées</small>
     </article>
     <article class="hx-stat-card">
         <span>Matchs analysés</span>
         <strong>{{ data.stats.matches }}</strong>
-        <small>résultats validés</small>
+        <small>matchs validés uniques</small>
     </article>
 </section>
 
+{% if data.decks %}
 <section class="hx-layout-two hx-layout-two-balanced">
     <div class="hx-panel">
         <span class="hx-kicker">POPULARITÉ</span>
-        <h2>Decks les plus joués</h2>
+        <h2>Decks les plus utilisés</h2>
         <div class="hx-leader-list">
             {% for deck in data.popular %}
             <article>
                 <span>#{{ loop.index }}</span>
                 <div>
                     <strong>{{ deck.deck_name }}</strong>
-                    <small>{{ deck.format }}</small>
+                    <small>
+                        {{ deck.format }} · {{ deck.players }} joueur(s)
+                    </small>
                 </div>
-                <em>{{ deck.players }} joueur(s)</em>
+                <em>{{ deck.appearances }} inscription(s)</em>
             </article>
-            {% else %}
-            <p class="hx-muted">Aucune donnée disponible.</p>
             {% endfor %}
         </div>
     </div>
+
     <div class="hx-panel">
         <span class="hx-kicker">PERFORMANCE</span>
         <h2>Meilleurs taux de victoire</h2>
@@ -129,18 +147,22 @@
                 <span>#{{ loop.index }}</span>
                 <div>
                     <strong>{{ deck.deck_name }}</strong>
-                    <small>{{ deck.matches }} matchs · {{ deck.format }}</small>
+                    <small>
+                        {{ deck.matches }} match(s) · {{ deck.format }}
+                    </small>
                 </div>
                 <em>{{ deck.win_rate }} %</em>
             </article>
             {% else %}
             <p class="hx-muted">
-                Aucun deck n’a encore cinq matchs dans cette sélection.
+                Aucun deck n’atteint encore le minimum de
+                {{ data.performance_minimum }} matchs.
             </p>
             {% endfor %}
         </div>
     </div>
 </section>
+{% endif %}
 
 <section class="hx-section">
     <header class="hx-section-heading">
@@ -161,18 +183,29 @@
             data-deck-search-text="{{ (deck.deck_name ~ ' ' ~ deck.format) | lower }}"
         >
             <div class="hx-deck-card-top">
-                <span class="hx-status hx-status-neutral">{{ deck.format }}</span>
+                <span class="hx-status hx-status-neutral">
+                    {{ deck.format }}
+                </span>
                 {% if deck.sample_warning %}
-                <span class="hx-status hx-status-warning" title="Échantillon réduit">
-                    Peu de matchs
+                <span
+                    class="hx-status hx-status-warning"
+                    title="Moins de cinq matchs validés"
+                >
+                    Échantillon réduit
                 </span>
                 {% endif %}
             </div>
+
             <h3>{{ deck.deck_name }}</h3>
+
             <div class="hx-deck-stat-row">
                 <div>
                     <strong>{{ deck.players }}</strong>
                     <span>joueurs</span>
+                </div>
+                <div>
+                    <strong>{{ deck.appearances }}</strong>
+                    <span>inscriptions</span>
                 </div>
                 <div>
                     <strong>{{ deck.matches }}</strong>
@@ -183,19 +216,36 @@
                     <span>victoires</span>
                 </div>
             </div>
-            <div class="hx-progress" aria-label="Taux de victoire">
+
+            <div
+                class="hx-progress"
+                role="progressbar"
+                aria-label="Taux de victoire de {{ deck.deck_name }}"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="{{ deck.win_rate }}"
+            >
                 <span style="width: {{ deck.win_rate }}%"></span>
             </div>
-            <p class="hx-muted">
-                {{ deck.wins }} victoire(s) · {{ deck.losses }} défaite(s) ·
-                {{ deck.tournaments }} tournoi(s)
-            </p>
+
+            <footer class="hx-deck-card-footer">
+                <span>
+                    {{ deck.wins }} V · {{ deck.losses }} D
+                </span>
+                <span>
+                    {{ deck.tournaments }} tournoi(s)
+                </span>
+            </footer>
         </article>
         {% else %}
         <div class="hx-empty-state hx-empty-state-wide">
             <span aria-hidden="true">🎴</span>
-            <h3>Aucun deck dans cette sélection</h3>
-            <p>Réduis le minimum de matchs ou choisis un autre format.</p>
+            <h3>Aucune statistique disponible</h3>
+            <p>
+                Vérifie que les joueurs ont déclaré un deck lors de leur
+                inscription et que des résultats ont été validés. Tu peux
+                aussi remettre le minimum de matchs à zéro.
+            </p>
         </div>
         {% endfor %}
     </div>
@@ -207,7 +257,8 @@
 </section>
 
 <p class="hx-live-note">
-    Les taux de victoire reposent uniquement sur les résultats validés.
-    Un avertissement apparaît lorsque l’échantillon contient moins de cinq matchs.
+    Une rencontre entre deux decks identiques compte une victoire et une
+    défaite pour ce deck. Les BYE, résultats annulés et doubles défaites
+    ne sont pas intégrés au taux de victoire.
 </p>
 {% endblock %}

@@ -111,9 +111,11 @@ class SiteExperienceRoutes:
             data=data,
         )
 
-    async def decks_page(self, request: web.Request) -> web.Response:
-        guild_id = self.guild_id(request)
-        format_name = str(request.query.get("format") or "").strip() or None
+    @staticmethod
+    def _deck_filters(request: web.Request) -> tuple[str | None, int | None, int]:
+        format_name = str(
+            request.query.get("format") or ""
+        ).strip() or None
 
         tournament_id: int | None = None
         raw_tournament_id = str(
@@ -122,9 +124,21 @@ class SiteExperienceRoutes:
         if raw_tournament_id.isdigit():
             tournament_id = int(raw_tournament_id)
 
-        raw_minimum = str(request.query.get("minimum_matches") or "0").strip()
-        minimum_matches = int(raw_minimum) if raw_minimum.isdigit() else 0
+        raw_minimum = str(
+            request.query.get("minimum_matches") or "0"
+        ).strip()
+        minimum_matches = (
+            int(raw_minimum)
+            if raw_minimum.isdigit()
+            else 0
+        )
+        return format_name, tournament_id, minimum_matches
 
+    async def decks_page(self, request: web.Request) -> web.Response:
+        guild_id = self.guild_id(request)
+        format_name, tournament_id, minimum_matches = self._deck_filters(
+            request
+        )
         data = await self.service.deck_metagame(
             guild_id,
             format_name=format_name,
@@ -136,6 +150,22 @@ class SiteExperienceRoutes:
             request=request,
             guild_id=guild_id,
             data=data,
+        )
+
+    async def decks_api(self, request: web.Request) -> web.Response:
+        guild_id = self.guild_id(request)
+        format_name, tournament_id, minimum_matches = self._deck_filters(
+            request
+        )
+        data = await self.service.deck_metagame(
+            guild_id,
+            format_name=format_name,
+            tournament_id=tournament_id,
+            minimum_matches=minimum_matches,
+        )
+        return web.json_response(
+            data,
+            headers={"Cache-Control": "no-store"},
         )
 
     async def search_page(self, request: web.Request) -> web.Response:
@@ -204,6 +234,7 @@ def register_site_experience_routes(
     )
 
     application.router.add_get("/decks", routes.decks_page)
+    application.router.add_get("/api/decks", routes.decks_api)
     application.router.add_get("/search", routes.search_page)
     application.router.add_get("/api/site/search", routes.search_api)
 
