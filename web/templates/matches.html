@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Matchs en direct · Hamtaro{% endblock %}
+
+{% block content %}
+<section class="hx-hero hx-hero-split" data-live-matches-page>
+    <div>
+        <span class="hx-kicker">CENTRE DES MATCHS</span>
+        <h1>Matchs en attente et en validation</h1>
+        <p>
+            Consulte les rencontres actuellement jouables et les résultats
+            qui attendent encore une validation du staff.
+        </p>
+    </div>
+    <div class="hx-hero-actions">
+        <a class="hx-button hx-button-secondary" href="/results">
+            Résultats terminés
+        </a>
+        <a class="hx-button hx-button-secondary" href="/archives">
+            Archives des tournois
+        </a>
+        <button class="hx-button" type="button" data-share-page>
+            Partager cette page
+        </button>
+    </div>
+</section>
+
+<section class="hx-stat-grid" aria-label="Résumé des matchs">
+    <article class="hx-stat-card">
+        <span>À jouer</span>
+        <strong data-live-count="waiting">{{ data.counts.waiting }}</strong>
+        <small>matchs disponibles</small>
+    </article>
+    <article class="hx-stat-card">
+        <span>En validation</span>
+        <strong data-live-count="validation">{{ data.counts.validation }}</strong>
+        <small>résultats à contrôler</small>
+    </article>
+    <article class="hx-stat-card">
+        <span>Total actif</span>
+        <strong data-live-count="total">{{ data.counts.total }}</strong>
+        <small>bracket et suisse</small>
+    </article>
+</section>
+
+<section class="hx-panel hx-filter-panel">
+    <div class="hx-filter-heading">
+        <div>
+            <span class="hx-kicker">FILTRES</span>
+            <h2>Trouver rapidement un match</h2>
+        </div>
+        <button class="hx-link-button" type="button" data-match-filter-reset>
+            Réinitialiser
+        </button>
+    </div>
+
+    <div class="hx-filter-grid">
+        <label class="hx-field">
+            <span>Recherche</span>
+            <input
+                type="search"
+                placeholder="Joueur, tournoi, deck ou ID…"
+                data-match-search
+            >
+        </label>
+
+        <label class="hx-field">
+            <span>État</span>
+            <select data-match-stage-filter>
+                <option value="all">Tous les matchs actifs</option>
+                <option value="waiting">À jouer</option>
+                <option value="validation">En validation</option>
+            </select>
+        </label>
+
+        <label class="hx-field">
+            <span>Format</span>
+            <select data-match-format-filter>
+                <option value="all">Tous les formats</option>
+                {% for format_name in data.formats %}
+                <option value="{{ format_name }}">{{ format_name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label class="hx-field">
+            <span>Tournoi</span>
+            <select data-match-tournament-filter>
+                <option value="all">Tous les tournois</option>
+                {% for tournament in data.tournaments %}
+                <option value="{{ tournament.id }}">
+                    {{ tournament.name }} · {{ tournament.code }}
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label class="hx-field">
+            <span>Type</span>
+            <select data-match-type-filter>
+                <option value="all">Bracket et suisse</option>
+                <option value="bracket">Élimination directe</option>
+                <option value="swiss">Rondes suisses</option>
+            </select>
+        </label>
+    </div>
+</section>
+
+{% set sections = [
+    ("validation", "Résultats en validation", "Le staff doit confirmer ou refuser ces résultats.", data.validation),
+    ("waiting", "Matchs à jouer", "Ces rencontres attendent encore leur résultat.", data.waiting)
+] %}
+
+{% for stage, title, description, matches in sections %}
+<section class="hx-section" data-match-section="{{ stage }}">
+    <header class="hx-section-heading">
+        <div>
+            <span class="hx-kicker">
+                {{ "VALIDATION" if stage == "validation" else "EN ATTENTE" }}
+            </span>
+            <h2>{{ title }}</h2>
+            <p>{{ description }}</p>
+        </div>
+        <span class="hx-count-pill" data-section-count="{{ stage }}">
+            {{ matches | length }}
+        </span>
+    </header>
+
+    <div class="hx-match-grid">
+        {% for match in matches %}
+        <article
+            class="hx-match-card hx-match-card-{{ stage }}"
+            data-live-match
+            data-match-stage="{{ stage }}"
+            data-match-format="{{ match.format }}"
+            data-match-tournament="{{ match.tournament_id }}"
+            data-match-type="{{ match.match_type }}"
+            data-match-search-text="{{ (
+                match.reference ~ ' ' ~
+                (match.player1_name or '') ~ ' ' ~
+                (match.player2_name or '') ~ ' ' ~
+                (match.tournament_name or '') ~ ' ' ~
+                (match.tournament_code or '') ~ ' ' ~
+                (match.format or '')
+            ) | lower }}"
+        >
+            <div class="hx-match-card-top">
+                <div>
+                    <span class="hx-status hx-status-{{ stage }}">
+                        {{ "En validation" if stage == "validation" else "À jouer" }}
+                    </span>
+                    <span class="hx-status hx-status-neutral">
+                        {{ "Suisse" if match.match_type == "swiss" else "Bracket" }}
+                    </span>
+                </div>
+                <code>{{ match.reference }}</code>
+            </div>
+
+            <a
+                class="hx-match-tournament"
+                href="/tournaments/{{ match.tournament_id }}"
+            >
+                {{ match.tournament_name }}
+                <small>{{ match.tournament_code }} · {{ match.format }}</small>
+            </a>
+
+            <div class="hx-versus">
+                <a
+                    href="/players/{{ match.player1_id }}"
+                    class="hx-player-link"
+                >
+                    {{ match.player1_name or "Joueur à déterminer" }}
+                </a>
+                <strong>VS</strong>
+                {% if match.player2_id %}
+                <a
+                    href="/players/{{ match.player2_id }}"
+                    class="hx-player-link"
+                >
+                    {{ match.player2_name or "Joueur à déterminer" }}
+                </a>
+                {% else %}
+                <span>Adversaire à déterminer</span>
+                {% endif %}
+            </div>
+
+            <div class="hx-match-meta">
+                <span>{{ match.round_label }}</span>
+                {% if stage == "validation" %}
+                <span>Score annoncé : <strong>{{ match.score_display }}</strong></span>
+                {% else %}
+                <span>Statut : {{ match.status }}</span>
+                {% endif %}
+            </div>
+
+            <div class="hx-card-actions">
+                <a
+                    class="hx-button hx-button-small hx-button-secondary"
+                    href="/tournaments/{{ match.tournament_id }}"
+                >
+                    Voir le tournoi
+                </a>
+                <button
+                    class="hx-button hx-button-small"
+                    type="button"
+                    data-copy-text="{{ match.reference }}"
+                >
+                    Copier l’ID
+                </button>
+                <button
+                    class="hx-button hx-button-small hx-button-ghost"
+                    type="button"
+                    data-share-url="/matches#{{ match.reference }}"
+                    data-share-title="{{ match.player1_name }} vs {{ match.player2_name }}"
+                >
+                    Partager
+                </button>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+
+    {% if not matches %}
+    <div class="hx-empty-state">
+        <span aria-hidden="true">🐹</span>
+        <h3>Aucun match dans cette section</h3>
+        <p>
+            La page se met à jour automatiquement lorsqu’un nouveau match
+            ou résultat apparaît.
+        </p>
+    </div>
+    {% endif %}
+</section>
+{% endfor %}
+
+<div class="hx-empty-state" hidden data-match-filter-empty>
+    <span aria-hidden="true">🔎</span>
+    <h3>Aucun match ne correspond aux filtres</h3>
+    <p>Modifie la recherche ou réinitialise les filtres.</p>
+</div>
+
+<p class="hx-live-note">
+    <span class="hx-live-dot" aria-hidden="true"></span>
+    Actualisation automatique toutes les 20 secondes.
+    Les matchs terminés sont conservés dans les pages Résultats et Archives.
+</p>
+{% endblock %}
