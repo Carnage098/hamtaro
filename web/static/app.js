@@ -90,17 +90,30 @@
 })();
 (() => {
     "use strict";
-    const searchInput = document.querySelector(
-        "[data-command-search]"
+
+    const guide = document.querySelector("[data-command-guide]");
+    if (!guide) {
+        return;
+    }
+
+    const searchInput = guide.querySelector("[data-command-search]");
+    const roleButtons = Array.from(
+        guide.querySelectorAll("[data-command-role-filter]")
     );
-    const filterButtons = Array.from(
-        document.querySelectorAll("[data-command-filter]")
+    const categoryButtons = Array.from(
+        guide.querySelectorAll("[data-command-category-filter]")
     );
     const commandCards = Array.from(
-        document.querySelectorAll("[data-guide-command]")
+        guide.querySelectorAll("[data-guide-command]")
     );
-    const emptyState = document.querySelector(
-        "[data-command-empty]"
+    const categorySections = Array.from(
+        guide.querySelectorAll("[data-guide-category-section]")
+    );
+    const emptyState = guide.querySelector("[data-command-empty]");
+    const visibleCounter = guide.querySelector("[data-command-visible-count]");
+    const resetButton = guide.querySelector("[data-command-reset]");
+    const copyButtons = Array.from(
+        guide.querySelectorAll("[data-copy-command]")
     );
 
     if (!searchInput || !commandCards.length) {
@@ -108,6 +121,8 @@
     }
 
     let activeRole = "all";
+    let activeCategory = "all";
+
     const normalise = (value) => (
         String(value || "")
             .toLocaleLowerCase("fr")
@@ -116,52 +131,119 @@
             .trim()
     );
 
+    const updateButtonState = (buttons, attribute, activeValue) => {
+        buttons.forEach((button) => {
+            const selected = button.dataset[attribute] === activeValue;
+            button.classList.toggle("is-active", selected);
+            button.setAttribute("aria-pressed", String(selected));
+        });
+    };
+
     const refresh = () => {
         const query = normalise(searchInput.value);
         let visibleCount = 0;
+
         commandCards.forEach((card) => {
             const role = card.dataset.commandRole || "community";
-            const searchable = normalise(
-                card.dataset.commandSearchText
-            );
+            const category = card.dataset.commandCategory || "other";
+            const searchable = normalise(card.dataset.commandSearchText);
 
-            const roleMatches = (
-                activeRole === "all"
-                || role === activeRole
+            const roleMatches = activeRole === "all" || role === activeRole;
+            const categoryMatches = (
+                activeCategory === "all"
+                || category === activeCategory
             );
+            const searchMatches = !query || searchable.includes(query);
+            const visible = roleMatches && categoryMatches && searchMatches;
 
-            const searchMatches = (
-                !query
-                || searchable.includes(query)
-            );
-            const visible = roleMatches && searchMatches;
             card.hidden = !visible;
-
             if (visible) {
                 visibleCount += 1;
             }
         });
 
+        categorySections.forEach((section) => {
+            const visibleCards = Array.from(
+                section.querySelectorAll("[data-guide-command]")
+            ).filter((card) => !card.hidden);
+
+            section.hidden = visibleCards.length === 0;
+
+            const count = section.querySelector("[data-category-visible-count]");
+            if (count) {
+                count.textContent = String(visibleCards.length);
+            }
+
+            const details = section.querySelector("details");
+            if (details && (query || activeCategory !== "all")) {
+                details.open = true;
+            }
+        });
+
+        if (visibleCounter) {
+            visibleCounter.textContent = String(visibleCount);
+        }
         if (emptyState) {
             emptyState.hidden = visibleCount !== 0;
         }
     };
 
-    filterButtons.forEach((button) => {
+    roleButtons.forEach((button) => {
         button.addEventListener("click", () => {
-            activeRole = (
-                button.dataset.commandFilter
-                || "all"
+            activeRole = button.dataset.commandRoleFilter || "all";
+            updateButtonState(
+                roleButtons,
+                "commandRoleFilter",
+                activeRole
             );
-            filterButtons.forEach((otherButton) => {
-                otherButton.classList.toggle(
-                    "is-active",
-                    otherButton === button
-                );
-            });
-
             refresh();
         });
+    });
+
+    categoryButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            activeCategory = button.dataset.commandCategoryFilter || "all";
+            updateButtonState(
+                categoryButtons,
+                "commandCategoryFilter",
+                activeCategory
+            );
+            refresh();
+        });
+    });
+
+    copyButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+            const value = button.dataset.copyCommand || "";
+            if (!value) {
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(value);
+                const original = button.textContent;
+                button.textContent = "Copié !";
+                window.setTimeout(() => {
+                    button.textContent = original;
+                }, 1200);
+            } catch (error) {
+                console.debug("Copie de la commande impossible.", error);
+            }
+        });
+    });
+
+    resetButton?.addEventListener("click", () => {
+        searchInput.value = "";
+        activeRole = "all";
+        activeCategory = "all";
+        updateButtonState(roleButtons, "commandRoleFilter", activeRole);
+        updateButtonState(
+            categoryButtons,
+            "commandCategoryFilter",
+            activeCategory
+        );
+        refresh();
+        searchInput.focus();
     });
 
     searchInput.addEventListener("input", refresh);

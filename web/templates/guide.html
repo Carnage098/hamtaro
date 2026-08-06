@@ -1,577 +1,205 @@
 {% extends "base.html" %}
 
-{% block title %}Guide complet de Hamtaro{% endblock %}
-
-{% macro command_chip(name) %}
-<code class="guide-command-chip">{{ name }}</code>
-{% endmacro %}
-
-{% macro role_badge(role) %}
-    {% if role == "admin" %}
-        <span class="guide-role-badge guide-role-admin">
-            Administration
-        </span>
-    {% elif role == "staff" %}
-        <span class="guide-role-badge guide-role-staff">
-            Staff
-        </span>
-    {% else %}
-        <span class="guide-role-badge guide-role-community">
-            Communauté
-        </span>
-    {% endif %}
-{% endmacro %}
+{% block title %}Guide des commandes · Hamtaro{% endblock %}
 
 {% block content %}
-<section class="guide-hero">
-    <div>
-        <p class="eyebrow">MODE D'EMPLOI OFFICIEL</p>
-        <h1>Comment utiliser Hamtaro</h1>
-        <p class="hero-text">
-            De l'inscription d'un joueur jusqu'à la clôture d'un tournoi,
-            ce guide explique quoi faire, dans quel ordre et quelles
-            commandes utiliser selon chaque situation.
-        </p>
-    </div>
-
-    <aside class="guide-command-counter">
-        <small>Commandes détectées</small>
-        <strong>{{ command_count }}</strong>
-        <span>
-            Catalogue construit automatiquement depuis le bot connecté.
-        </span>
-    </aside>
-</section>
-
-<div class="guide-reference-note">
-    <strong>Référence à retenir :</strong>
-    le catalogue situé en bas de page est généré à partir des commandes
-    réellement chargées dans Discord. S'il existe une différence avec
-    un exemple du guide, le catalogue automatique fait foi.
-</div>
-
-<nav class="guide-anchor-navigation" aria-label="Sommaire du guide">
-    <a href="#roles">Choisir son rôle</a>
-    <a href="#joueur">Parcours joueur</a>
-    <a href="#staff">Gestion staff</a>
-    <a href="#formats">Formats de tournoi</a>
-    <a href="#situations">Situations fréquentes</a>
-    <a href="#catalogue">Toutes les commandes</a>
-</nav>
-
-<section class="content-section" id="roles">
-    <div class="section-heading">
+<section class="guide-page" data-command-guide>
+    <header class="guide-hero">
         <div>
-            <p class="eyebrow">QUI FAIT QUOI ?</p>
-            <h2>Choisir son parcours</h2>
-        </div>
-    </div>
-
-    <div class="guide-role-grid">
-        <article class="guide-role-card guide-role-card-community">
-            <span class="guide-role-icon">👤</span>
-            <h3>Joueur</h3>
-            <p>
-                S'inscrire, consulter le tournoi actif, trouver son
-                adversaire, signaler un résultat et suivre ses statistiques.
+            <p class="guide-eyebrow">CATALOGUE OFFICIEL DU BOT</p>
+            <h1>Guide des commandes Hamtaro</h1>
+            <p class="guide-introduction">
+                Toutes les commandes gardent leur nom Discord actuel. Elles sont
+                simplement rangées ici par fonction, avec leur description,
+                leur syntaxe, leurs paramètres et leur niveau d'accès.
             </p>
-            <a href="#joueur">Voir le parcours joueur</a>
-        </article>
-
-        <article class="guide-role-card guide-role-card-staff">
-            <span class="guide-role-icon">🛡️</span>
-            <h3>Staff / Modération</h3>
-            <p>
-                Vérifier les résultats, lancer les rondes, résoudre les
-                litiges et maintenir le tournoi en mouvement.
-            </p>
-            <a href="#staff">Voir la gestion staff</a>
-        </article>
-
-        <article class="guide-role-card guide-role-card-admin">
-            <span class="guide-role-icon">⚙️</span>
-            <h3>Administration</h3>
-            <p>
-                Créer, configurer, réparer, clôturer et exporter les
-                tournois. Ces actions ont les conséquences les plus fortes.
-            </p>
-            <a href="#administration">Voir les outils administratifs</a>
-        </article>
-    </div>
-</section>
-
-<section class="content-section" id="joueur">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">PARCOURS JOUEUR</p>
-            <h2>Participer à un tournoi</h2>
         </div>
-    </div>
 
-    <div class="guide-timeline">
-        <article class="guide-step">
-            <span class="guide-step-number">1</span>
-            <div>
-                <h3>Identifier le bon tournoi</h3>
-                <p>
-                    Hamtaro peut gérer plusieurs tournois en même temps.
-                    Commence par consulter le contexte et le statut afin
-                    d'éviter d'agir sur le mauvais tournoi.
-                </p>
-                <div class="guide-command-row">
-                    {{ command_chip("/tournament_context") }}
-                    {{ command_chip("/tournament_status") }}
-                </div>
-            </div>
-        </article>
-
-        <article class="guide-step">
-            <span class="guide-step-number">2</span>
-            <div>
-                <h3>S'inscrire</h3>
-                <p>
-                    Utilise la commande d'inscription pendant que les
-                    inscriptions sont ouvertes. Renseigne correctement ton
-                    deck et le format demandé. Ton inscription confirme ta
-                    disponibilité : il n'y a pas de check-in séparé.
-                </p>
-                <div class="guide-command-row">
-                    {{ command_chip("/register") }}
-                </div>
-            </div>
-        </article>
-
-        <article class="guide-step">
-            <span class="guide-step-number">3</span>
-            <div>
-                <h3>Trouver son prochain match</h3>
-                <p>
-                    Dès qu'un match est disponible, consulte ton adversaire,
-                    la ronde et la table. Le bracket ou le classement suisse
-                    permettent de suivre l'avancement général.
-                </p>
-                <div class="guide-command-row">
-                    {{ command_chip("/nextmatch") }}
-                    {{ command_chip("/bracket") }}
-                    {{ command_chip("/match_center") }}
-                </div>
-            </div>
-        </article>
-
-        <article class="guide-step">
-            <span class="guide-step-number">4</span>
-            <div>
-                <h3>Jouer puis signaler le résultat</h3>
-                <p>
-                    Après le duel, indique le vainqueur et le score exact.
-                    Le résultat n'est définitif qu'après validation du staff.
-                    Ne renvoie pas plusieurs fois le même résultat.
-                </p>
-                <div class="guide-command-row">
-                    {{ command_chip("/report_result") }}
-                </div>
-            </div>
-        </article>
-
-        <article class="guide-step">
-            <span class="guide-step-number">5</span>
-            <div>
-                <h3>Suivre sa progression</h3>
-                <p>
-                    Consulte ton historique, ton profil et tes performances
-                    par deck. Les données publiques du site viennent des
-                    résultats validés par le staff.
-                </p>
-                <div class="guide-command-row">
-                    {{ command_chip("/profile") }}
-                    {{ command_chip("/match_history") }}
-                    {{ command_chip("/deck_stats") }}
-                </div>
-            </div>
-        </article>
-    </div>
-</section>
-
-<section class="content-section" id="staff">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">STAFF ET MODÉRATION</p>
-            <h2>Faire fonctionner le tournoi</h2>
+        <div class="guide-summary" aria-label="Résumé du catalogue">
+            <article>
+                <strong>{{ command_count }}</strong>
+                <span>commandes</span>
+            </article>
+            <article>
+                <strong>{{ category_count }}</strong>
+                <span>catégories</span>
+            </article>
+            <article>
+                <strong>{{ role_counts.community }}</strong>
+                <span>joueurs</span>
+            </article>
+            <article>
+                <strong>{{ role_counts.staff + role_counts.admin }}</strong>
+                <span>staff et admin</span>
+            </article>
         </div>
-    </div>
+    </header>
 
-    <div class="guide-workflow-grid">
-        <article class="guide-workflow-card">
-            <span class="guide-workflow-number">A</span>
-            <h3>Avant le lancement</h3>
-            <ul>
-                <li>Vérifier le format, le type et le nombre de joueurs.</li>
-                <li>Contrôler les inscriptions et les decks renseignés.</li>
-                <li>Vérifier le contexte du tournoi sélectionné.</li>
-                <li>Prévisualiser les rendus graphiques si nécessaire.</li>
-            </ul>
-            <div class="guide-command-row">
-                {{ command_chip("/tournament_status") }}
-                {{ command_chip("/tournament_context") }}
-                {{ command_chip("/graphics_preview") }}
-            </div>
-        </article>
-
-        <article class="guide-workflow-card">
-            <span class="guide-workflow-number">B</span>
-            <h3>Pendant les matchs</h3>
-            <ul>
-                <li>Consulter les résultats en attente.</li>
-                <li>Comparer le score aux informations des deux joueurs.</li>
-                <li>Approuver le résultat correct.</li>
-                <li>Refuser un résultat erroné en donnant une raison claire.</li>
-            </ul>
-            <div class="guide-command-row">
-                {{ command_chip("/pending_results") }}
-                {{ command_chip("/approve_result") }}
-                {{ command_chip("/reject_result") }}
-            </div>
-        </article>
-
-        <article class="guide-workflow-card">
-            <span class="guide-workflow-number">C</span>
-            <h3>Entre deux rondes</h3>
-            <ul>
-                <li>Vérifier qu'aucun match n'est encore bloqué.</li>
-                <li>Valider tous les résultats nécessaires.</li>
-                <li>Générer la ronde suivante ou faire avancer le bracket.</li>
-                <li>Publier l'image actualisée pour la communauté.</li>
-            </ul>
-            <div class="guide-command-row">
-                {{ command_chip("/tournament_progression") }}
-                {{ command_chip("/bracket") }}
-                {{ command_chip("/swiss_pair") }}
-            </div>
-        </article>
-
-        <article class="guide-workflow-card">
-            <span class="guide-workflow-number">D</span>
-            <h3>En cas de litige</h3>
-            <ul>
-                <li>Ne pas modifier le tournoi dans la précipitation.</li>
-                <li>Lire les logs et vérifier le dernier résultat validé.</li>
-                <li>Utiliser la réparation ou l'annulation uniquement après contrôle.</li>
-                <li>Informer les joueurs concernés de la décision.</li>
-            </ul>
-            <div class="guide-command-row">
-                {{ command_chip("/staff_logs") }}
-                {{ command_chip("/repair") }}
-                {{ command_chip("/tournament_undo") }}
-            </div>
-        </article>
-    </div>
-</section>
-
-<section class="content-section" id="administration">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">ADMINISTRATION</p>
-            <h2>Créer, clôturer et archiver</h2>
-        </div>
-    </div>
-
-    <div class="guide-admin-sequence">
-        <article>
-            <strong>1. Créer et configurer</strong>
-            <p>
-                Définis le nom, le format, le type de tournoi et la capacité.
-                Pour plusieurs tournois simultanés, vérifie toujours le code
-                ou l'identifiant avant une action.
-            </p>
-        </article>
-
-        <article>
-            <strong>2. Ouvrir les inscriptions</strong>
-            <p>
-                Laisse les joueurs s'enregistrer, surveille la capacité et
-                corrige les inscriptions problématiques avant le lancement.
-            </p>
-        </article>
-
-        <article>
-            <strong>3. Lancer le bon moteur</strong>
-            <p>
-                Utilise le bracket d'élimination directe ou le système suisse
-                selon le type choisi. Ne mélange jamais les règles des deux.
-            </p>
-        </article>
-
-        <article>
-            <strong>4. Terminer proprement</strong>
-            <p>
-                Vérifie le champion, le classement final, les statistiques
-                et l'image finale avant de clôturer le tournoi.
-            </p>
-            <div class="guide-command-row">
-                {{ command_chip("/end_tournament") }}
-                {{ command_chip("/final_bracket") }}
-                {{ command_chip("/tournament_export") }}
-            </div>
-        </article>
-    </div>
-
-    <div class="guide-danger-note">
-        <strong>Attention :</strong>
-        les commandes de réparation, d'annulation, de clôture et de suppression
-        peuvent modifier l'historique. Lis toujours l'aperçu et les logs avant
-        de confirmer.
-    </div>
-</section>
-
-<section class="content-section" id="formats">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">RÈGLES TECHNIQUES</p>
-            <h2>Suisse ou élimination directe</h2>
-        </div>
-    </div>
-
-    <div class="guide-format-grid">
-        <article class="guide-format-card guide-format-swiss">
-            <span class="guide-format-icon">📊</span>
-            <h3>Rondes suisses</h3>
-            <ul>
-                <li>Durée par défaut : 50 minutes par ronde.</li>
-                <li>Les rappels et le temps restant peuvent être affichés.</li>
-                <li>Le Double Loss est autorisé lorsque le staff le décide.</li>
-                <li>Une nouvelle ronde est appariée après validation des matchs.</li>
-            </ul>
-            <div class="guide-command-row">
-                {{ command_chip("/swiss_start") }}
-                {{ command_chip("/swiss_pair") }}
-                {{ command_chip("/swiss_report") }}
-                {{ command_chip("/swiss_standings_image") }}
-            </div>
-        </article>
-
-        <article class="guide-format-card guide-format-bracket">
-            <span class="guide-format-icon">🏆</span>
-            <h3>Élimination directe</h3>
-            <ul>
-                <li>Aucune limite automatique de 50 minutes.</li>
-                <li>Aucun Double Loss.</li>
-                <li>Un vainqueur doit obligatoirement être désigné.</li>
-                <li>Le gagnant avance vers le match suivant jusqu'à la finale.</li>
-            </ul>
-            <div class="guide-command-row">
-                {{ command_chip("/bracket") }}
-                {{ command_chip("/bracket_full") }}
-                {{ command_chip("/final_bracket") }}
-            </div>
-        </article>
-    </div>
-</section>
-
-<section class="content-section" id="situations">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">BESOIN D'AIDE ?</p>
-            <h2>Quelle commande utiliser ?</h2>
-        </div>
-    </div>
-
-    <div class="guide-situation-list">
-        <article>
-            <div>
-                <h3>Je ne sais pas quel tournoi est sélectionné</h3>
-                <p>
-                    Vérifie le contexte avant de t'inscrire, signaler un
-                    résultat ou utiliser une commande de staff.
-                </p>
-            </div>
-            {{ command_chip("/tournament_context") }}
-        </article>
-
-        <article>
-            <div>
-                <h3>Je ne trouve pas mon adversaire</h3>
-                <p>
-                    Consulte ton prochain match et le centre de match.
-                </p>
-            </div>
-            <div class="guide-command-row">
-                {{ command_chip("/nextmatch") }}
-                {{ command_chip("/match_center") }}
-            </div>
-        </article>
-
-        <article>
-            <div>
-                <h3>Mon résultat est toujours en attente</h3>
-                <p>
-                    Le staff doit consulter la file de validation puis
-                    approuver ou refuser le résultat.
-                </p>
-            </div>
-            <div class="guide-command-row">
-                {{ command_chip("/pending_results") }}
-                {{ command_chip("/approve_result") }}
-            </div>
-        </article>
-
-        <article>
-            <div>
-                <h3>Le bracket semble bloqué</h3>
-                <p>
-                    Vérifie d'abord les résultats non validés et la progression.
-                    La réparation doit rester la dernière solution.
-                </p>
-            </div>
-            <div class="guide-command-row">
-                {{ command_chip("/tournament_progression") }}
-                {{ command_chip("/repair") }}
-            </div>
-        </article>
-
-        <article>
-            <div>
-                <h3>Une mauvaise action vient d'être validée</h3>
-                <p>
-                    Consulte les logs puis utilise l'outil d'annulation réservé
-                    au staff autorisé.
-                </p>
-            </div>
-            <div class="guide-command-row">
-                {{ command_chip("/staff_logs") }}
-                {{ command_chip("/tournament_undo") }}
-            </div>
-        </article>
-
-        <article>
-            <div>
-                <h3>Je veux retrouver mes résultats précédents</h3>
-                <p>
-                    Utilise le profil et l'historique, ou consulte la page
-                    publique du joueur sur ce site.
-                </p>
-            </div>
-            <div class="guide-command-row">
-                {{ command_chip("/profile") }}
-                {{ command_chip("/match_history") }}
-            </div>
-        </article>
-    </div>
-</section>
-
-<section class="content-section" id="catalogue">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">CATALOGUE AUTOMATIQUE</p>
-            <h2>Toutes les commandes chargées</h2>
-        </div>
-    </div>
-
-    <div class="guide-catalog-controls">
-        <label class="guide-search-field">
+    <section class="guide-toolbar" aria-label="Recherche et filtres">
+        <label class="guide-search">
             <span>Rechercher une commande</span>
             <input
                 type="search"
-                placeholder="Exemple : bracket, résultat, profil…"
+                placeholder="Exemple : deck, tournoi, résultat, ELO…"
+                autocomplete="off"
                 data-command-search
             >
         </label>
 
-        <div class="guide-filter-buttons">
-            <button
-                class="guide-filter-button is-active"
-                type="button"
-                data-command-filter="all"
-            >
-                Toutes · {{ command_count }}
-            </button>
+        <div class="guide-filter-block">
+            <strong>Accès</strong>
+            <div class="guide-filter-row" role="group" aria-label="Filtrer par accès">
+                <button
+                    type="button"
+                    class="guide-filter is-active"
+                    data-command-role-filter="all"
+                    aria-pressed="true"
+                >Toutes</button>
+                {% for role, meta in role_meta.items() %}
+                <button
+                    type="button"
+                    class="guide-filter guide-filter-{{ role }}"
+                    data-command-role-filter="{{ role }}"
+                    aria-pressed="false"
+                >
+                    {{ meta.icon }} {{ meta.label }}
+                    <span>{{ role_counts[role] }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
 
-            <button
-                class="guide-filter-button"
-                type="button"
-                data-command-filter="community"
-            >
-                Communauté · {{ role_counts.community }}
-            </button>
+        <div class="guide-filter-block">
+            <strong>Catégorie</strong>
+            <div class="guide-category-filters" role="group" aria-label="Filtrer par catégorie">
+                <button
+                    type="button"
+                    class="guide-category-filter is-active"
+                    data-command-category-filter="all"
+                    aria-pressed="true"
+                >Toutes les catégories</button>
+                {% for category in guide_categories %}
+                <button
+                    type="button"
+                    class="guide-category-filter"
+                    data-command-category-filter="{{ category.slug }}"
+                    aria-pressed="false"
+                >
+                    {{ category.icon }} {{ category.title }}
+                    <span>{{ category.count }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
 
-            <button
-                class="guide-filter-button"
-                type="button"
-                data-command-filter="staff"
-            >
-                Staff · {{ role_counts.staff }}
-            </button>
-
-            <button
-                class="guide-filter-button"
-                type="button"
-                data-command-filter="admin"
-            >
-                Administration · {{ role_counts.admin }}
+        <div class="guide-results-line">
+            <p>
+                <strong data-command-visible-count>{{ command_count }}</strong>
+                commande(s) affichée(s)
+            </p>
+            <button type="button" class="guide-reset" data-command-reset>
+                Réinitialiser les filtres
             </button>
         </div>
-    </div>
+    </section>
 
-    <p class="guide-permission-disclaimer">
-        Le classement par rôle est indicatif. Les permissions réelles
-        configurées dans Discord et les contrôles <code>StaffOnly</code>
-        restent prioritaires.
-    </p>
-
-    <div class="guide-command-catalog">
-        {% for role, commands in command_catalog.items() %}
-            {% for command in commands %}
-            <article
-                class="guide-command-card"
-                data-guide-command
-                data-command-role="{{ role }}"
-                data-command-search-text="{{ command.search_text }}"
-            >
-                <div class="guide-command-heading">
-                    <div>
-                        <code>{{ command.slash_name }}</code>
-                        {{ role_badge(role) }}
-                    </div>
-                    <span class="guide-command-syntax">
-                        {{ command.syntax }}
+    <div class="guide-categories">
+        {% for category in guide_categories %}
+        <section
+            class="guide-category-section"
+            data-guide-category-section="{{ category.slug }}"
+        >
+            <details open>
+                <summary>
+                    <span class="guide-category-icon" aria-hidden="true">
+                        {{ category.icon }}
                     </span>
-                </div>
+                    <span class="guide-category-heading">
+                        <strong>{{ category.title }}</strong>
+                        <small>{{ category.description }}</small>
+                    </span>
+                    <span class="guide-category-count">
+                        <span data-category-visible-count>{{ category.count }}</span>
+                        / {{ category.count }}
+                    </span>
+                </summary>
 
-                <p>{{ command.description }}</p>
+                <div class="guide-command-grid">
+                    {% for command in category.commands %}
+                    {% set role = role_meta[command.role] %}
+                    <article
+                        class="guide-command-card guide-command-role-{{ command.role }}"
+                        data-guide-command
+                        data-command-role="{{ command.role }}"
+                        data-command-category="{{ command.category }}"
+                        data-command-search-text="{{ command.search_text }}"
+                    >
+                        <header class="guide-command-header">
+                            <code>{{ command.slash_name }}</code>
+                            <span class="guide-role-badge guide-role-{{ command.role }}">
+                                {{ role.icon }} {{ role.label }}
+                            </span>
+                        </header>
 
-                {% if command.options %}
-                <details class="guide-command-options">
-                    <summary>
-                        Options · {{ command.options | length }}
-                    </summary>
+                        <p class="guide-command-description">
+                            {{ command.description }}
+                        </p>
 
-                    <dl>
-                        {% for option in command.options %}
-                        <div>
-                            <dt>
-                                {{ option.name }}
-                                {% if option.required %}
-                                    <span>obligatoire</span>
-                                {% else %}
-                                    <span>facultatif</span>
-                                {% endif %}
-                            </dt>
-                            <dd>{{ option.description }}</dd>
+                        <div class="guide-command-syntax">
+                            <span>Syntaxe</span>
+                            <code>{{ command.syntax }}</code>
+                            <button
+                                type="button"
+                                data-copy-command="{{ command.syntax }}"
+                                aria-label="Copier la syntaxe de {{ command.slash_name }}"
+                            >Copier</button>
                         </div>
-                        {% endfor %}
-                    </dl>
-                </details>
-                {% endif %}
-            </article>
-            {% endfor %}
+
+                        {% if command.options %}
+                        <details class="guide-command-options">
+                            <summary>
+                                Paramètres de la commande
+                                <span>{{ command.options|length }}</span>
+                            </summary>
+                            <dl>
+                                {% for option in command.options %}
+                                <div>
+                                    <dt>
+                                        <code>{{ option.name }}</code>
+                                        {% if option.required %}
+                                        <span class="guide-option-required">Obligatoire</span>
+                                        {% else %}
+                                        <span class="guide-option-optional">Facultatif</span>
+                                        {% endif %}
+                                    </dt>
+                                    <dd>{{ option.description }}</dd>
+                                </div>
+                                {% endfor %}
+                            </dl>
+                        </details>
+                        {% else %}
+                        <p class="guide-no-option">Aucun paramètre à renseigner.</p>
+                        {% endif %}
+                    </article>
+                    {% endfor %}
+                </div>
+            </details>
+        </section>
         {% endfor %}
     </div>
 
-    <div
-        class="empty-state guide-command-empty"
-        data-command-empty
-        hidden
-    >
-        Aucune commande ne correspond à cette recherche.
-    </div>
+    <section class="guide-empty" data-command-empty hidden>
+        <strong>Aucune commande trouvée</strong>
+        <p>Essaie un autre mot ou réinitialise les filtres.</p>
+    </section>
+
+    <aside class="guide-note">
+        <strong>À savoir</strong>
+        <p>
+            Le niveau d'accès affiché est une indication documentaire. Les
+            permissions réellement définies dans Discord et dans les cogs
+            Hamtaro restent toujours prioritaires.
+        </p>
+    </aside>
 </section>
 {% endblock %}
