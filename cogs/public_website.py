@@ -16,6 +16,8 @@ from jinja2 import (
     FileSystemLoader,
     select_autoescape,
 )
+from services.web_extension_routes import register_expansion_routes
+from services.banlist_routes import register_banlist_routes
 
 from services.analytics_service import AnalyticsService
 from services.bracket_export_service import (
