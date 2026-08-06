@@ -1,0 +1,100 @@
+.expansion-hero {
+    margin: 2rem 0;
+    padding: clamp(1.5rem, 4vw, 3.5rem);
+    border: 1px solid rgba(255, 211, 74, 0.25);
+    border-radius: 24px;
+    background: radial-gradient(circle at top right, rgba(255, 197, 36, 0.16), transparent 45%), rgba(10, 16, 30, 0.82);
+}
+
+.expansion-season {
+    display: inline-flex;
+    margin-top: 1rem;
+    padding: .55rem .9rem;
+    border-radius: 999px;
+    background: rgba(255, 205, 60, .12);
+}
+
+.expansion-filter {
+    display: flex;
+    gap: .6rem;
+}
+
+.expansion-filter select,
+.expansion-filter button {
+    min-height: 42px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.16);
+    padding: .6rem .9rem;
+}
+
+.expansion-filter button {
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.expansion-ranking {
+    display: grid;
+    gap: .65rem;
+}
+
+.expansion-rank-row {
+    display: grid;
+    grid-template-columns: 64px 1fr auto auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.15rem;
+    border-radius: 16px;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.08);
+    text-decoration: none;
+    color: inherit;
+}
+
+.expansion-rank-row:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 208, 65, .4);
+}
+
+.expansion-rank-number {
+    font-weight: 800;
+    color: #f6c943;
+}
+
+.expansion-rank-player {
+    font-weight: 750;
+}
+
+.expansion-rank-record {
+    opacity: .75;
+}
+
+.expansion-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.expansion-card {
+    padding: 1.25rem;
+    border-radius: 18px;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.08);
+}
+
+.expansion-big-number {
+    font-size: 2.2rem;
+    font-weight: 900;
+    margin: .35rem 0;
+}
+
+@media (max-width: 720px) {
+    .expansion-rank-row {
+        grid-template-columns: 48px 1fr auto;
+    }
+    .expansion-rank-record {
+        display: none;
+    }
+    .expansion-filter {
+        width: 100%;
+    }
+}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Classement compétitif — Hamtaro{% endblock %}
+
+{% block content %}
+<section class="expansion-hero">
+    <p class="eyebrow">HAMTARO COMPÉTITIF</p>
+    <h1>Classement permanent</h1>
+    <p>
+        Chaque format possède sa propre cote ELO. Les BYE et les Double Loss
+        ne modifient pas le classement.
+    </p>
+    {% if season %}
+    <div class="expansion-season">
+        Saison : <strong>{{ season.name }}</strong> · {{ season.status }}
+    </div>
+    {% endif %}
+</section>
+
+<section class="content-section">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">FORMAT</p>
+            <h2>{{ selected_format }}</h2>
+        </div>
+        <form method="get" action="/competitive" class="expansion-filter">
+            <select name="format" aria-label="Choisir un format">
+                {% for format_name in formats %}
+                <option value="{{ format_name }}" {% if format_name == selected_format %}selected{% endif %}>
+                    {{ format_name }}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit">Afficher</button>
+        </form>
+    </div>
+
+    <div class="expansion-ranking">
+        {% for row in rankings %}
+        <a class="expansion-rank-row" href="/duelists/{{ row.discord_id }}?guild={{ guild_id }}">
+            <span class="expansion-rank-number">#{{ loop.index }}</span>
+            <span class="expansion-rank-player">{{ row.player_name }}</span>
+            <span class="expansion-rank-record">{{ row.wins }}V / {{ row.losses }}D</span>
+            <strong>{{ row.rating }} ELO</strong>
+        </a>
+        {% else %}
+        <div class="empty-state">
+            Aucun match classé n'a encore été synchronisé pour ce format.
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
