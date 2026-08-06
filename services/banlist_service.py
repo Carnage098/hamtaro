@@ -19,9 +19,35 @@ YAML_YUGI_BASE_URL = (
     "https://dawnbrandbots.github.io/"
     "yaml-yugi-limit-regulation"
 )
+
+# Liens stables officiellement publiés par YAML Yugi.
+# Ils pointent toujours vers la liste actuellement en vigueur.
+YAML_YUGI_CURRENT_URLS = {
+    "tcg": (
+        "https://dawnbrandbots.github.io/"
+        "yaml-yugi-limit-regulation/tcg/current.vector.json"
+    ),
+    "master-duel": (
+        "https://dawnbrandbots.github.io/"
+        "yaml-yugi-limit-regulation/master-duel/current.vector.json"
+    ),
+    "genesys": (
+        "https://dawnbrandbots.github.io/"
+        "yaml-yugi-limit-regulation/genesys/current.vector.json"
+    ),
+    "rush": (
+        "https://dawnbrandbots.github.io/"
+        "yaml-yugi-limit-regulation/rush/current.vector.json"
+    ),
+}
+
 YAML_YUGI_RAW_BASE_URL = (
-    "https://raw.githubusercontent.com/"
-    "DawnbrandBots/yaml-yugi-limit-regulation/master/data"
+    "https://dawnbrandbots.github.io/"
+    "yaml-yugi-limit-regulation"
+)
+YAML_YUGI_RUSH_CARD_BASE_URL = (
+    "https://cdn.jsdelivr.net/gh/"
+    "DawnbrandBots/yaml-yugi/data/rush"
 )
 DEFAULT_SYNC_INTERVAL_SECONDS = 6 * 60 * 60
 MINIMUM_SYNC_INTERVAL_SECONDS = 15 * 60
@@ -594,7 +620,10 @@ class BanlistService:
                 f"Le fournisseur du format {item['slug']} ne précise pas dataset."
             )
 
-        vector_url = f"{YAML_YUGI_BASE_URL}/{dataset}/current.vector.json"
+        vector_url = YAML_YUGI_CURRENT_URLS.get(
+            dataset,
+            f"{YAML_YUGI_BASE_URL}/{dataset}/current.vector.json",
+        )
         vector = await self._fetch_json(session, vector_url)
         source_date = str(vector.get("date") or "").strip()
         if not source_date:
@@ -602,20 +631,46 @@ class BanlistService:
                 f"La source {dataset} ne fournit aucune date."
             )
 
-        name_url = (
-            f"{YAML_YUGI_BASE_URL}/{dataset}/{source_date}.name.json"
-        )
-        try:
-            named = await self._fetch_json(session, name_url)
-        except BanlistSyncError:
-            fallback_url = (
+        provider_url = vector_url
+
+        # Genesys publie directement les noms dans le fichier raw daté.
+        # Le TCG publie des listes par statut contenant namefra/nameeng.
+        if dataset in {"tcg", "genesys"}:
+            raw_url = (
                 f"{YAML_YUGI_RAW_BASE_URL}/{dataset}/"
+                f"{source_date}.raw.json"
+            )
+            raw = await self._fetch_json(session, raw_url)
+            regulation = self._extract_raw_regulation(raw)
+            provider_url = raw_url
+
+        # Les listes Master Duel disposent encore d'une version nommée.
+        elif dataset == "master-duel":
+            name_url = (
+                f"{YAML_YUGI_BASE_URL}/{dataset}/"
                 f"{source_date}.name.json"
             )
-            named = await self._fetch_json(session, fallback_url)
-            name_url = fallback_url
+            try:
+                named = await self._fetch_json(session, name_url)
+                regulation = self._extract_regulation(named)
+                provider_url = name_url
+            except BanlistSyncError:
+                # Fallback fiable : la liste reste utilisable, même si la
+                # variante nommée est momentanément absente.
+                regulation = self._extract_regulation(vector)
 
-        regulation = self._extract_regulation(named)
+        # Rush ne publie pas de raw daté. Les quelques identifiants de la
+        # liste sont résolus avec les fiches individuelles YAML Yugi.
+        elif dataset == "rush":
+            vector_regulation = self._extract_regulation(vector)
+            regulation = await self._resolve_rush_names(
+                session,
+                vector_regulation,
+            )
+
+        else:
+            regulation = self._extract_regulation(vector)
+
         if not regulation:
             raise BanlistSyncError(
                 f"La liste {dataset} du {source_date} est vide."
@@ -635,9 +690,98 @@ class BanlistService:
             "synced_at": _utc_now_iso(),
             "entry_count": entry_count,
             "sections": sections,
-            "provider_url": name_url,
+            "provider_url": provider_url,
             "provider_name": "YAML Yugi Limit Regulation API",
         }
+
+    @classmethod
+    def _extract_raw_regulation(
+        cls,
+        raw: dict[str, Any],
+    ) -> dict[str, int]:
+        # Genesys : mapping direct {nom: points}.
+        direct = cls._extract_regulation(raw)
+        if direct and not all(name.isdigit() for name in direct):
+            return direct
+
+        # TCG : clés 0/1/2 contenant des objets multilingues.
+        result: dict[str, int] = {}
+        for raw_value, entries in raw.items():
+            try:
+                restriction = int(raw_value)
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                name = cls._extract_card_name(entry)
+                if name:
+                    result[name] = restriction
+        return result
+
+    async def _resolve_rush_names(
+        self,
+        session: ClientSession,
+        regulation: dict[str, int],
+    ) -> dict[str, int]:
+        semaphore = asyncio.Semaphore(8)
+
+        async def resolve(card_id: str, value: int) -> tuple[str, int]:
+            url = f"{YAML_YUGI_RUSH_CARD_BASE_URL}/{card_id}.json"
+            async with semaphore:
+                try:
+                    card = await self._fetch_json(session, url)
+                except BanlistSyncError as error:
+                    LOGGER.warning(
+                        "Nom Rush introuvable pour la carte %s : %s",
+                        card_id,
+                        error,
+                    )
+                    return f"Carte Rush #{card_id}", value
+            name = self._extract_card_name(card)
+            return (name or f"Carte Rush #{card_id}"), value
+
+        resolved = await asyncio.gather(
+            *(resolve(card_id, value) for card_id, value in regulation.items())
+        )
+        return dict(resolved)
+
+    @staticmethod
+    def _extract_card_name(raw: dict[str, Any]) -> str:
+        # Structures employées par les fichiers raw de limitation.
+        for key in (
+            "namefra",
+            "name_fr",
+            "nameeng",
+            "name_en",
+            "english_name",
+            "name",
+        ):
+            value = raw.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+            if isinstance(value, dict):
+                for language in ("fr", "en", "fra", "eng"):
+                    translated = value.get(language)
+                    if isinstance(translated, str) and translated.strip():
+                        return translated.strip()
+
+        # Certaines fiches YAML Yugi rangent les traductions sous text/texts.
+        for container_key in ("text", "texts", "translations"):
+            container = raw.get(container_key)
+            if not isinstance(container, dict):
+                continue
+            for language in ("fr", "en", "fra", "eng"):
+                translated = container.get(language)
+                if isinstance(translated, str) and translated.strip():
+                    return translated.strip()
+                if isinstance(translated, dict):
+                    candidate = translated.get("name")
+                    if isinstance(candidate, str) and candidate.strip():
+                        return candidate.strip()
+        return ""
 
     @staticmethod
     async def _fetch_json(
