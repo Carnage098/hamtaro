@@ -21,6 +21,8 @@ from services.bracket_export_service import (
     BracketExportService,
     FINISHED_STATUSES,
 )
+from services.banlist_routes import register_banlist_routes
+from services.site_experience_routes import register_site_experience_routes
 
 
 LOGGER = logging.getLogger(__name__)
@@ -226,10 +228,6 @@ class PublicWebsiteCog(commands.Cog):
             r"/api/tournaments/{tournament_id:\d+}/version.json",
             self.bracket_version,
         )
-        application.router.add_get(
-            r"/players/{discord_id:\d+}",
-            self.player_page,
-        )
         application.router.add_get("/profiles", self.profiles_page)
         application.router.add_get(
             "/participants",
@@ -237,9 +235,21 @@ class PublicWebsiteCog(commands.Cog):
         )
         application.router.add_get("/guide", self.guide_page)
         application.router.add_get("/results", self.results_page)
-        application.router.add_get("/decks", self.decks_page)
         application.router.add_get("/archives", self.archives_page)
         application.router.add_get("/health", self.health_page)
+        # Routes enrichies : matchs, compétition, saisons, profils,
+        # decks et recherche. Cette fonction enregistre aussi /players.
+        register_site_experience_routes(
+            application,
+            self,
+        )
+
+        # Banlists : page publique, API et synchronisation périodique.
+        register_banlist_routes(
+            application,
+            self,
+        )
+
         application.router.add_get("/favicon.ico", self.favicon)
 
         if self.static_directory.exists():
