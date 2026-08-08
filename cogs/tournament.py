@@ -28,6 +28,16 @@ FORMATS = [
 ]
 
 
+TOURNAMENT_CAPACITIES = [
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+]
+
+
 class TournamentCog(commands.Cog):
 
     def __init__(
@@ -573,6 +583,274 @@ class TournamentCog(commands.Cog):
             text=(
                 "Le code du tournoi ne change pas. "
                 "Relance /start_tournament pour préparer un nouveau tirage."
+            )
+        )
+
+        await interaction.followup.send(
+            embed=embed,
+            ephemeral=True,
+        )
+
+    # ==========================================================
+    # MODIFIER LA CAPACITÉ D'UN TOURNOI
+    # ==========================================================
+
+    @app_commands.command(
+        name="change_tournament_capacity",
+        description="Modifier la capacité d'un tournoi avant son lancement",
+    )
+    @app_commands.describe(
+        code="Code facultatif du tournoi à modifier",
+        nouvelle_capacite="Nouveau nombre maximum de joueurs",
+    )
+    @app_commands.autocomplete(
+        code=active_tournament_code_autocomplete
+    )
+    @app_commands.choices(
+        nouvelle_capacite=[
+            app_commands.Choice(
+                name=f"{capacity} joueurs",
+                value=capacity,
+            )
+            for capacity in TOURNAMENT_CAPACITIES
+        ]
+    )
+    @app_commands.default_permissions(
+        manage_guild=True
+    )
+    async def change_tournament_capacity(
+        self,
+        interaction: discord.Interaction,
+        nouvelle_capacite: app_commands.Choice[int],
+        code: str | None = None,
+    ) -> None:
+        """
+        Modifie la capacité d'un tournoi encore en phase d'inscription.
+
+        La capacité ne peut pas devenir inférieure au nombre de joueurs
+        déjà inscrits. Un éventuel brouillon de démarrage est annulé.
+        """
+        acknowledged = await self._safe_defer(
+            interaction,
+            ephemeral=True,
+        )
+        if not acknowledged:
+            return
+
+        try:
+            tournament = await self._resolve_tournament(
+                interaction,
+                code,
+                require_active=True,
+            )
+
+            if tournament is None:
+                await interaction.followup.send(
+                    "❌ Aucun tournoi actif trouvé.",
+                    ephemeral=True,
+                )
+                return
+
+            status = getattr(
+                tournament.status,
+                "value",
+                str(tournament.status),
+            ).lower().strip()
+
+            if status != "registration":
+                await interaction.followup.send(
+                    (
+                        "❌ La capacité ne peut être modifiée que pendant "
+                        "la phase d'inscription. Ce tournoi est déjà "
+                        f"dans l'état `{status}`."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            ancienne_capacite = int(tournament.max_players)
+            capacite_cible = int(nouvelle_capacite.value)
+
+            if capacite_cible not in TOURNAMENT_CAPACITIES:
+                await interaction.followup.send(
+                    (
+                        "❌ Capacité invalide. Valeurs autorisées : "
+                        + ", ".join(
+                            str(value)
+                            for value in TOURNAMENT_CAPACITIES
+                        )
+                        + "."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            registered = await self.db.count_registrations(
+                int(tournament.id)
+            )
+
+            if capacite_cible < registered:
+                await interaction.followup.send(
+                    (
+                        f"❌ Impossible de réduire ce tournoi à "
+                        f"**{capacite_cible} joueurs** : "
+                        f"**{registered} joueur(s)** sont déjà inscrits."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            if ancienne_capacite == capacite_cible:
+                await interaction.followup.send(
+                    (
+                        f"ℹ️ Le tournoi `{tournament.code}` possède déjà "
+                        f"une capacité de **{capacite_cible} joueurs**."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            changed_rows = await self.db.update(
+                """
+                UPDATE tournaments
+                SET max_players = ?
+                WHERE id = ?
+                  AND status = 'registration'
+                  AND ? >= (
+                      SELECT COUNT(*)
+                      FROM registrations
+                      WHERE tournament_id = ?
+                        AND dropped = 0
+                        AND disqualified = 0
+                  )
+                """,
+                (
+                    capacite_cible,
+                    int(tournament.id),
+                    capacite_cible,
+                    int(tournament.id),
+                ),
+            )
+
+            if changed_rows != 1:
+                current_registered = await self.db.count_registrations(
+                    int(tournament.id)
+                )
+                raise RuntimeError(
+                    (
+                        "La capacité n'a pas été modifiée. "
+                        "Le tournoi a peut-être changé d'état ou "
+                        f"compte désormais {current_registered} inscrit(s)."
+                    )
+                )
+
+            preview_cancelled = False
+            preview_warning = False
+
+            try:
+                pending_preview = (
+                    await self.start_previews.pending_for_tournament(
+                        int(tournament.id)
+                    )
+                )
+
+                if pending_preview is not None:
+                    await self.start_previews.cancel_preview(
+                        int(pending_preview["id"]),
+                        str(interaction.user.id),
+                    )
+                    preview_cancelled = True
+
+            except Exception as preview_error:
+                preview_warning = True
+                print(
+                    "⚠️ Capacité modifiée mais brouillon non annulé :",
+                    repr(preview_error),
+                )
+
+            updated_tournament = await self.db.get_tournament(
+                int(tournament.id)
+            )
+
+            if updated_tournament is None:
+                raise RuntimeError(
+                    "Le tournoi a été modifié mais ne peut plus être relu."
+                )
+
+        except ValueError as error:
+            await interaction.followup.send(
+                f"❌ {error}",
+                ephemeral=True,
+            )
+            return
+
+        except Exception as error:
+            print(
+                "❌ Erreur /change_tournament_capacity :",
+                repr(error),
+            )
+            await interaction.followup.send(
+                (
+                    "❌ La capacité du tournoi n'a pas pu être modifiée. "
+                    f"Détail : `{error}`"
+                ),
+                ephemeral=True,
+            )
+            return
+
+        embed = discord.Embed(
+            title="✅ Capacité du tournoi modifiée",
+            description=(
+                "Le tournoi reste en phase d'inscription. "
+                "Les joueurs déjà inscrits sont conservés."
+            ),
+            color=discord.Color.green(),
+        )
+        embed.add_field(
+            name="Tournoi",
+            value=updated_tournament.name,
+            inline=False,
+        )
+        embed.add_field(
+            name="Code",
+            value=f"`{updated_tournament.code}`",
+            inline=True,
+        )
+        embed.add_field(
+            name="Ancienne capacité",
+            value=f"{ancienne_capacite} joueurs",
+            inline=True,
+        )
+        embed.add_field(
+            name="Nouvelle capacité",
+            value=f"{capacite_cible} joueurs",
+            inline=True,
+        )
+        embed.add_field(
+            name="Inscriptions actuelles",
+            value=f"{registered}/{capacite_cible}",
+            inline=True,
+        )
+
+        if preview_warning:
+            preview_status = (
+                "⚠️ La capacité est modifiée, mais le brouillon "
+                "n'a pas pu être annulé automatiquement."
+            )
+        elif preview_cancelled:
+            preview_status = "♻️ Ancien brouillon annulé"
+        else:
+            preview_status = "Aucun brouillon à annuler"
+
+        embed.add_field(
+            name="Brouillon de démarrage",
+            value=preview_status,
+            inline=False,
+        )
+        embed.set_footer(
+            text=(
+                "Le code, le format et les inscriptions du tournoi "
+                "restent inchangés."
             )
         )
 
