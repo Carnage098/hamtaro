@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ archetype.deck }} · Méta Hamtaro{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/archetypes.css">
+
+<section class="archetype-detail-hero">
+  <div class="detail-art">
+    <img src="{{ archetype.artwork.image_url }}" alt="Artwork {{ archetype.artwork.card_name or archetype.deck }}">
+  </div>
+  <div class="detail-copy">
+    <a class="back-link" href="/archetypes{% if selected_format %}?format={{ selected_format }}{% endif %}">← Retour à la méta</a>
+    <span class="archetype-kicker">ARCHÉTYPE / DECK</span>
+    <h1>{{ archetype.deck }}</h1>
+    <p class="detail-card-name">Artwork : <strong>{{ archetype.artwork.card_name or 'Hamtaro' }}</strong></p>
+    <p>
+      {% if archetype.artwork.source == 'community' %}
+        🎨 Artwork communautaire{% if archetype.artwork.submitted_name %}, proposé par <strong>{{ archetype.artwork.submitted_name }}</strong>{% endif %}.
+      {% else %}
+        🐹 Artwork prédéfini par Hamtaro.
+      {% endif %}
+    </p>
+    <div class="detail-stats">
+      <div><strong>{{ "%.1f"|format(archetype.win_rate) }}%</strong><span>win rate</span></div>
+      <div><strong>{{ archetype.players }}</strong><span>joueurs</span></div>
+      <div><strong>{{ archetype.matches }}</strong><span>matchs</span></div>
+      <div><strong>{{ archetype.wins }}</strong><span>victoires</span></div>
+      <div><strong>{{ archetype.losses + archetype.double_losses }}</strong><span>défaites</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="archetype-detail-grid">
+  <article class="detail-panel">
+    <div class="panel-heading">
+      <div>
+        <span class="archetype-kicker">COMMUNAUTÉ</span>
+        <h2>Joueurs de {{ archetype.deck }}</h2>
+      </div>
+      <span>{{ archetype.players_detail|length }} profil(s)</span>
+    </div>
+    {% if archetype.players_detail %}
+      <div class="player-list">
+      {% for player in archetype.players_detail %}
+        <a class="player-row" href="/players/{{ player.discord_id }}">
+          {% if player.avatar_url %}<img src="{{ player.avatar_url }}" alt="">{% else %}<span class="avatar-fallback">🐹</span>{% endif %}
+          <span><strong>{{ player.display_name }}</strong><small>{{ player.tournaments }} tournoi(s)</small></span>
+          <b>Voir →</b>
+        </a>
+      {% endfor %}
+      </div>
+    {% else %}
+      <p>Aucun joueur à afficher.</p>
+    {% endif %}
+  </article>
+
+  <aside class="detail-panel proposal-panel">
+    <span class="archetype-kicker">ARTWORKS</span>
+    <h2>Proposer une autre carte</h2>
+    <p>Les membres peuvent proposer une carte représentative de ce deck. Rien ne change sur le site avant validation du staff.</p>
+    <code>/artwork propose</code>
+    <ol>
+      <li>Choisir le deck.</li>
+      <li>Indiquer le nom de la carte et l’URL de son artwork.</li>
+      <li>Le staff utilise <code>/artwork approve</code> ou <code>/artwork reject</code>.</li>
+    </ol>
+    <p class="proposal-note">Le staff peut toujours revenir à l’artwork Hamtaro avec <code>/artwork reset</code>.</p>
+  </aside>
+</section>
+{% endblock %}

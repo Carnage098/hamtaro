@@ -1,0 +1,14 @@
+{
+  "description": "Carte représentante Hamtaro par défaut. Les clés peuvent être des archétypes purs ou des mixes exacts.",
+  "defaults": {
+    "Blue-Eyes": "Blue-Eyes White Dragon",
+    "P.U.N.K.": "Noh-P.U.N.K. Ze Amin",
+    "Gold Pride": "Gold Pride - Leon",
+    "P.U.N.K. / Gold Pride": "Gold Pride - Leon",
+    "Fiendsmith": "Fiendsmith Engraver",
+    "Toon": "Toon Dark Magician",
+    "HERO": "Elemental HERO Stratos",
+    "Dragon Ruler": "Blaster, Dragon Ruler of Infernos",
+    "TeleDAD": "Dark Armed Dragon"
+  }
+}

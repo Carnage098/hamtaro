@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Archétypes & Méta · Hamtaro{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/archetypes.css">
+
+<section class="archetype-hero">
+  <div>
+    <span class="archetype-kicker">HAMTARO META</span>
+    <h1>Archétypes du serveur</h1>
+    <p>Popularité, joueurs, résultats et win rates calculés à partir des matchs validés par Hamtaro.</p>
+  </div>
+  <div class="archetype-summary">
+    <div><strong>{{ archetypes|length }}</strong><span>decks joués</span></div>
+    <div><strong>{{ total_players }}</strong><span>joueurs</span></div>
+    <div><strong>{{ total_matches }}</strong><span>matchs comptés</span></div>
+  </div>
+</section>
+
+<form class="archetype-toolbar" action="/archetypes" method="get">
+  <label>
+    <span>Recherche</span>
+    <input type="search" name="q" value="{{ search }}" placeholder="Blue-Eyes, P.U.N.K., Fiendsmith…">
+  </label>
+  <label>
+    <span>Format</span>
+    <select name="format">
+      <option value="">Tous les formats</option>
+      {% for format in formats %}
+        <option value="{{ format }}" {% if selected_format == format %}selected{% endif %}>{{ format }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    <span>Trier par</span>
+    <select name="sort">
+      <option value="players" {% if sort_by == 'players' %}selected{% endif %}>Joueurs</option>
+      <option value="win_rate" {% if sort_by == 'win_rate' %}selected{% endif %}>Win rate</option>
+      <option value="matches" {% if sort_by == 'matches' %}selected{% endif %}>Matchs</option>
+      <option value="wins" {% if sort_by == 'wins' %}selected{% endif %}>Victoires</option>
+      <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Nom</option>
+    </select>
+  </label>
+  <button type="submit">Appliquer</button>
+</form>
+
+{% if archetypes %}
+<section class="archetype-grid">
+  {% for item in archetypes %}
+  <article class="archetype-card">
+    <a class="archetype-art" href="/archetypes/{{ item.slug }}{% if selected_format %}?format={{ selected_format }}{% endif %}">
+      <img src="{{ item.artwork.image_url }}" alt="Artwork {{ item.artwork.card_name or item.deck }}" loading="lazy">
+      <span class="artwork-source {{ item.artwork.source }}">
+        {% if item.artwork.source == 'community' %}🎨 Communauté{% else %}🐹 Hamtaro{% endif %}
+      </span>
+    </a>
+    <div class="archetype-card-body">
+      <div class="archetype-card-heading">
+        <h2>{{ item.deck }}</h2>
+        <strong class="win-rate">{{ "%.1f"|format(item.win_rate) }}%</strong>
+      </div>
+      <p class="artwork-card-name">{{ item.artwork.card_name or 'Artwork Hamtaro' }}</p>
+      <div class="archetype-stats">
+        <div><strong>{{ item.players }}</strong><span>joueurs</span></div>
+        <div><strong>{{ item.matches }}</strong><span>matchs</span></div>
+        <div><strong>{{ item.wins }}</strong><span>victoires</span></div>
+        <div><strong>{{ item.losses + item.double_losses }}</strong><span>défaites</span></div>
+      </div>
+      {% if item.artwork.source == 'community' and item.artwork.submitted_name %}
+        <p class="community-credit">Proposé par {{ item.artwork.submitted_name }}</p>
+      {% endif %}
+      <div class="archetype-actions">
+        <a href="/archetypes/{{ item.slug }}{% if selected_format %}?format={{ selected_format }}{% endif %}">Voir la fiche</a>
+        <span title="Commande Discord">/artwork propose</span>
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% else %}
+<section class="archetype-empty">
+  <h2>Aucun deck trouvé</h2>
+  <p>Modifie les filtres ou attends que des decks soient enregistrés dans un tournoi Hamtaro.</p>
+</section>
+{% endif %}
+{% endblock %}
