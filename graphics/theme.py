@@ -406,6 +406,7 @@ class HamtaroBracketTheme:
     footer_title_font_size: int = 15
     footer_information_font_size: int = 13
     footer_center_font_size: int = 16
+    footer_show_center_status: bool = False
 
     footer_icon_size: int = 32
     footer_discord_logo_size: int = 30
@@ -924,10 +925,10 @@ class HamtaroBracketTheme:
         capacity = self.normalized_capacity(player_capacity)
         widths = {
             2: 420,
-            4: 390,
-            8: 360,
-            16: 335,
-            32: 310,
+            4: 360,
+            8: 320,
+            16: 315,
+            32: 300,
             64: 300,
             128: 300,
         }
@@ -942,10 +943,10 @@ class HamtaroBracketTheme:
         capacity = self.normalized_capacity(player_capacity)
         heights = {
             2: 140,
-            4: 134,
-            8: 128,
-            16: 122,
-            32: 116,
+            4: 124,
+            8: 112,
+            16: 116,
+            32: 112,
             64: 126,
             128: 108,
         }
@@ -1081,10 +1082,10 @@ class HamtaroBracketTheme:
         capacity = self.normalized_capacity(player_capacity)
         gaps = {
             2: 94,
-            4: 82,
-            8: 62,
-            16: 44,
-            32: 30,
+            4: 92,
+            8: 78,
+            16: 52,
+            32: 34,
             64: 18,
             128: 18,
         }
@@ -1099,10 +1100,10 @@ class HamtaroBracketTheme:
         capacity = self.normalized_capacity(player_capacity)
         widths = {
             2: 520,
-            4: 480,
-            8: 430,
-            16: 390,
-            32: 350,
+            4: 440,
+            8: 380,
+            16: 370,
+            32: 340,
             64: 360,
             128: 400,
         }
@@ -1146,10 +1147,10 @@ class HamtaroBracketTheme:
         capacity = self.normalized_capacity(player_capacity)
         gaps = {
             2: 126,
-            4: 118,
-            8: 104,
-            16: 88,
-            32: 78,
+            4: 180,
+            8: 300,
+            16: 150,
+            32: 92,
             64: 56,
             128: 49,
         }

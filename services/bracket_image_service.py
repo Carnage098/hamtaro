@@ -6,6 +6,7 @@ import io
 import math
 import random
 from dataclasses import dataclass
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -3505,6 +3506,44 @@ class BracketImageService:
             anchor="ls",
         )
     
+    @staticmethod
+    def _format_tournament_date(tournament: Any) -> str:
+        """Retourne une date lisible à partir des vrais champs du tournoi."""
+
+        raw_value = (
+            getattr(tournament, "date", None)
+            or getattr(tournament, "start_date", None)
+            or getattr(tournament, "started_at", None)
+            or getattr(tournament, "scheduled_at", None)
+            or getattr(tournament, "created_at", None)
+        )
+
+        if raw_value is None:
+            return "DATE A DEFINIR"
+
+        if hasattr(raw_value, "strftime"):
+            try:
+                return raw_value.strftime("%d/%m/%Y")
+            except Exception:
+                pass
+
+        text = str(raw_value).strip()
+        if not text:
+            return "DATE A DEFINIR"
+
+        normalized = text.replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(normalized)
+            return parsed.strftime("%d/%m/%Y")
+        except ValueError:
+            pass
+
+        # SQLite renvoie souvent YYYY-MM-DD HH:MM:SS.
+        if len(text) >= 10 and text[4:5] == "-" and text[7:8] == "-":
+            return f"{text[8:10]}/{text[5:7]}/{text[0:4]}"
+
+        return text[:22].upper()
+
     def _draw_header(
         self,
         image: Image.Image,
@@ -3517,6 +3556,47 @@ class BracketImageService:
         width = image.width
         header_height = self._effective_header_height(canvas_height=image.height)
         display_scale = self._display_scale(width)
+
+        # V17 : les petits brackets (2/4/8/16) utilisent un header compact.
+        # Le logo central de la maquette 64 n'est pas forcé dans un espace
+        # où il entrerait en collision avec la date et l'ID du tournoi.
+        compact_header = player_capacity <= 16
+
+        if player_capacity <= 8:
+            date_width = 176
+            id_width = 132
+            server_promo_width = 344
+            compact_title_size = 54
+            compact_number_size = 44
+            compact_subtitle_size = 16
+        elif player_capacity <= 16:
+            date_width = 188
+            id_width = 140
+            server_promo_width = 360
+            compact_title_size = 58
+            compact_number_size = 46
+            compact_subtitle_size = 17
+        else:
+            date_width = max(
+                int(205 * display_scale),
+                int(getattr(self.theme, "date_box_width", 205)),
+            )
+            id_width = max(
+                int(165 * display_scale),
+                int(getattr(self.theme, "tournament_id_box_width", 165)),
+            )
+            server_promo_width = max(
+                int(385 * display_scale),
+                int(getattr(self.theme, "header_server_promo_width", 430)),
+            )
+            compact_title_size = 0
+            compact_number_size = 0
+            compact_subtitle_size = 0
+
+        box_gap = max(6, int(getattr(self.theme, "header_information_box_gap", 8)))
+        margin = int(getattr(self.theme, "horizontal_margin", 24))
+        total_info_width = date_width + id_width + server_promo_width + box_gap * 2
+        info_x = width - margin - total_info_width
 
         draw.rectangle(
             (0, 0, width, header_height),
@@ -3541,8 +3621,12 @@ class BracketImageService:
 
         configured_mascot_width = int(getattr(self.theme, "header_mascot_width", 100))
         configured_mascot_height = int(getattr(self.theme, "header_mascot_height", 128))
-        mascot_width = max(62, round(configured_mascot_width * 0.80 * display_scale))
-        mascot_height = max(78, round(configured_mascot_height * 0.80 * display_scale))
+        if compact_header:
+            mascot_width = max(54, round(configured_mascot_width * 0.68 * display_scale))
+            mascot_height = max(68, round(configured_mascot_height * 0.68 * display_scale))
+        else:
+            mascot_width = max(62, round(configured_mascot_width * 0.80 * display_scale))
+            mascot_height = max(78, round(configured_mascot_height * 0.80 * display_scale))
         mascot_x = int(getattr(self.theme, "header_mascot_x", 22))
         mascot_y = max(8, (header_height - mascot_height) // 2)
 
@@ -3569,21 +3653,26 @@ class BracketImageService:
             mascot_x + mascot_width + 18,
             int(getattr(self.theme, "header_title_with_mascot_x", 132)),
         )
-        title_size = max(
-            int(72 * display_scale),
-            int(getattr(self.theme, "title_font_size", 60)),
-            72,
-        )
-        number_size = max(
-            int(54 * display_scale),
-            int(getattr(self.theme, "title_number_font_size", 46)),
-            54,
-        )
-        subtitle_size = max(
-            int(22 * display_scale),
-            int(getattr(self.theme, "subtitle_font_size", 20)),
-            22,
-        )
+        if compact_header:
+            title_size = compact_title_size
+            number_size = compact_number_size
+            subtitle_size = compact_subtitle_size
+        else:
+            title_size = max(
+                int(72 * display_scale),
+                int(getattr(self.theme, "title_font_size", 60)),
+                72,
+            )
+            number_size = max(
+                int(54 * display_scale),
+                int(getattr(self.theme, "title_number_font_size", 46)),
+                54,
+            )
+            subtitle_size = max(
+                int(22 * display_scale),
+                int(getattr(self.theme, "subtitle_font_size", 20)),
+                22,
+            )
 
         title_font = self._font(title_size, bold=True, italic=True)
         number_font = self._font(number_size, bold=True, italic=True)
@@ -3598,13 +3687,16 @@ class BracketImageService:
         )
 
         logo_left = width // 2 - logo_width // 2
-        available_title_width = max(260, logo_left - title_x - 28)
+        if compact_header:
+            available_title_width = max(360, info_x - title_x - 30)
+        else:
+            available_title_width = max(260, logo_left - title_x - 28)
         number_label = f"#{tournament_id}"
 
         # V16 : on réduit la police avant de tronquer. Les previews 2/4/8/16
         # conservent ainsi le vrai nom du tournoi au lieu de "HAMT...".
-        minimum_title_size = 42
-        minimum_number_size = 38
+        minimum_title_size = 36 if compact_header else 42
+        minimum_number_size = 32 if compact_header else 38
         while title_size > minimum_title_size:
             title_font = self._font(title_size, bold=True, italic=True)
             number_font = self._font(number_size, bold=True, italic=True)
@@ -3680,23 +3772,24 @@ class BracketImageService:
             fill=self.MUTED,
         )
 
-        logo_path = self._theme_path("logo_path", "hamtaro_logo.png")
-        logo = self._draw_asset_centered(
-            image,
-            logo_path,
-            width // 2,
-            logo_y,
-            logo_width,
-            logo_height,
-        )
-        if logo is None:
-            self._draw_logo_fallback(
-                draw,
+        if not compact_header:
+            logo_path = self._theme_path("logo_path", "hamtaro_logo.png")
+            logo = self._draw_asset_centered(
+                image,
+                logo_path,
                 width // 2,
-                logo_y + 2,
+                logo_y,
                 logo_width,
-                logo_height - 4,
+                logo_height,
             )
+            if logo is None:
+                self._draw_logo_fallback(
+                    draw,
+                    width // 2,
+                    logo_y + 2,
+                    logo_width,
+                    logo_height - 4,
+                )
 
         box_height = min(
             header_height - 24,
@@ -3705,29 +3798,9 @@ class BracketImageService:
                 int(getattr(self.theme, "header_information_box_height", 88)),
             ),
         )
-        box_gap = max(8, int(getattr(self.theme, "header_information_box_gap", 8)))
-        date_width = max(
-            int(205 * display_scale),
-            int(getattr(self.theme, "date_box_width", 205)),
-        )
-        id_width = max(
-            int(165 * display_scale),
-            int(getattr(self.theme, "tournament_id_box_width", 165)),
-        )
-        server_promo_width = max(
-            int(385 * display_scale),
-            int(getattr(self.theme, "header_server_promo_width", 430)),
-        )
-        total_width = date_width + id_width + server_promo_width + box_gap * 2
-        margin = int(getattr(self.theme, "horizontal_margin", 24))
-        info_x = width - margin - total_width
         info_y = max(10, (header_height - box_height) // 2)
 
-        date_value = str(
-            getattr(tournament, "date", None)
-            or getattr(tournament, "start_date", None)
-            or "DATE A DEFINIR"
-        )
+        date_value = self._format_tournament_date(tournament)
 
         self._draw_information_card(draw, info_x, info_y, date_width, box_height, "Date", date_value)
         self._draw_information_card(
@@ -3804,13 +3877,23 @@ class BracketImageService:
         draw = ImageDraw.Draw(image)
         text_x = server_avatar_x + server_avatar_size + int(getattr(self.theme, "header_server_promo_gap", 14))
         available_text_width = promo_x + server_promo_width - text_x - 12
+        promo_title_size = (
+            22 if player_capacity <= 8
+            else 24 if player_capacity <= 16
+            else int(getattr(self.theme, "header_server_promo_title_font_size", 28))
+        )
+        promo_text_size = (
+            13 if player_capacity <= 8
+            else 14 if player_capacity <= 16
+            else int(getattr(self.theme, "header_server_promo_text_font_size", 18))
+        )
         promo_title_font = self._font(
-            int(getattr(self.theme, "header_server_promo_title_font_size", 28)),
+            promo_title_size,
             bold=True,
             italic=True,
         )
         promo_text_font = self._font(
-            int(getattr(self.theme, "header_server_promo_text_font_size", 18)),
+            promo_text_size,
             bold=True,
         )
         promo_title = self._fit_text(
@@ -6940,36 +7023,40 @@ class BracketImageService:
             anchor="lm",
         )
 
-        center_text = (
-            str(
-                getattr(
-                    self.theme,
-                    "footer_center_text",
-                    "MERCI A TOUS LES PARTICIPANTS !",
+        # V17 : le footer central n'est plus dessiné derrière le CTA.
+        # Il peut être réactivé explicitement sur un très grand canvas, mais
+        # il reste masqué par défaut afin de garantir zéro chevauchement.
+        show_center_status = bool(
+            getattr(self.theme, "footer_show_center_status", False)
+        ) and image.width >= 2200
+        if show_center_status:
+            center_text = (
+                str(
+                    getattr(
+                        self.theme,
+                        "footer_center_text",
+                        "MERCI A TOUS LES PARTICIPANTS !",
+                    )
                 )
+                if final_mode
+                else "RESULTATS ACTUALISES APRES VALIDATION DU STAFF"
             )
-            if final_mode
-            else "RESULTATS ACTUALISES APRES VALIDATION DU STAFF"
-        )
-        center_font = self._font(
-            max(
-                int(18 * display_scale),
-                int(getattr(self.theme, "footer_center_font_size", 18)),
-            ),
-            bold=True,
-            italic=True,
-        )
-        center_x = (
-            image.width // 2
-            + int(getattr(self.theme, "footer_center_offset_x", 0))
-        )
-        draw.text(
-            (center_x, baseline),
-            center_text,
-            font=center_font,
-            fill=self.MUTED,
-            anchor="mm",
-        )
+            center_font = self._font(
+                max(
+                    int(18 * display_scale),
+                    int(getattr(self.theme, "footer_center_font_size", 18)),
+                ),
+                bold=True,
+                italic=True,
+            )
+            center_x = image.width // 2
+            draw.text(
+                (center_x, baseline),
+                center_text,
+                font=center_font,
+                fill=self.MUTED,
+                anchor="mm",
+            )
 
         # Carte Discord du serveur en bas a droite.
         profile_width = max(
@@ -7082,7 +7169,12 @@ class BracketImageService:
         )
 
         # Rectangle d'appel a l'action a gauche de la carte serveur.
-        callout_width = int(getattr(self.theme, "footer_callout_width", 700))
+        configured_callout_width = int(getattr(self.theme, "footer_callout_width", 700))
+        callout_width = (
+            min(configured_callout_width, 650)
+            if image.width <= 1600
+            else configured_callout_width
+        )
         callout_height = min(
             footer_height - 10,
             int(getattr(self.theme, "footer_callout_height", profile_height)),
