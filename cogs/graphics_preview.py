@@ -428,7 +428,7 @@ class GraphicsPreviewCog(commands.Cog):
 
     @app_commands.command(
         name="preview_bracket",
-        description="Prévisualiser le nouveau bracket graphique Hamtaro.",
+        description="Prévisualiser le bracket graphique optimisé par capacité.",
     )
     @app_commands.describe(
         joueurs="Nombre de joueurs fictifs du bracket.",
@@ -443,7 +443,7 @@ class GraphicsPreviewCog(commands.Cog):
             app_commands.Choice(name="16 joueurs", value=16),
             app_commands.Choice(name="32 joueurs", value=32),
             app_commands.Choice(
-                name="64 joueurs — format de la maquette",
+                name="64 joueurs",
                 value=64,
             ),
             app_commands.Choice(name="128 joueurs", value=128),
