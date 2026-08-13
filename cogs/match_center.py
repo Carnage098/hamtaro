@@ -564,6 +564,7 @@ class MatchPanelView(discord.ui.View):
         custom_id="hamtaro:match:result",
     )
     async def result(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        del button
         reference = self.cog.extract_panel_reference(interaction.message)
         if reference is None:
             await interaction.response.send_message("❌ Match introuvable.", ephemeral=True)
@@ -571,7 +572,20 @@ class MatchPanelView(discord.ui.View):
         kind, match_id = reference
         if not await self.cog.ensure_participant_or_staff(interaction, kind, match_id):
             return
-        await interaction.response.send_modal(QuickResultModal(self.cog, kind, match_id))
+
+        results = self.cog.bot.get_cog("ResultsCog")
+        if results is None or not hasattr(results, "open_result_flow"):
+            await interaction.response.send_message(
+                "❌ Le système de résultats guidés n’est pas chargé.",
+                ephemeral=True,
+            )
+            return
+
+        await results.open_result_flow(  # type: ignore[attr-defined]
+            interaction,
+            match_kind=kind,
+            match_id=match_id,
+        )
 
     @discord.ui.button(
         label="Appeler le staff",
@@ -1144,93 +1158,18 @@ class MatchCenterCog(commands.Cog):
         player1_score: int,
         player2_score: int,
     ) -> tuple[bool, bool]:
-        if player1_score < 0 or player2_score < 0:
-            raise ValueError("Les scores ne peuvent pas être négatifs.")
-        if player1_score == player2_score:
-            raise ValueError(
-                "Les matchs nuls n’existent pas. Le Double Loss doit être décidé par le staff."
-            )
-
+        """Compatibilité : délègue désormais au flux central de /result."""
         results = self.bot.get_cog("ResultsCog")
-        if results is None:
-            raise ValueError("Le cog `results` n’est pas chargé.")
+        if results is None or not hasattr(results, "submit_player_score"):
+            raise ValueError("Le cog `results` guidé n’est pas chargé.")
 
-        context = await results._load_match_context(match_kind, match_id)
-        user_id = str(interaction.user.id)
-        participant = user_id in {
-            str(context.get("player1_id") or ""),
-            str(context.get("player2_id") or ""),
-        }
-        staff = await self._is_staff_user(str(interaction.guild_id), interaction.user)
-        if not participant and not staff:
-            raise ValueError("Tu ne peux déclarer que le résultat de ton propre match.")
-        if context.get("is_bye"):
-            raise ValueError("Un BYE ne nécessite aucun résultat.")
-        if str(context.get("status") or "").lower() in FINAL_MATCH_STATUSES:
-            raise ValueError("Ce match est déjà terminé.")
-
-        winner_slot = "player1" if player1_score > player2_score else "player2"
-        results._validate_result_data(
-            match_kind=match_kind,
-            result_type="normal",
-            player1_score=player1_score,
-            player2_score=player2_score,
-            winner_slot=winner_slot,
-        )
-
-        async with results._lock_for(match_kind, match_id):
-            existing = await results._get_request(match_kind, match_id)
-            if existing and existing["status"] in OPEN_RESULT_STATUSES:
-                raise ValueError("Ce match possède déjà un résultat en attente.")
-
-            if match_kind == MATCH_KIND_BRACKET:
-                reported = await results.brackets.report_result(
-                    match_id=match_id,
-                    player1_score=player1_score,
-                    player2_score=player2_score,
-                    reported_by=user_id,
-                )
-                context = results._match_context(match_kind, reported)
-
-            request = await results._create_request(
-                match_kind=match_kind,
-                context=context,
-                guild_id=str(interaction.guild_id),
-                reporter_id=user_id,
-                result_type="normal",
-                winner_slot=winner_slot,
-                player1_score=player1_score,
-                player2_score=player2_score,
-                proof_url=None,
-                proof_is_image=False,
-            )
-
-        sent_staff = await results._send_validation_message(request)
-        request = await results._get_request(match_kind, match_id) or request
-        sent_opponent = await results._send_opponent_confirmation(request)
-        await results._audit(
-            guild_id=str(request["guild_id"]),
+        return await results.submit_player_score(  # type: ignore[attr-defined]
+            interaction=interaction,
             match_kind=match_kind,
             match_id=match_id,
-            action="player_reported_from_match_thread",
-            actor_id=user_id,
-            details={
-                "score": f"{player1_score}-{player2_score}",
-                "staff_message_sent": sent_staff,
-                "opponent_message_sent": sent_opponent,
-            },
+            player1_score=player1_score,
+            player2_score=player2_score,
         )
-        await self.db.execute(
-            """
-            UPDATE match_center_sessions
-            SET status = 'reported', updated_at = CURRENT_TIMESTAMP
-            WHERE match_kind = ? AND match_id = ?
-            """,
-            (match_kind, match_id),
-        )
-        await self.db.commit()
-        await self._refresh_panel(match_kind, match_id)
-        return sent_staff, sent_opponent
 
     # ==========================================================
     # ASSISTANCE STAFF
@@ -1649,8 +1588,13 @@ class MatchCenterCog(commands.Cog):
                 embed = discord.Embed(
                     title="⏰ Temps réglementaire terminé",
                     description=(
-                        "Le staff doit vérifier la situation du match. "
-                        "Aucun Double Loss n’est appliqué automatiquement."
+                        "Le temps réglementaire est terminé.\n\n"
+                        "✅ Si le duel avait déjà atteint **2-0, 2-1, 0-2 ou 1-2**, "
+                        "déclare ce score normalement avec `/result`.\n"
+                        "⚠️ Si le score est encore **1-0, 0-0, 0-1, 1-1** "
+                        "ou tout autre score incomplet, le résultat est un **Double Loss** "
+                        "et vaut **0 point pour les deux joueurs**.\n\n"
+                        "Le staff conserve les boutons ci-dessous pour intervenir si nécessaire."
                     ),
                     colour=discord.Colour.red(),
                 )
