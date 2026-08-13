@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from aiohttp import web
 
 if TYPE_CHECKING:
     from cogs.public_website import PublicWebsiteCog
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def register_archetype_routes(application: web.Application, site: "PublicWebsiteCog") -> None:
@@ -89,3 +93,4 @@ def register_archetype_routes(application: web.Application, site: "PublicWebsite
     application.router.add_get("/archetypes", archetypes_page)
     application.router.add_get(r"/archetypes/{slug:[a-z0-9-]+}", archetype_detail)
     application.router.add_get("/api/archetypes", archetypes_api)
+    LOGGER.info("Routes Méta/Archétypes enregistrées : /archetypes, /archetypes/<slug>, /api/archetypes")
