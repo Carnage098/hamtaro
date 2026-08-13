@@ -419,6 +419,122 @@ class TournamentProgressionCog(commands.Cog):
         )
         await self.db.commit()
 
+    async def _reset_current_publications_for_tournament(
+        self,
+        tournament: Any,
+    ) -> int:
+        """
+        Oublie uniquement les publications des affrontements encore jouables.
+
+        Cette remise à zéro ne touche jamais aux matchs, scores, vainqueurs,
+        bracket ou inscriptions. Elle supprime seulement les marqueurs Discord
+        utilisés pour empêcher les doublons, afin que /publish_matches
+        force:true puisse republier proprement les affrontements actifs.
+        """
+        tournament_id = int(_value(tournament, "id"))
+        removed = 0
+
+        # Matchs d'élimination directe actuellement jouables.
+        cursor = await self.db.execute(
+            """
+            DELETE FROM progression_match_publications
+            WHERE tournament_id = ?
+              AND match_kind = ?
+              AND match_id IN (
+                    SELECT id
+                    FROM matches
+                    WHERE tournament_id = ?
+                      AND player1_id IS NOT NULL
+                      AND player2_id IS NOT NULL
+                      AND LOWER(COALESCE(status, 'pending')) NOT IN (
+                            'approved', 'cancelled', 'completed',
+                            'finished', 'refused', 'rejected'
+                      )
+              )
+            """,
+            (tournament_id, MATCH_KIND_BRACKET, tournament_id),
+        )
+        removed += max(int(cursor.rowcount or 0), 0)
+
+        # Résumés des rondes du bracket qui contiennent encore des matchs
+        # jouables. Les anciennes rondes terminées restent enregistrées.
+        cursor = await self.db.execute(
+            """
+            DELETE FROM progression_round_publications
+            WHERE tournament_id = ?
+              AND match_kind = ?
+              AND round_number IN (
+                    SELECT DISTINCT round
+                    FROM matches
+                    WHERE tournament_id = ?
+                      AND player1_id IS NOT NULL
+                      AND player2_id IS NOT NULL
+                      AND LOWER(COALESCE(status, 'pending')) NOT IN (
+                            'approved', 'cancelled', 'completed',
+                            'finished', 'refused', 'rejected'
+                      )
+              )
+            """,
+            (tournament_id, MATCH_KIND_BRACKET, tournament_id),
+        )
+        removed += max(int(cursor.rowcount or 0), 0)
+
+        # Si une phase suisse est active, on ne réinitialise que sa ronde
+        # courante et uniquement les duels encore jouables.
+        swiss_row = await self.db.fetchone(
+            "SELECT * FROM swiss_settings WHERE tournament_id = ?",
+            (tournament_id,),
+        )
+        swiss_settings = _row_to_dict(swiss_row)
+
+        if (
+            swiss_settings
+            and str(swiss_settings.get("status") or "").lower() == "running"
+        ):
+            current_round = int(swiss_settings.get("current_round") or 0)
+            if current_round > 0:
+                cursor = await self.db.execute(
+                    """
+                    DELETE FROM progression_match_publications
+                    WHERE tournament_id = ?
+                      AND match_kind = ?
+                      AND match_id IN (
+                            SELECT id
+                            FROM swiss_matches
+                            WHERE tournament_id = ?
+                              AND round_number = ?
+                              AND COALESCE(is_bye, 0) = 0
+                              AND player1_id IS NOT NULL
+                              AND player2_id IS NOT NULL
+                              AND LOWER(COALESCE(status, 'pending')) NOT IN (
+                                    'approved', 'cancelled', 'completed',
+                                    'finished', 'refused', 'rejected'
+                              )
+                      )
+                    """,
+                    (
+                        tournament_id,
+                        MATCH_KIND_SWISS,
+                        tournament_id,
+                        current_round,
+                    ),
+                )
+                removed += max(int(cursor.rowcount or 0), 0)
+
+                cursor = await self.db.execute(
+                    """
+                    DELETE FROM progression_round_publications
+                    WHERE tournament_id = ?
+                      AND match_kind = ?
+                      AND round_number = ?
+                    """,
+                    (tournament_id, MATCH_KIND_SWISS, current_round),
+                )
+                removed += max(int(cursor.rowcount or 0), 0)
+
+        await self.db.commit()
+        return removed
+
     # ==========================================================
     # RÉCUPÉRATION DES MATCHS
     # ==========================================================
@@ -582,42 +698,16 @@ class TournamentProgressionCog(commands.Cog):
             except (discord.Forbidden, discord.HTTPException):
                 pass
 
-        match_center = self.bot.get_cog("MatchCenterCog")
-        if match_center is not None:
-            try:
-                await match_center.create_match_panel(
-                    thread=thread,
-                    tournament=tournament,
-                    match_kind=match_kind,
-                    match=match,
-                )
-            except Exception as error:
-                print(
-                    f"⚠️ Centre de match {match_kind}:{match.get('id')} : {error}"
-                )
-                await thread.send(
-                    content=(
-                        f"{_mention(match.get('player1_id'), player1_name)} "
-                        f"{_mention(match.get('player2_id'), player2_name)}\n\n"
-                        "Ce fil est votre espace de match. À la fin, utilisez `/result`."
-                    ),
-                    allowed_mentions=discord.AllowedMentions(
-                        users=True, roles=False, everyone=False
-                    ),
-                )
-        else:
-            await thread.send(
-                content=(
-                    f"{_mention(match.get('player1_id'), player1_name)} "
-                    f"{_mention(match.get('player2_id'), player2_name)}\n\n"
-                    "Ce fil est votre espace de match. Vous pouvez y organiser le duel, "
-                    "poser une question et conserver les informations utiles.\n\n"
-                    "À la fin, utilisez `/result`."
-                ),
-                allowed_mentions=discord.AllowedMentions(
-                    users=True, roles=False, everyone=False
-                ),
-            )
+        await thread.send(
+            content=(
+                f"{_mention(match.get('player1_id'), player1_name)} "
+                f"{_mention(match.get('player2_id'), player2_name)}\n\n"
+                "Ce fil est votre espace de match. Vous pouvez y organiser le duel, "
+                "poser une question et conserver les informations utiles.\n\n"
+                "À la fin, utilisez `/result`."
+            ),
+            allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
+        )
         return thread
 
     async def _notify_match_players(
@@ -677,14 +767,6 @@ class TournamentProgressionCog(commands.Cog):
         match_id = int(match["id"])
         tournament_id = int(_value(tournament, "id"))
         guild_id = str(_value(tournament, "guild_id"))
-
-        match_center = self.bot.get_cog("MatchCenterCog")
-        if match_center is not None:
-            try:
-                if await match_center.is_tournament_paused(tournament_id):
-                    return False
-            except Exception as error:
-                print(f"⚠️ Vérification pause tournoi {tournament_id} : {error}")
 
         async with self._lock_for(match_kind, match_id):
             claimed = await self._claim_match_publication(
@@ -777,14 +859,6 @@ class TournamentProgressionCog(commands.Cog):
     ) -> bool:
         tournament_id = int(_value(tournament, "id"))
         guild_id = str(_value(tournament, "guild_id"))
-
-        match_center = self.bot.get_cog("MatchCenterCog")
-        if match_center is not None:
-            try:
-                if await match_center.is_tournament_paused(tournament_id):
-                    return False
-            except Exception as error:
-                print(f"⚠️ Vérification pause résumé tournoi {tournament_id} : {error}")
 
         claimed = await self._claim_round_publication(
             tournament_id=tournament_id,
@@ -1013,15 +1087,6 @@ class TournamentProgressionCog(commands.Cog):
 
         if current_round < 1:
             return
-
-        match_center = self.bot.get_cog("MatchCenterCog")
-        if match_center is not None:
-            try:
-                if await match_center.is_tournament_paused(tournament_id):
-                    return
-            except Exception as error:
-                print(f"⚠️ Vérification pause progression suisse {tournament_id} : {error}")
-
         if await self._pending_swiss_matches(tournament_id, current_round) > 0:
             return
 
@@ -1170,18 +1235,6 @@ class TournamentProgressionCog(commands.Cog):
         completed_round: int,
         actor: discord.abc.User,
     ) -> int:
-        match_center = self.bot.get_cog("MatchCenterCog")
-        if match_center is not None:
-            try:
-                if await match_center.is_tournament_paused(tournament_id):
-                    raise ValueError(
-                        "Le tournoi est en pause. Reprends-le avant de générer la ronde suivante."
-                    )
-            except ValueError:
-                raise
-            except Exception as error:
-                print(f"⚠️ Vérification pause génération suisse {tournament_id} : {error}")
-
         action = await self.db.fetchone(
             """
             SELECT * FROM progression_swiss_actions
@@ -1243,21 +1296,7 @@ class TournamentProgressionCog(commands.Cog):
         match_id: int,
     ) -> None:
         """Appelé par ResultsCog pour une progression immédiate."""
-        del guild_id
-
-        match_center = self.bot.get_cog("MatchCenterCog")
-        if match_center is not None:
-            try:
-                await match_center.handle_result_approved(
-                    tournament_id=tournament_id,
-                    match_kind=match_kind,
-                    match_id=match_id,
-                )
-            except Exception as error:
-                print(
-                    f"⚠️ Fermeture centre de match {match_kind}:{match_id} : {error}"
-                )
-
+        del guild_id, match_id
         await asyncio.sleep(0.2)
         tournament = await self.db.get_tournament(tournament_id)
         if tournament is None:
@@ -1415,18 +1454,27 @@ class TournamentProgressionCog(commands.Cog):
 
     @app_commands.command(
         name="publish_matches",
-        description="Forcer la publication des matchs nouvellement disponibles",
+        description="Publier ou republier les matchs actuellement jouables",
     )
-    @app_commands.describe(code="Code facultatif du tournoi")
+    @app_commands.describe(
+        code="Code facultatif du tournoi",
+        force=(
+            "Republier les matchs jouables même s'ils avaient déjà été "
+            "annoncés"
+        ),
+    )
     @app_commands.default_permissions(manage_guild=True)
     async def publish_matches(
         self,
         interaction: discord.Interaction,
         code: str | None = None,
+        force: bool = False,
     ) -> None:
         if not await self._ensure_staff(interaction):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
+
+        reset_count = 0
 
         try:
             tournament = await resolve_tournament(
@@ -1436,21 +1484,48 @@ class TournamentProgressionCog(commands.Cog):
             )
             if tournament is None:
                 raise ValueError("Aucun tournoi sélectionné.")
+
+            if force:
+                reset_count = await self._reset_current_publications_for_tournament(
+                    tournament
+                )
+
             published = await self.publish_tournament(tournament)
         except ValueError as error:
             await interaction.followup.send(
-                embed=error_embed(title="Publication impossible", description=str(error)),
+                embed=error_embed(
+                    title="Publication impossible",
+                    description=str(error),
+                ),
                 ephemeral=True,
             )
             return
 
+        if force:
+            description = (
+                f"♻️ Mode **force** activé : **{reset_count}** marqueur(s) "
+                "de publication active(s) ont été réinitialisés.\n"
+                f"📢 **{published}** match(s) jouable(s) ont été publiés ou "
+                "republiés.\n\n"
+                "Les matchs, scores, résultats et le bracket n'ont pas été "
+                "modifiés."
+            )
+        else:
+            description = (
+                f"**{published}** nouveau(x) match(s) ont été publiés. "
+                "Les matchs déjà annoncés n'ont pas été renvoyés.\n\n"
+                "Pour republier les matchs jouables déjà enregistrés, utilise "
+                "`force:True`."
+            )
+
         await interaction.followup.send(
             embed=info_embed(
-                title="Publication vérifiée",
-                description=(
-                    f"**{published}** nouveau(x) match(s) ont été publiés. "
-                    "Les matchs déjà annoncés n'ont pas été renvoyés."
+                title=(
+                    "Republication terminée"
+                    if force
+                    else "Publication vérifiée"
                 ),
+                description=description,
             ),
             ephemeral=True,
         )
