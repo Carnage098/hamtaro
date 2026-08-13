@@ -105,7 +105,7 @@ class TournamentLiveService:
             try:
                 await db.executescript(
                     """
-                    CREATE TABLE IF NOT EXISTS tournament_v2_settings (
+                    CREATE TABLE IF NOT EXISTS tournament_competitive_settings (
                         tournament_id INTEGER PRIMARY KEY,
                         structure TEXT NOT NULL DEFAULT 'elimination',
                         best_of INTEGER NOT NULL DEFAULT 3,
@@ -158,7 +158,7 @@ class TournamentLiveService:
         try:
             await db.execute(
                 """
-                INSERT INTO tournament_v2_settings(
+                INSERT INTO tournament_competitive_settings(
                     tournament_id, structure, best_of, public_decks, live_enabled
                 ) VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(tournament_id)
@@ -187,7 +187,7 @@ class TournamentLiveService:
                     """
                     SELECT t.*, s.structure, s.best_of, s.public_decks, s.live_enabled
                     FROM tournaments t
-                    LEFT JOIN tournament_v2_settings s ON s.tournament_id=t.id
+                    LEFT JOIN tournament_competitive_settings s ON s.tournament_id=t.id
                     WHERE t.id=?
                     """,
                     (int(tournament_id),),

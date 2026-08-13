@@ -5,7 +5,7 @@
 <section class="live-hero">
   <div>
     <span class="live-dot">●</span>
-    <span class="v2-kicker">HAMTARO LIVE</span>
+    <span class="competitive-kicker">HAMTARO LIVE</span>
     <h1>Tournoi en direct</h1>
     {% if center %}
       <p>{{ center.tournament.name }} · {{ center.tournament.format }} · {{ center.progress.round and ('Ronde ' ~ center.progress.round) or 'En cours' }}</p>
@@ -37,7 +37,7 @@
   {% endif %}
 
   <section class="live-section">
-    <div class="v2-panel-title">
+    <div class="competitive-panel-title">
       <div><span>🔴</span><h2>Matchs actuellement diffusés</h2></div>
       <small>{{ center.live_matches|length }} table(s) disponible(s)</small>
     </div>
@@ -63,7 +63,7 @@
   </section>
 
   <section class="live-section">
-    <div class="v2-panel-title">
+    <div class="competitive-panel-title">
       <div><span>🎮</span><h2>Toutes les tables</h2></div>
       <small>Les flux ne sont chargés qu'après ouverture d'un match.</small>
     </div>
