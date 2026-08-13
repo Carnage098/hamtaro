@@ -725,7 +725,7 @@ class TournamentStartService:
                             int(player["seed"]),
                         )
                     await self._commit_core_db()
-                    await self.brackets.generate(tournament_id)
+                    await self.brackets.generate_bracket(tournament_id)
                     await self._assert_generated_pairings(
                         tournament_id,
                         list(preview["pairings"]),
