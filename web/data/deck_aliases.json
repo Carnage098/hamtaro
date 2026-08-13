@@ -11,10 +11,19 @@
       "gold pride",
       "goldpride"
     ],
+    "P.U.N.K. / Gold Pride": [
+      "punk / gold pride",
+      "p.u.n.k. / gold pride",
+      "gold pride / punk",
+      "gold pride / p.u.n.k.",
+      "punk + gold pride",
+      "gold pride + punk"
+    ],
     "Blue-Eyes": [
       "blue eyes",
       "blue-eyes",
-      "blue eyes white dragon"
+      "blue eyes white dragon",
+      "blueeyes"
     ],
     "Fiendsmith": [
       "fiendsmith"
@@ -34,7 +43,8 @@
     ],
     "TeleDAD": [
       "teledad",
-      "tele dad"
+      "tele dad",
+      "tele-dad"
     ],
     "Maliss": [
       "maliss"
@@ -88,6 +98,9 @@
     "Notes Elfiques": [
       "notes elfiques",
       "elf notes"
+    ],
+    "Master Peace": [
+      "master peace"
     ]
   }
 }
