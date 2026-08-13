@@ -85,7 +85,6 @@ REQUIRED_COGS = (
     "cogs.community_tools",
     "cogs.tournament_start_preview",
     "cogs.archetype_artworks",
-    "cogs.end_tournament",
 )
 
 OPTIONAL_COGS = (
