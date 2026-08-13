@@ -25,6 +25,67 @@ def _require_guild_and_channel(
     return str(interaction.guild.id), str(interaction.channel_id)
 
 
+async def _table_exists(db: Any, table_name: str) -> bool:
+    row = await db.fetchone(
+        """
+        SELECT 1
+        FROM sqlite_master
+        WHERE type = 'table' AND name = ?
+        LIMIT 1
+        """,
+        (table_name,),
+    )
+    return row is not None
+
+
+async def _tournament_from_match_thread(
+    db: Any,
+    *,
+    guild_id: str,
+    channel_id: str,
+) -> Any | None:
+    """Résout le tournoi lié au fil Hamtaro courant.
+
+    Les fils créés par Hamtaro sont déjà reliés à un match et à un tournament_id
+    dans match_center_sessions. progression_match_publications sert de fallback
+    pour les anciens fils ou les publications créées avant le Match Center.
+    """
+
+    if await _table_exists(db, "match_center_sessions"):
+        row = await db.fetchone(
+            """
+            SELECT tournament_id
+            FROM match_center_sessions
+            WHERE guild_id = ? AND thread_id = ?
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (str(guild_id), str(channel_id)),
+        )
+        if row is not None:
+            tournament = await db.get_tournament(int(row["tournament_id"]))
+            if tournament is not None:
+                return tournament
+
+    if await _table_exists(db, "progression_match_publications"):
+        row = await db.fetchone(
+            """
+            SELECT tournament_id
+            FROM progression_match_publications
+            WHERE guild_id = ? AND thread_id = ?
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (str(guild_id), str(channel_id)),
+        )
+        if row is not None:
+            tournament = await db.get_tournament(int(row["tournament_id"]))
+            if tournament is not None:
+                return tournament
+
+    return None
+
+
 async def resolve_tournament(
     interaction: discord.Interaction,
     db: Any,
@@ -32,13 +93,14 @@ async def resolve_tournament(
     code: str | None = None,
     require_active: bool = True,
 ) -> Any:
-    """
-    Résout le tournoi ciblé par une commande.
+    """Résout automatiquement le tournoi ciblé par une commande.
 
     Priorité :
     1. code fourni explicitement ;
-    2. tournoi sélectionné dans le salon ;
+    2. tournoi lié au fil de match Hamtaro courant ;
     3. unique tournoi actif du serveur.
+
+    /tournament_select n'est plus utilisé.
     """
 
     guild_id, channel_id = _require_guild_and_channel(interaction)
@@ -52,20 +114,21 @@ async def resolve_tournament(
             raise ValueError(f"Aucun tournoi trouvé avec le code `{code.strip().upper()}`.")
 
         if require_active and _status_value(tournament) in INACTIVE_STATUSES:
-            raise ValueError(
-                f"Le tournoi `{tournament.code}` est terminé ou annulé."
-            )
+            raise ValueError(f"Le tournoi `{tournament.code}` est terminé ou annulé.")
 
         return tournament
 
-    selected = await db.get_selected_tournament(guild_id, channel_id)
-    if selected is not None:
-        if require_active and _status_value(selected) in INACTIVE_STATUSES:
+    thread_tournament = await _tournament_from_match_thread(
+        db,
+        guild_id=guild_id,
+        channel_id=channel_id,
+    )
+    if thread_tournament is not None:
+        if require_active and _status_value(thread_tournament) in INACTIVE_STATUSES:
             raise ValueError(
-                f"Le tournoi sélectionné `{selected.code}` est terminé ou annulé. "
-                "Sélectionne un autre tournoi avec `/tournament_select`."
+                f"Le tournoi `{thread_tournament.code}` lié à ce fil est terminé ou annulé."
             )
-        return selected
+        return thread_tournament
 
     active = await db.list_active_tournaments(guild_id)
     if not active:
@@ -81,7 +144,8 @@ async def resolve_tournament(
     raise ValueError(
         "Plusieurs tournois sont actifs sur ce serveur.\n"
         f"{preview}\n"
-        "Utilise `/tournament_select` dans ce salon ou indique le code du tournoi."
+        "Utilise le code du tournoi dans la commande. Dans un fil de match Hamtaro, "
+        "le tournoi est détecté automatiquement."
     )
 
 
@@ -106,45 +170,6 @@ async def active_tournament_code_autocomplete(
         code = str(tournament.code)
         name = str(tournament.name)
         label = f"{code} — {name}"
-        if needle and needle not in label.lower():
-            continue
-        choices.append(
-            discord.app_commands.Choice(
-                name=label[:100],
-                value=code,
-            )
-        )
-        if len(choices) >= 25:
-            break
-
-    return choices
-
-
-async def tournament_code_autocomplete(
-    interaction: discord.Interaction,
-    current: str,
-) -> list[discord.app_commands.Choice[str]]:
-    """Autocomplétion de tous les codes du serveur, y compris les tournois terminés."""
-
-    if interaction.guild is None:
-        return []
-
-    db = getattr(interaction.client, "db", None)
-    if db is None:
-        return []
-
-    tournaments = await db.list_tournaments(
-        str(interaction.guild.id),
-        include_finished=True,
-    )
-    needle = current.strip().lower()
-    choices: list[discord.app_commands.Choice[str]] = []
-
-    for tournament in tournaments:
-        code = str(tournament.code)
-        name = str(tournament.name)
-        status = _status_value(tournament)
-        label = f"{code} — {name} — {status}"
         if needle and needle not in label.lower():
             continue
         choices.append(

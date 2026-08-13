@@ -3380,6 +3380,62 @@ class ResultsCog(commands.Cog):
         else:
             await self._send_result_ui(interaction, embed=embed, view=view)
 
+    async def _match_bound_to_channel(
+        self,
+        *,
+        guild_id: str,
+        channel_id: str,
+    ) -> tuple[str, int] | None:
+        """Retrouve automatiquement le match attaché à un fil Hamtaro.
+
+        Le Match Center enregistre déjà thread_id -> match -> tournoi.
+        On utilise cette relation avant toute recherche globale afin que /result
+        fonctionne directement dans le fil du duel, même avec plusieurs tournois actifs.
+        """
+
+        async def table_exists(table_name: str) -> bool:
+            row = await self.db.fetchone(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type = 'table' AND name = ?
+                LIMIT 1
+                """,
+                (table_name,),
+            )
+            return row is not None
+
+        if await table_exists("match_center_sessions"):
+            row = await self.db.fetchone(
+                """
+                SELECT match_kind, match_id
+                FROM match_center_sessions
+                WHERE guild_id = ? AND thread_id = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (str(guild_id), str(channel_id)),
+            )
+            if row is not None:
+                return str(row["match_kind"]), int(row["match_id"])
+
+        # Compatibilité avec les fils publiés avant l'initialisation du Match Center.
+        if await table_exists("progression_match_publications"):
+            row = await self.db.fetchone(
+                """
+                SELECT match_kind, match_id
+                FROM progression_match_publications
+                WHERE guild_id = ? AND thread_id = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (str(guild_id), str(channel_id)),
+            )
+            if row is not None:
+                return str(row["match_kind"]), int(row["match_id"])
+
+        return None
+
     async def open_result_flow(
         self,
         interaction: discord.Interaction,
@@ -3408,6 +3464,24 @@ class ResultsCog(commands.Cog):
                     edit_message=False,
                 )
                 return
+
+            # Dans un fil créé par Hamtaro, le fil EST le contexte du match.
+            # Aucune sélection de tournoi n'est nécessaire.
+            if interaction.channel_id is not None:
+                bound_match = await self._match_bound_to_channel(
+                    guild_id=str(interaction.guild.id),
+                    channel_id=str(interaction.channel_id),
+                )
+                if bound_match is not None:
+                    bound_kind, bound_id = bound_match
+                    await self._show_guided_score_picker(
+                        interaction,
+                        match_kind=bound_kind,
+                        match_id=bound_id,
+                        requester_id=requester_id,
+                        edit_message=False,
+                    )
+                    return
 
             matches = await self._list_player_open_matches(
                 guild_id=str(interaction.guild.id),
