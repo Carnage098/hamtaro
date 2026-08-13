@@ -197,3 +197,67 @@ async def active_tournament_code_autocomplete(
             break
 
     return choices
+
+
+async def tournament_code_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[discord.app_commands.Choice[str]]:
+    """Autocomplétion de tous les codes du serveur, y compris les tournois terminés.
+
+    Cette fonction est conservée pour compatibilité avec les cogs historiques
+    (tournament, match_history, swiss_graphics, profile, deck_stats, exports...).
+    Elle n'implique pas le retour de /tournament_select : elle ne sert qu'à
+    proposer des codes dans les options des commandes qui en ont encore besoin.
+    """
+
+    if interaction.guild is None:
+        return []
+
+    db = getattr(interaction.client, "db", None)
+    if db is None:
+        return []
+
+    try:
+        tournaments = await db.list_tournaments(
+            str(interaction.guild.id),
+            include_finished=True,
+        )
+    except (AttributeError, TypeError):
+        # Compatibilité avec une DatabaseService plus ancienne : au minimum,
+        # on propose les tournois actifs au lieu de faire échouer le chargement.
+        try:
+            tournaments = await db.list_active_tournaments(
+                str(interaction.guild.id)
+            )
+        except (AttributeError, TypeError):
+            return []
+
+    needle = current.strip().lower()
+    choices: list[discord.app_commands.Choice[str]] = []
+
+    for tournament in tournaments:
+        code = str(getattr(tournament, "code", "") or "").strip()
+        name = str(getattr(tournament, "name", "Tournoi") or "Tournoi").strip()
+        status = _status_value(tournament)
+
+        if not code:
+            continue
+
+        label = f"{code} — {name}"
+        if status:
+            label += f" — {status}"
+
+        if needle and needle not in label.lower():
+            continue
+
+        choices.append(
+            discord.app_commands.Choice(
+                name=label[:100],
+                value=code,
+            )
+        )
+        if len(choices) >= 25:
+            break
+
+    return choices
