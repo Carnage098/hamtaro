@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -45,9 +46,12 @@ class ArchetypeMetaService:
         self.analytics = AnalyticsService(database_path)
         project_root = Path(__file__).resolve().parent.parent
         self.defaults_path = project_root / "web" / "data" / "archetype_artworks.json"
+        self.artwork_cache_dir = project_root / "web" / "static" / "archetype_artworks"
+        self.artwork_cache_dir.mkdir(parents=True, exist_ok=True)
         self._schema_ready = False
         self._schema_lock = asyncio.Lock()
         self._default_rules: dict[str, str] | None = None
+        self._image_cache_lock = asyncio.Lock()
 
     @asynccontextmanager
     async def _connect(self):
@@ -172,6 +176,18 @@ class ArchetypeMetaService:
         self._default_rules = rules
         return rules
 
+    @staticmethod
+    def _extract_card_image(card: dict[str, Any], fallback_name: str) -> tuple[str | None, str | None]:
+        images = card.get("card_images") or []
+        if not images:
+            return None, None
+        image = images[0]
+        # On privilégie l'artwork recadré, pas l'image entière de la carte.
+        url = image.get("image_url_cropped") or image.get("image_url")
+        if not url:
+            return None, None
+        return str(card.get("name") or fallback_name), str(url)
+
     async def _lookup_card_image(self, card_name: str) -> tuple[str | None, str | None]:
         """Résout un nom de carte via YGOPRODeck. Échec = (None, None)."""
         card_name = str(card_name or "").strip()
@@ -181,7 +197,7 @@ class ArchetypeMetaService:
             "YGO_CARD_API_URL",
             "https://db.ygoprodeck.com/api/v7/cardinfo.php",
         )
-        timeout = aiohttp.ClientTimeout(total=5)
+        timeout = aiohttp.ClientTimeout(total=8)
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 for params in ({"name": card_name}, {"fname": card_name}):
@@ -192,17 +208,101 @@ class ArchetypeMetaService:
                         data = payload.get("data") if isinstance(payload, dict) else None
                         if not data:
                             continue
-                        card = data[0]
-                        images = card.get("card_images") or []
-                        if not images:
-                            continue
-                        image = images[0]
-                        url = image.get("image_url_cropped") or image.get("image_url")
+                        name, url = self._extract_card_image(data[0], card_name)
                         if url:
-                            return str(card.get("name") or card_name), str(url)
+                            return name, url
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError):
             return None, None
         return None, None
+
+    async def _lookup_archetype_representative(
+        self, archetype_name: str
+    ) -> tuple[str | None, str | None]:
+        """Fallback : trouve une vraie carte appartenant à l'archétype."""
+        archetype_name = str(archetype_name or "").strip()
+        if not archetype_name:
+            return None, None
+        endpoint = os.getenv(
+            "YGO_CARD_API_URL",
+            "https://db.ygoprodeck.com/api/v7/cardinfo.php",
+        )
+        timeout = aiohttp.ClientTimeout(total=8)
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(endpoint, params={"archetype": archetype_name}) as response:
+                    if response.status != 200:
+                        return None, None
+                    payload = await response.json(content_type=None)
+                    data = payload.get("data") if isinstance(payload, dict) else None
+                    if not data:
+                        return None, None
+                    # Priorité à une carte dont le nom contient directement le nom
+                    # d'archétype, sinon on prend la première carte renvoyée.
+                    needle = archetype_name.casefold()
+                    card = next(
+                        (c for c in data if needle in str(c.get("name") or "").casefold()),
+                        data[0],
+                    )
+                    return self._extract_card_image(card, archetype_name)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError):
+            return None, None
+
+    async def _resolve_artwork_source(
+        self, deck_name: str, candidate: str
+    ) -> tuple[str | None, str | None]:
+        """Résout d'abord la carte choisie, puis l'archétype si nécessaire."""
+        resolved_name, image_url = await self._lookup_card_image(candidate)
+        if image_url:
+            return resolved_name, image_url
+
+        normalized = self.normalize_deck_name(deck_name)
+        components = [part.strip() for part in normalized.split(" / ") if part.strip()]
+        tried: set[str] = set()
+        for component in [candidate, *components]:
+            key = component.casefold()
+            if not component or key in tried:
+                continue
+            tried.add(key)
+            resolved_name, image_url = await self._lookup_archetype_representative(component)
+            if image_url:
+                return resolved_name, image_url
+        return None, None
+
+    async def _cache_remote_image(self, image_url: str) -> str:
+        """Télécharge une seule fois l'artwork et renvoie son URL statique locale."""
+        image_url = str(image_url or "").strip()
+        if not image_url.startswith("https://"):
+            return image_url
+
+        digest = hashlib.sha256(image_url.encode("utf-8")).hexdigest()[:24]
+        suffix = ".png" if urlparse(image_url).path.lower().endswith(".png") else ".jpg"
+        filename = f"{digest}{suffix}"
+        destination = self.artwork_cache_dir / filename
+        public_url = f"/static/archetype_artworks/{filename}"
+        if destination.exists() and destination.stat().st_size > 1024:
+            return public_url
+
+        async with self._image_cache_lock:
+            if destination.exists() and destination.stat().st_size > 1024:
+                return public_url
+            timeout = aiohttp.ClientTimeout(total=12)
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(image_url) as response:
+                        if response.status != 200:
+                            return image_url
+                        content_type = str(response.headers.get("Content-Type") or "").lower()
+                        if "image" not in content_type:
+                            return image_url
+                        body = await response.read()
+                        if not body or len(body) > 8 * 1024 * 1024:
+                            return image_url
+                        temp = destination.with_suffix(destination.suffix + ".tmp")
+                        temp.write_bytes(body)
+                        temp.replace(destination)
+                        return public_url
+            except (aiohttp.ClientError, asyncio.TimeoutError, OSError):
+                return image_url
 
     @classmethod
     def _automatic_card_candidate(cls, deck_name: str) -> str:
@@ -216,6 +316,7 @@ class ArchetypeMetaService:
         await self.ensure_schema()
         display_name = self.normalize_deck_name(deck_name)
         key = self.deck_key(display_name)
+        existing: dict[str, Any] | None = None
         async with self._connect() as db:
             cursor = await db.execute(
                 """
@@ -226,22 +327,34 @@ class ArchetypeMetaService:
             )
             row = await cursor.fetchone()
             if row is not None:
-                return dict(row)
+                existing = dict(row)
+                # La V1 pouvait mémoriser le placeholder si l'API n'avait pas
+                # répondu. En V2 on réessaie automatiquement pour le réparer.
+                current_default = str(existing.get("default_image_url") or "")
+                if current_default and "hamtaro-pancarte-fin.png" not in current_default:
+                    return existing
 
         rules = self._load_default_rules()
         candidate = rules.get(key) or self._automatic_card_candidate(display_name)
-        resolved_name, image_url = await self._lookup_card_image(candidate)
+        resolved_name, image_url = await self._resolve_artwork_source(display_name, candidate)
         if not image_url:
+            if existing is not None:
+                return existing
             resolved_name = candidate or "Hamtaro"
             image_url = "/static/hamtaro-pancarte-fin.png"
 
         async with self._connect() as db:
             await db.execute(
                 """
-                INSERT OR IGNORE INTO archetype_artwork_state(
+                INSERT INTO archetype_artwork_state(
                     guild_id, deck_key, deck_name,
                     default_card_name, default_image_url
                 ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(guild_id, deck_key) DO UPDATE SET
+                    deck_name = excluded.deck_name,
+                    default_card_name = excluded.default_card_name,
+                    default_image_url = excluded.default_image_url,
+                    updated_at = CURRENT_TIMESTAMP
                 """,
                 (guild_id, key, display_name, resolved_name, image_url),
             )
@@ -394,7 +507,11 @@ class ArchetypeMetaService:
             result = dict(row)
             result["deck"] = self.normalize_deck_name(result["deck"])
             result["slug"] = self.slugify(result["deck"])
-            result["artwork"] = self._display_artwork(state)
+            artwork = self._display_artwork(state)
+            remote_url = str(artwork.get("image_url") or "")
+            artwork["remote_image_url"] = remote_url if remote_url.startswith("https://") else None
+            artwork["image_url"] = await self._cache_remote_image(remote_url)
+            result["artwork"] = artwork
             result["win_rate"] = float(result.get("win_rate") or 0.0)
             return result
 

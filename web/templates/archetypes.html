@@ -48,7 +48,7 @@
   {% for item in archetypes %}
   <article class="archetype-card">
     <a class="archetype-art" href="/archetypes/{{ item.slug }}{% if selected_format %}?format={{ selected_format }}{% endif %}">
-      <img src="{{ item.artwork.image_url }}" alt="Artwork {{ item.artwork.card_name or item.deck }}" loading="lazy">
+      <img src="{{ item.artwork.image_url }}" alt="Artwork {{ item.artwork.card_name or item.deck }}" loading="lazy" onerror="this.onerror=null;this.src='/static/hamtaro-pancarte-fin.png';">
       <span class="artwork-source {{ item.artwork.source }}">
         {% if item.artwork.source == 'community' %}🎨 Communauté{% else %}🐹 Hamtaro{% endif %}
       </span>
