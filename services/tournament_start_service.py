@@ -697,6 +697,14 @@ class TournamentStartService:
             )
 
     async def confirm_preview(self, preview_id: int, actor_id: str) -> dict[str, Any]:
+        """
+        Confirme définitivement un brouillon de démarrage.
+
+        En élimination directe, les seeds du brouillon sont enregistrés puis
+        BracketService est appelé avec shuffle=False : le bracket réellement
+        créé doit donc être strictement identique à l'aperçu validé.
+        Toute erreur déclenche le nettoyage de sécurité existant.
+        """
         preview = await self.get_preview(preview_id)
         if preview is None:
             raise ValueError("Brouillon introuvable.")
@@ -725,7 +733,11 @@ class TournamentStartService:
                             int(player["seed"]),
                         )
                     await self._commit_core_db()
-                    await self.brackets.generate_bracket(tournament_id)
+                    await self.brackets.generate_bracket(
+                        tournament_id,
+                        shuffle=False,
+                        force=False,
+                    )
                     await self._assert_generated_pairings(
                         tournament_id,
                         list(preview["pairings"]),
