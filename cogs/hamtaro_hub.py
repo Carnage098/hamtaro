@@ -14,7 +14,6 @@ from utils.tournament_resolver import resolve_tournament
 
 LOGGER = logging.getLogger(__name__)
 HUB_TIMEOUT_SECONDS = 300
-DEFAULT_WEBSITE_URL = "https://worker-production-5a11.up.railway.app"
 
 STATUS_LABELS = {
     "registration": "🟢 Inscriptions ouvertes",
@@ -745,63 +744,16 @@ class HamtaroHubCog(commands.Cog):
         self,
         interaction: discord.Interaction,
     ) -> None:
-        try:
-            tournament = await self.current_tournament(interaction)
-        except ValueError as error:
-            await safe_ephemeral_send(interaction, content=f"❌ {error}")
-            return
-
-        match_data = await self._find_player_match(
-            tournament_id=int(tournament.id),
-            player_id=str(interaction.user.id),
-        )
-
-        if match_data is None:
+        """Ouvre le même parcours guidé que /result."""
+        results = self.bot.get_cog("ResultsCog")
+        if results is None or not hasattr(results, "open_result_flow"):
             await safe_ephemeral_send(
                 interaction,
-                content=(
-                    "✅ Aucun match jouable en attente n'a été trouvé pour toi "
-                    "dans le tournoi sélectionné."
-                ),
+                content="❌ Le système de résultats guidés n’est pas chargé.",
             )
             return
 
-        match_kind, match = match_data
-        match_center = self.bot.get_cog("MatchCenterCog")
-
-        if match_center is None:
-            await safe_ephemeral_send(
-                interaction,
-                content=(
-                    "❌ Le centre de match n'est pas chargé. "
-                    "Utilise temporairement `/result`."
-                ),
-            )
-            return
-
-        ensure_access = getattr(
-            match_center,
-            "ensure_participant_or_staff",
-            None,
-        )
-        if ensure_access is not None:
-            allowed = await ensure_access(
-                interaction,
-                match_kind,
-                int(match["id"]),
-            )
-            if not allowed:
-                return
-
-        await interaction.response.send_modal(
-            HubQuickResultModal(
-                match_center=match_center,
-                match_kind=match_kind,
-                match_id=int(match["id"]),
-                player1_name=str(match.get("player1_name") or "Joueur 1"),
-                player2_name=str(match.get("player2_name") or "Joueur 2"),
-            )
-        )
+        await results.open_result_flow(interaction)  # type: ignore[attr-defined]
 
     # ==========================================================
     # CLASSEMENT, RÈGLEMENT ET SITE
@@ -901,58 +853,43 @@ class HamtaroHubCog(commands.Cog):
         await safe_ephemeral_send(interaction, embed=embed)
 
     async def open_website(self, interaction: discord.Interaction) -> None:
-        """Affiche immédiatement le lien du site sans relancer une commande slash."""
+        if isinstance(
+            self.bot.tree.get_command("hamtaro_site"),
+            app_commands.Command,
+        ):
+            await self.invoke_public_command(interaction, "hamtaro_site")
+            return
 
-        website_url = os.getenv(
-            "WEBSITE_BASE_URL",
-            DEFAULT_WEBSITE_URL,
-        ).strip().rstrip("/")
-
-        if not website_url.startswith(("http://", "https://")):
-            LOGGER.error(
-                "WEBSITE_BASE_URL invalide : %r",
-                website_url,
-            )
+        website_url = os.getenv("WEBSITE_BASE_URL", "").strip().rstrip("/")
+        if not website_url:
             await safe_ephemeral_send(
                 interaction,
                 content=(
-                    "❌ L'adresse du site Hamtaro est invalide. "
-                    "Vérifie `WEBSITE_BASE_URL` dans Railway."
+                    "❌ Le site Hamtaro n'est pas configuré. "
+                    "Ajoute `WEBSITE_BASE_URL` dans Railway."
                 ),
             )
             return
 
-        embed = discord.Embed(
-            title="🌐 Site public Hamtaro",
-            description=(
-                "Consulte les tournois, les résultats, les profils, "
-                "les archives et les brackets."
-            ),
-            url=website_url,
-            colour=discord.Colour.gold(),
-        )
-
-        if self.bot.user is not None:
-            embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-
-        embed.set_footer(
-            text="Hamtaro • Le bot officiel de Jjetgames du serveur Fun Row"
-        )
-
-        view = discord.ui.View(timeout=None)
+        view = discord.ui.View()
         view.add_item(
             discord.ui.Button(
                 label="Ouvrir le site Hamtaro",
                 emoji="🌐",
-                style=discord.ButtonStyle.link,
                 url=website_url,
             )
         )
-
-        # Aucune base de données ni requête HTTP avant cette réponse.
         await safe_ephemeral_send(
             interaction,
-            embed=embed,
+            embed=discord.Embed(
+                title="🌐 Site public Hamtaro",
+                description=(
+                    "Consulte les tournois, les résultats, les profils, "
+                    "les archives et les brackets."
+                ),
+                url=website_url,
+                colour=discord.Colour.gold(),
+            ),
             view=view,
         )
 

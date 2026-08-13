@@ -72,6 +72,23 @@ MATCH_KIND_LABELS = {
     MATCH_KIND_SWISS: "Rondes suisses",
 }
 
+# Scores considérés comme des matchs terminés normalement (BO3).
+NORMAL_TOURNAMENT_SCORES = {
+    (2, 0),
+    (2, 1),
+    (0, 2),
+    (1, 2),
+}
+
+# Scores incomplets proposés aux joueurs suisses lorsque le temps est écoulé.
+# Ils sont toujours convertis en Double Loss.
+SWISS_TIMEOUT_SCORES = {
+    (1, 0),
+    (0, 0),
+    (0, 1),
+    (1, 1),
+}
+
 
 # ==========================================================
 # HELPERS GÉNÉRAUX
@@ -723,6 +740,356 @@ class PendingResultsView(discord.ui.View):
     ) -> None:
         super().__init__(timeout=180)
         self.add_item(PendingResultSelect(cog, requests))
+
+
+
+# ==========================================================
+# INTERFACE GUIDÉE /result
+# ==========================================================
+
+
+class GuidedMatchSelect(discord.ui.Select):
+    def __init__(
+        self,
+        cog: "ResultsCog",
+        requester_id: int,
+        matches: list[dict[str, Any]],
+    ) -> None:
+        self.cog = cog
+        self.requester_id = requester_id
+
+        options: list[discord.SelectOption] = []
+        for item in matches[:25]:
+            kind = str(item["match_kind"])
+            opponent = str(item.get("opponent_name") or "Adversaire")
+            tournament = str(item.get("tournament_name") or "Tournoi Hamtaro")
+            round_label = str(item.get("round_label") or "Match")
+            options.append(
+                discord.SelectOption(
+                    label=f"{tournament} — vs {opponent}"[:100],
+                    value=f"{kind}:{int(item['match_id'])}",
+                    description=f"{round_label} • {MATCH_KIND_LABELS.get(kind, kind)}"[:100],
+                    emoji="🇨🇭" if kind == MATCH_KIND_SWISS else "🏆",
+                )
+            )
+
+        super().__init__(
+            placeholder="Choisis le match dont tu veux déclarer le résultat",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.requester_id:
+            await interaction.response.send_message(
+                "❌ Ce menu appartient à un autre joueur.",
+                ephemeral=True,
+            )
+            return
+
+        kind, raw_match_id = self.values[0].split(":", 1)
+        await self.cog._show_guided_score_picker(
+            interaction,
+            match_kind=kind,
+            match_id=int(raw_match_id),
+            requester_id=self.requester_id,
+            edit_message=True,
+        )
+
+
+class GuidedMatchSelectView(discord.ui.View):
+    def __init__(
+        self,
+        cog: "ResultsCog",
+        requester_id: int,
+        matches: list[dict[str, Any]],
+    ) -> None:
+        super().__init__(timeout=180)
+        self.requester_id = requester_id
+        self.add_item(GuidedMatchSelect(cog, requester_id, matches))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.requester_id:
+            return True
+        await interaction.response.send_message(
+            "❌ Ce menu appartient à un autre joueur.",
+            ephemeral=True,
+        )
+        return False
+
+
+class GuidedScoreButton(discord.ui.Button):
+    def __init__(
+        self,
+        *,
+        cog: "ResultsCog",
+        requester_id: int,
+        match_kind: str,
+        match_id: int,
+        reporter_score: int,
+        opponent_score: int,
+        label: str,
+        style: discord.ButtonStyle,
+        row: int,
+        disabled: bool = False,
+    ) -> None:
+        super().__init__(
+            label=label,
+            style=style,
+            row=row,
+            disabled=disabled,
+        )
+        self.cog = cog
+        self.requester_id = requester_id
+        self.match_kind = match_kind
+        self.match_id = match_id
+        self.reporter_score = reporter_score
+        self.opponent_score = opponent_score
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.requester_id:
+            await interaction.response.send_message(
+                "❌ Ces boutons appartiennent à un autre joueur.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            context = await self.cog._load_match_context(
+                self.match_kind,
+                self.match_id,
+            )
+            player1_score, player2_score = self.cog._score_from_reporter_view(
+                context=context,
+                reporter_id=str(self.requester_id),
+                reporter_score=self.reporter_score,
+                opponent_score=self.opponent_score,
+            )
+            result_type, winner_slot = await self.cog._classify_player_score(
+                match_kind=self.match_kind,
+                match_id=self.match_id,
+                player1_score=player1_score,
+                player2_score=player2_score,
+            )
+            embed = await self.cog._build_guided_confirmation_embed(
+                match_kind=self.match_kind,
+                match_id=self.match_id,
+                reporter_id=str(self.requester_id),
+                player1_score=player1_score,
+                player2_score=player2_score,
+                result_type=result_type,
+            )
+        except ValueError as error:
+            await interaction.response.send_message(
+                embed=error_embed(
+                    title="Résultat impossible",
+                    description=str(error),
+                ),
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=GuidedResultConfirmView(
+                cog=self.cog,
+                requester_id=self.requester_id,
+                match_kind=self.match_kind,
+                match_id=self.match_id,
+                player1_score=player1_score,
+                player2_score=player2_score,
+                result_type=result_type,
+                winner_slot=winner_slot,
+            ),
+        )
+
+
+class GuidedScoreView(discord.ui.View):
+    def __init__(
+        self,
+        *,
+        cog: "ResultsCog",
+        requester_id: int,
+        match_kind: str,
+        match_id: int,
+        swiss_time_expired: bool,
+    ) -> None:
+        super().__init__(timeout=180)
+        self.requester_id = requester_id
+
+        normal_buttons = [
+            (2, 0, "✅ Victoire 2-0", discord.ButtonStyle.success),
+            (2, 1, "✅ Victoire 2-1", discord.ButtonStyle.success),
+            (0, 2, "❌ Défaite 0-2", discord.ButtonStyle.danger),
+            (1, 2, "❌ Défaite 1-2", discord.ButtonStyle.danger),
+        ]
+        for reporter_score, opponent_score, label, style in normal_buttons:
+            self.add_item(
+                GuidedScoreButton(
+                    cog=cog,
+                    requester_id=requester_id,
+                    match_kind=match_kind,
+                    match_id=match_id,
+                    reporter_score=reporter_score,
+                    opponent_score=opponent_score,
+                    label=label,
+                    style=style,
+                    row=0,
+                )
+            )
+
+        if match_kind == MATCH_KIND_SWISS:
+            timeout_buttons = [
+                (1, 0, "⏰ 1-0 → DL"),
+                (0, 0, "⏰ 0-0 → DL"),
+                (0, 1, "⏰ 0-1 → DL"),
+                (1, 1, "⏰ 1-1 → DL"),
+            ]
+            for reporter_score, opponent_score, label in timeout_buttons:
+                self.add_item(
+                    GuidedScoreButton(
+                        cog=cog,
+                        requester_id=requester_id,
+                        match_kind=match_kind,
+                        match_id=match_id,
+                        reporter_score=reporter_score,
+                        opponent_score=opponent_score,
+                        label=label,
+                        style=discord.ButtonStyle.secondary,
+                        row=1,
+                        disabled=not swiss_time_expired,
+                    )
+                )
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.requester_id:
+            return True
+        await interaction.response.send_message(
+            "❌ Ces boutons appartiennent à un autre joueur.",
+            ephemeral=True,
+        )
+        return False
+
+
+class GuidedResultConfirmView(discord.ui.View):
+    def __init__(
+        self,
+        *,
+        cog: "ResultsCog",
+        requester_id: int,
+        match_kind: str,
+        match_id: int,
+        player1_score: int,
+        player2_score: int,
+        result_type: str,
+        winner_slot: str | None,
+    ) -> None:
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.requester_id = requester_id
+        self.match_kind = match_kind
+        self.match_id = match_id
+        self.player1_score = player1_score
+        self.player2_score = player2_score
+        self.result_type = result_type
+        self.winner_slot = winner_slot
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.requester_id:
+            return True
+        await interaction.response.send_message(
+            "❌ Cette confirmation appartient à un autre joueur.",
+            ephemeral=True,
+        )
+        return False
+
+    @discord.ui.button(
+        label="Confirmer",
+        emoji="✅",
+        style=discord.ButtonStyle.success,
+    )
+    async def confirm(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        del button
+        await interaction.response.defer(ephemeral=True)
+        try:
+            sent_staff, sent_opponent = await self.cog.submit_player_score(
+                interaction=interaction,
+                match_kind=self.match_kind,
+                match_id=self.match_id,
+                player1_score=self.player1_score,
+                player2_score=self.player2_score,
+            )
+        except ValueError as error:
+            await interaction.edit_original_response(
+                embed=error_embed(
+                    title="Résultat impossible",
+                    description=str(error),
+                ),
+                view=None,
+            )
+            return
+        except Exception as error:
+            print(
+                f"❌ Résultat guidé {self.match_kind}:{self.match_id} : {error}"
+            )
+            await interaction.edit_original_response(
+                embed=error_embed(
+                    title="Erreur inattendue",
+                    description="Le résultat n’a pas pu être transmis.",
+                ),
+                view=None,
+            )
+            return
+
+        if self.result_type == RESULT_TYPE_DOUBLE_LOSS:
+            title = "Double Loss déclaré"
+            summary = (
+                "Le score était incomplet à la fin du temps réglementaire : "
+                "le match est envoyé comme **Double Loss** (0 point pour les deux joueurs)."
+            )
+        else:
+            title = "Résultat déclaré"
+            summary = "Le résultat a été envoyé pour confirmation et validation."
+
+        delivery = [
+            "✅ Envoyé au salon de validation."
+            if sent_staff
+            else "⚠️ Salon de validation inaccessible.",
+            "✅ Confirmation envoyée à l’adversaire."
+            if sent_opponent
+            else "⚠️ L’adversaire n’a pas pu être contacté automatiquement.",
+        ]
+        await interaction.edit_original_response(
+            embed=success_embed(
+                title=title,
+                description=summary + "\n\n" + "\n".join(delivery),
+            ),
+            view=None,
+        )
+
+    @discord.ui.button(
+        label="Annuler",
+        emoji="❌",
+        style=discord.ButtonStyle.secondary,
+    )
+    async def cancel(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        del button
+        await interaction.response.edit_message(
+            embed=info_embed(
+                title="Déclaration annulée",
+                description="Aucun résultat n’a été enregistré.",
+            ),
+            view=None,
+        )
 
 
 # ==========================================================
@@ -2644,157 +3011,554 @@ class ResultsCog(commands.Cog):
         await self.bot.wait_until_ready()
 
     # ==========================================================
+    # /result GUIDÉ
+    # ==========================================================
+
+    async def _send_result_ui(
+        self,
+        interaction: discord.Interaction,
+        *,
+        embed: discord.Embed,
+        view: discord.ui.View | None = None,
+    ) -> None:
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                embed=embed,
+                view=view,
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message(
+                embed=embed,
+                view=view,
+                ephemeral=True,
+            )
+
+    async def _list_player_open_matches(
+        self,
+        *,
+        guild_id: str,
+        user_id: str,
+    ) -> list[dict[str, Any]]:
+        matches: list[dict[str, Any]] = []
+
+        bracket_rows = await self.db.fetchall(
+            """
+            SELECT
+                'bracket' AS match_kind,
+                m.id AS match_id,
+                m.tournament_id,
+                m.round AS round_number,
+                NULL AS table_number,
+                m.player1_id,
+                m.player2_id,
+                m.player1_name,
+                m.player2_name,
+                m.status,
+                t.name AS tournament_name,
+                t.code AS tournament_code
+            FROM matches m
+            JOIN tournaments t ON t.id = m.tournament_id
+            WHERE t.guild_id = ?
+              AND LOWER(COALESCE(t.status, '')) NOT IN ('finished', 'cancelled')
+              AND (m.player1_id = ? OR m.player2_id = ?)
+              AND m.player1_id IS NOT NULL
+              AND m.player2_id IS NOT NULL
+              AND COALESCE(m.is_bye, 0) = 0
+              AND m.winner_id IS NULL
+              AND LOWER(COALESCE(m.status, 'waiting')) IN ('waiting', 'pending', 'playing')
+            ORDER BY m.tournament_id DESC, m.round ASC, m.match_number ASC, m.id ASC
+            """,
+            (guild_id, user_id, user_id),
+        )
+        for raw in bracket_rows:
+            row = dict(raw)
+            opponent_name = (
+                row.get("player2_name")
+                if str(row.get("player1_id")) == user_id
+                else row.get("player1_name")
+            )
+            row["opponent_name"] = opponent_name or "Adversaire"
+            row["round_label"] = f"Bracket — ronde {row.get('round_number', '?')}"
+            matches.append(row)
+
+        swiss_rows = await self.db.fetchall(
+            """
+            SELECT
+                'swiss' AS match_kind,
+                sm.id AS match_id,
+                sm.tournament_id,
+                sm.round_number,
+                sm.table_number,
+                sm.player1_id,
+                sm.player2_id,
+                sm.player1_name,
+                sm.player2_name,
+                sm.status,
+                t.name AS tournament_name,
+                t.code AS tournament_code
+            FROM swiss_matches sm
+            JOIN tournaments t ON t.id = sm.tournament_id
+            WHERE t.guild_id = ?
+              AND LOWER(COALESCE(t.status, '')) NOT IN ('finished', 'cancelled')
+              AND (sm.player1_id = ? OR sm.player2_id = ?)
+              AND sm.player1_id IS NOT NULL
+              AND sm.player2_id IS NOT NULL
+              AND COALESCE(sm.is_bye, 0) = 0
+              AND LOWER(COALESCE(sm.status, 'pending')) IN ('pending', 'waiting', 'playing')
+            ORDER BY sm.tournament_id DESC, sm.round_number ASC, sm.table_number ASC, sm.id ASC
+            """,
+            (guild_id, user_id, user_id),
+        )
+        for raw in swiss_rows:
+            row = dict(raw)
+            opponent_name = (
+                row.get("player2_name")
+                if str(row.get("player1_id")) == user_id
+                else row.get("player1_name")
+            )
+            row["opponent_name"] = opponent_name or "Adversaire"
+            row["round_label"] = (
+                f"Ronde suisse {row.get('round_number', '?')} — "
+                f"table {row.get('table_number', '?')}"
+            )
+            matches.append(row)
+
+        return matches
+
+    async def _swiss_time_expired(self, match_id: int) -> bool:
+        try:
+            row = await self.db.fetchone(
+                """
+                SELECT status, duration_seconds, started_at,
+                       accumulated_pause_seconds, paused_at
+                FROM match_center_sessions
+                WHERE match_kind = 'swiss' AND match_id = ?
+                LIMIT 1
+                """,
+                (match_id,),
+            )
+        except Exception:
+            return False
+
+        data = _row_to_dict(row)
+        if not data:
+            return False
+
+        status = str(data.get("status") or "").lower()
+        if status == "expired":
+            return True
+        if status in {"reported", "completed", "cancelled"}:
+            return False
+
+        duration = int(data.get("duration_seconds") or 0)
+        started_at = _parse_database_datetime(data.get("started_at"))
+        if duration <= 0 or started_at is None:
+            return False
+
+        reference_time = datetime.now(timezone.utc)
+        if status == "paused":
+            reference_time = (
+                _parse_database_datetime(data.get("paused_at"))
+                or reference_time
+            )
+
+        elapsed = int((reference_time - started_at).total_seconds())
+        elapsed -= int(data.get("accumulated_pause_seconds") or 0)
+        return elapsed >= duration
+
+    @staticmethod
+    def _score_from_reporter_view(
+        *,
+        context: dict[str, Any],
+        reporter_id: str,
+        reporter_score: int,
+        opponent_score: int,
+    ) -> tuple[int, int]:
+        player1_id = str(context.get("player1_id") or "")
+        player2_id = str(context.get("player2_id") or "")
+        if reporter_id == player1_id:
+            return reporter_score, opponent_score
+        if reporter_id == player2_id:
+            return opponent_score, reporter_score
+        raise ValueError("Tu ne participes pas à ce match.")
+
+    async def _classify_player_score(
+        self,
+        *,
+        match_kind: str,
+        match_id: int,
+        player1_score: int,
+        player2_score: int,
+    ) -> tuple[str, str | None]:
+        score = (int(player1_score), int(player2_score))
+
+        if score in NORMAL_TOURNAMENT_SCORES:
+            winner_slot = "player1" if player1_score > player2_score else "player2"
+            return RESULT_TYPE_NORMAL, winner_slot
+
+        if match_kind != MATCH_KIND_SWISS:
+            raise ValueError(
+                "En bracket BO3, les seuls scores valides sont 2-0, 2-1, 0-2 et 1-2."
+            )
+
+        if not await self._swiss_time_expired(match_id):
+            raise ValueError(
+                "Ce score n’est pas un résultat final. Avant la fin du temps, "
+                "continue le match jusqu’à 2-0, 2-1, 0-2 ou 1-2."
+            )
+
+        return RESULT_TYPE_DOUBLE_LOSS, None
+
+    async def _build_guided_score_embed(
+        self,
+        *,
+        match_kind: str,
+        match_id: int,
+        requester_id: int,
+        swiss_time_expired: bool,
+    ) -> discord.Embed:
+        context = await self._load_match_context(match_kind, match_id)
+        tournament = await self.db.get_tournament(int(context["tournament_id"]))
+        user_id = str(requester_id)
+
+        if user_id not in {
+            str(context.get("player1_id") or ""),
+            str(context.get("player2_id") or ""),
+        }:
+            raise ValueError("Tu ne participes pas à ce match.")
+
+        opponent_name = (
+            context.get("player2_name")
+            if user_id == str(context.get("player1_id") or "")
+            else context.get("player1_name")
+        )
+
+        description = (
+            f"Adversaire : **{opponent_name or 'Adversaire'}**\n"
+            "Choisis le score **de ton point de vue**. Aucun ID de match n’est nécessaire."
+        )
+        if match_kind == MATCH_KIND_SWISS:
+            if swiss_time_expired:
+                description += (
+                    "\n\n⏰ **Temps terminé.** Si le duel n’a pas atteint "
+                    "2-0, 2-1, 0-2 ou 1-2, le résultat devient un **Double Loss**."
+                )
+            else:
+                description += (
+                    "\n\n⏱️ Les scores incomplets 1-0, 0-0, 0-1 et 1-1 "
+                    "ne deviennent des **Double Loss** qu’à la fin du temps réglementaire."
+                )
+
+        embed = discord.Embed(
+            title="🐹 Déclarer mon résultat",
+            description=description,
+            colour=discord.Colour.blurple(),
+        )
+        embed.add_field(
+            name="🏟️ Tournoi",
+            value=(
+                f"**{_object_value(tournament, 'name', 'Tournoi Hamtaro')}**\n"
+                f"Format : `{_object_value(tournament, 'format', 'Inconnu')}`"
+            ),
+            inline=False,
+        )
+        if match_kind == MATCH_KIND_SWISS:
+            round_text = (
+                f"Ronde {context.get('round_number', '?')} — "
+                f"Table {context.get('table_number', '?')}"
+            )
+        else:
+            round_text = f"Ronde {context.get('round_number', '?')}"
+        embed.add_field(name="🔄 Phase", value=round_text, inline=True)
+        embed.add_field(
+            name="⚔️ Match",
+            value=(
+                f"{context.get('player1_name') or 'Joueur 1'} vs "
+                f"{context.get('player2_name') or 'Joueur 2'}"
+            ),
+            inline=True,
+        )
+        return embed
+
+    async def _build_guided_confirmation_embed(
+        self,
+        *,
+        match_kind: str,
+        match_id: int,
+        reporter_id: str,
+        player1_score: int,
+        player2_score: int,
+        result_type: str,
+    ) -> discord.Embed:
+        context = await self._load_match_context(match_kind, match_id)
+        tournament = await self.db.get_tournament(int(context["tournament_id"]))
+
+        reporter_is_p1 = reporter_id == str(context.get("player1_id") or "")
+        reporter_name = (
+            context.get("player1_name") if reporter_is_p1 else context.get("player2_name")
+        )
+        opponent_name = (
+            context.get("player2_name") if reporter_is_p1 else context.get("player1_name")
+        )
+        reporter_score = player1_score if reporter_is_p1 else player2_score
+        opponent_score = player2_score if reporter_is_p1 else player1_score
+
+        if result_type == RESULT_TYPE_DOUBLE_LOSS:
+            decision = (
+                "⏰ Le temps réglementaire est terminé sans score final BO3.\n"
+                "➡️ Ce résultat sera enregistré comme **Double Loss** : "
+                "**0 point pour les deux joueurs**."
+            )
+            colour = discord.Colour.orange()
+        else:
+            decision = "🏆 Résultat normal en BO3."
+            colour = discord.Colour.green()
+
+        embed = discord.Embed(
+            title="Confirmer le résultat",
+            description=(
+                f"**{reporter_name or 'Toi'} {reporter_score}-{opponent_score} "
+                f"{opponent_name or 'Adversaire'}**\n\n{decision}\n\n"
+                "Confirmer cette déclaration ?"
+            ),
+            colour=colour,
+        )
+        embed.add_field(
+            name="🏟️ Tournoi",
+            value=f"**{_object_value(tournament, 'name', 'Tournoi Hamtaro')}**",
+            inline=False,
+        )
+        return embed
+
+    async def _show_guided_score_picker(
+        self,
+        interaction: discord.Interaction,
+        *,
+        match_kind: str,
+        match_id: int,
+        requester_id: int,
+        edit_message: bool,
+    ) -> None:
+        context = await self._load_match_context(match_kind, match_id)
+        user_id = str(requester_id)
+        if user_id not in {
+            str(context.get("player1_id") or ""),
+            str(context.get("player2_id") or ""),
+        }:
+            raise ValueError("Tu ne participes pas à ce match.")
+
+        existing = await self._get_request(match_kind, match_id)
+        if existing and str(existing.get("status")) in OPEN_REQUEST_STATUSES:
+            raise ValueError("Ce match possède déjà un résultat en attente de validation.")
+
+        status = str(context.get("status") or "").lower()
+        if status in {"completed", "validated", "approved", "cancelled"}:
+            raise ValueError("Ce match est déjà terminé.")
+
+        expired = (
+            await self._swiss_time_expired(match_id)
+            if match_kind == MATCH_KIND_SWISS
+            else False
+        )
+        embed = await self._build_guided_score_embed(
+            match_kind=match_kind,
+            match_id=match_id,
+            requester_id=requester_id,
+            swiss_time_expired=expired,
+        )
+        view = GuidedScoreView(
+            cog=self,
+            requester_id=requester_id,
+            match_kind=match_kind,
+            match_id=match_id,
+            swiss_time_expired=expired,
+        )
+
+        if edit_message:
+            await interaction.response.edit_message(embed=embed, view=view)
+        else:
+            await self._send_result_ui(interaction, embed=embed, view=view)
+
+    async def open_result_flow(
+        self,
+        interaction: discord.Interaction,
+        *,
+        match_kind: str | None = None,
+        match_id: int | None = None,
+    ) -> None:
+        if interaction.guild is None:
+            await self._send_result_ui(
+                interaction,
+                embed=error_embed(
+                    title="Serveur requis",
+                    description="Utilise `/result` dans le serveur Hamtaro.",
+                ),
+            )
+            return
+
+        requester_id = interaction.user.id
+        try:
+            if match_kind is not None and match_id is not None:
+                await self._show_guided_score_picker(
+                    interaction,
+                    match_kind=match_kind,
+                    match_id=match_id,
+                    requester_id=requester_id,
+                    edit_message=False,
+                )
+                return
+
+            matches = await self._list_player_open_matches(
+                guild_id=str(interaction.guild.id),
+                user_id=str(requester_id),
+            )
+            if not matches:
+                raise ValueError(
+                    "Aucun match jouable n’a été trouvé pour toi. "
+                    "Ton prochain adversaire n’est peut-être pas encore disponible."
+                )
+            if len(matches) == 1:
+                item = matches[0]
+                await self._show_guided_score_picker(
+                    interaction,
+                    match_kind=str(item["match_kind"]),
+                    match_id=int(item["match_id"]),
+                    requester_id=requester_id,
+                    edit_message=False,
+                )
+                return
+
+            embed = info_embed(
+                title="Plusieurs matchs disponibles",
+                description=(
+                    "Hamtaro a trouvé plusieurs matchs actifs. "
+                    "Choisis simplement celui dont tu veux déclarer le résultat."
+                ),
+            )
+            await self._send_result_ui(
+                interaction,
+                embed=embed,
+                view=GuidedMatchSelectView(self, requester_id, matches),
+            )
+        except ValueError as error:
+            await self._send_result_ui(
+                interaction,
+                embed=error_embed(
+                    title="Résultat impossible",
+                    description=str(error),
+                ),
+            )
+
+    async def submit_player_score(
+        self,
+        *,
+        interaction: discord.Interaction,
+        match_kind: str,
+        match_id: int,
+        player1_score: int,
+        player2_score: int,
+    ) -> tuple[bool, bool]:
+        if interaction.guild is None:
+            raise ValueError("Cette action doit être utilisée dans un serveur.")
+
+        context = await self._load_match_context(match_kind, match_id)
+        user_id = str(interaction.user.id)
+        if user_id not in {
+            str(context.get("player1_id") or ""),
+            str(context.get("player2_id") or ""),
+        }:
+            raise ValueError("Tu ne peux déclarer que le résultat de ton propre match.")
+        if context.get("is_bye"):
+            raise ValueError("Un BYE ne nécessite aucun résultat.")
+
+        result_type, winner_slot = await self._classify_player_score(
+            match_kind=match_kind,
+            match_id=match_id,
+            player1_score=player1_score,
+            player2_score=player2_score,
+        )
+        self._validate_result_data(
+            match_kind=match_kind,
+            result_type=result_type,
+            player1_score=player1_score,
+            player2_score=player2_score,
+            winner_slot=winner_slot,
+        )
+
+        async with self._lock_for(match_kind, match_id):
+            existing = await self._get_request(match_kind, match_id)
+            if existing and str(existing.get("status")) in OPEN_REQUEST_STATUSES:
+                raise ValueError("Ce match possède déjà un résultat en attente.")
+
+            if match_kind == MATCH_KIND_BRACKET:
+                reported = await self.brackets.report_result(
+                    match_id=match_id,
+                    player1_score=player1_score,
+                    player2_score=player2_score,
+                    reported_by=user_id,
+                )
+                context = self._match_context(match_kind, reported)
+
+            request = await self._create_request(
+                match_kind=match_kind,
+                context=context,
+                guild_id=str(interaction.guild.id),
+                reporter_id=user_id,
+                result_type=result_type,
+                winner_slot=winner_slot,
+                player1_score=player1_score,
+                player2_score=player2_score,
+                proof_url=None,
+                proof_is_image=False,
+            )
+
+        sent_staff = await self._send_validation_message(request)
+        request = await self._get_request(match_kind, match_id) or request
+        sent_opponent = await self._send_opponent_confirmation(request)
+
+        await self._audit(
+            guild_id=str(request["guild_id"]),
+            match_kind=match_kind,
+            match_id=match_id,
+            action="player_reported_guided",
+            actor_id=user_id,
+            details={
+                "score": f"{player1_score}-{player2_score}",
+                "result_type": result_type,
+                "staff_message_sent": sent_staff,
+                "opponent_message_sent": sent_opponent,
+            },
+        )
+
+        try:
+            await self.db.execute(
+                """
+                UPDATE match_center_sessions
+                SET status = 'reported', updated_at = CURRENT_TIMESTAMP
+                WHERE match_kind = ? AND match_id = ?
+                """,
+                (match_kind, match_id),
+            )
+            await self.db.commit()
+        except Exception:
+            pass
+
+        return sent_staff, sent_opponent
+
+    # ==========================================================
     # COMMANDES JOUEURS
     # ==========================================================
 
     @app_commands.command(
         name="result",
-        description="Déclarer le résultat de ton match",
-    )
-    @app_commands.describe(
-        player1_score="Score du joueur 1",
-        player2_score="Score du joueur 2",
-        match_id="ID facultatif du match",
-        type_match="Bracket, rondes suisses ou détection automatique",
-        preuve="Capture d’écran ou PDF facultatif",
-    )
-    @app_commands.choices(
-        type_match=[
-            app_commands.Choice(name="Détection automatique", value=MATCH_KIND_AUTO),
-            app_commands.Choice(name="Bracket", value=MATCH_KIND_BRACKET),
-            app_commands.Choice(name="Rondes suisses", value=MATCH_KIND_SWISS),
-        ]
+        description="Déclarer facilement le résultat de ton match",
     )
     async def result(
         self,
         interaction: discord.Interaction,
-        player1_score: app_commands.Range[int, 0, 99],
-        player2_score: app_commands.Range[int, 0, 99],
-        match_id: int | None = None,
-        type_match: str = MATCH_KIND_AUTO,
-        preuve: discord.Attachment | None = None,
     ) -> None:
-        await interaction.response.defer(ephemeral=True)
-
-        try:
-            tournament = await self._resolve_tournament(interaction)
-            if tournament is None:
-                raise ValueError("Aucun tournoi sélectionné.")
-
-            match_kind, match = await self._resolve_match(
-                tournament_id=int(tournament.id),
-                user_id=str(interaction.user.id),
-                match_id=match_id,
-                requested_kind=type_match,
-                require_player=True,
-            )
-            context = self._match_context(match_kind, match)
-
-            if context["is_bye"]:
-                raise ValueError("Un BYE ne nécessite aucune déclaration.")
-            if not context.get("player1_id") or not context.get("player2_id"):
-                raise ValueError("Ce match n’est pas encore jouable.")
-            if player1_score == player2_score:
-                raise ValueError(
-                    "Les matchs nuls n’existent pas. Le Double Loss doit être décidé par le staff."
-                )
-
-            winner_slot = "player1" if player1_score > player2_score else "player2"
-            proof_url, proof_is_image = self._proof_data(preuve)
-
-            self._validate_result_data(
-                match_kind=match_kind,
-                result_type=RESULT_TYPE_NORMAL,
-                player1_score=player1_score,
-                player2_score=player2_score,
-                winner_slot=winner_slot,
-            )
-
-            async with self._lock_for(match_kind, int(context["match_id"])):
-                existing = await self._get_request(match_kind, int(context["match_id"]))
-                if existing and existing["status"] in OPEN_REQUEST_STATUSES:
-                    raise ValueError("Ce match possède déjà un résultat en attente.")
-
-                if match_kind == MATCH_KIND_BRACKET:
-                    reported = await self.brackets.report_result(
-                        match_id=int(context["match_id"]),
-                        player1_score=int(player1_score),
-                        player2_score=int(player2_score),
-                        reported_by=str(interaction.user.id),
-                    )
-                    context = self._match_context(match_kind, reported)
-
-                request = await self._create_request(
-                    match_kind=match_kind,
-                    context=context,
-                    guild_id=self._guild_id(interaction),
-                    reporter_id=str(interaction.user.id),
-                    result_type=RESULT_TYPE_NORMAL,
-                    winner_slot=winner_slot,
-                    player1_score=int(player1_score),
-                    player2_score=int(player2_score),
-                    proof_url=proof_url,
-                    proof_is_image=proof_is_image,
-                )
-
-            sent_staff = await self._send_validation_message(request)
-            request = await self._get_request(match_kind, int(context["match_id"])) or request
-            sent_opponent = await self._send_opponent_confirmation(request)
-
-            await self._audit(
-                guild_id=str(request["guild_id"]),
-                match_kind=match_kind,
-                match_id=int(request["match_id"]),
-                action="player_reported",
-                actor_id=str(interaction.user.id),
-                details={
-                    "score": f"{player1_score}-{player2_score}",
-                    "proof": bool(proof_url),
-                    "staff_message_sent": sent_staff,
-                    "opponent_message_sent": sent_opponent,
-                },
-            )
-
-        except ValueError as error:
-            await interaction.followup.send(
-                embed=error_embed(
-                    title="Résultat impossible",
-                    description=str(error),
-                ),
-                ephemeral=True,
-            )
-            return
-
-        delivery_lines = []
-        delivery_lines.append(
-            "✅ Envoyé dans `validation-résultats`."
-            if sent_staff
-            else "⚠️ Salon `validation-résultats` non configuré ou inaccessible."
-        )
-        delivery_lines.append(
-            "✅ L’adversaire a reçu une demande de confirmation."
-            if sent_opponent
-            else "⚠️ Impossible de contacter l’adversaire automatiquement."
-        )
-
-        embed = success_embed(
-            title="Résultat déclaré",
-            description=(
-                "Le résultat est enregistré et protégé contre les doubles déclarations.\n\n"
-                + "\n".join(delivery_lines)
-            ),
-        )
-        embed.add_field(
-            name="Match",
-            value=f"`{match_kind}:{request['match_id']}`",
-            inline=True,
-        )
-        embed.add_field(
-            name="Score",
-            value=f"`{player1_score}-{player2_score}`",
-            inline=True,
-        )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await self.open_result_flow(interaction)
 
     # ==========================================================
     # COMMANDES STAFF
