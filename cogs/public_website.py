@@ -21,6 +21,7 @@ from services.bracket_export_service import (
     BracketExportService,
     FINISHED_STATUSES,
 )
+from services.archetype_web_routes import register_archetype_routes
 from services.banlist_routes import register_banlist_routes
 from services.site_experience_routes import register_site_experience_routes
 
@@ -237,11 +238,22 @@ class PublicWebsiteCog(commands.Cog):
         application.router.add_get("/results", self.results_page)
         application.router.add_get("/archives", self.archives_page)
         application.router.add_get("/health", self.health_page)
+
         # Routes enrichies : matchs, compétition, saisons, profils,
         # decks et recherche. Cette fonction enregistre aussi /players.
         register_site_experience_routes(
             application,
             self,
+        )
+
+        # Méta & Archétypes : page publique, fiches détaillées et API.
+        register_archetype_routes(
+            application,
+            self,
+        )
+        LOGGER.info(
+            "Routes Méta/Archétypes enregistrées : "
+            "/archetypes, /archetypes/<slug>, /api/archetypes"
         )
 
         # Banlists : page publique, API et synchronisation périodique.
