@@ -140,18 +140,21 @@ class SiteExperienceService:
                         else ""
                     )
                     status_filter = (
-                        """
-                          AND m.status IN (
-                              'waiting',
-                              'playing',
-                              'reported',
-                              'pending_validation',
-                              'validation'
-                          )
-                        """
-                        if "status" in match_columns
-                        else ""
-                    )
+                    """
+                      AND m.status IN (
+                          'waiting',
+                          'playing',
+                          'pending',
+                          'scheduled',
+                          'in_progress',
+                          'reported',
+                          'pending_validation',
+                          'validation'
+                      )
+                    """
+                    if "status" in match_columns
+                    else ""
+                )
                     order_date_sql = (
                         "COALESCE(m.reported_at, m.created_at)"
                         if {
