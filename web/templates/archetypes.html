@@ -2,15 +2,15 @@
 {% block title %}Meta Center · Hamtaro{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/archetypes.css">
-<link rel="stylesheet" href="/static/competitive_v2.css">
+<link rel="stylesheet" href="/static/competitive_suite.css">
 
-<section class="v2-hero">
+<section class="competitive-hero">
   <div>
-    <span class="v2-kicker">HAMTARO META CENTER V2</span>
+    <span class="competitive-kicker">HAMTARO META CENTER</span>
     <h1>Méta & Archétypes</h1>
     <p>Popularité, tendances, win rates, match-ups, meilleurs pilotes et decks émergents.</p>
   </div>
-  <div class="v2-periods" data-meta-periods>
+  <div class="competitive-periods" data-meta-periods>
     <button type="button" data-period="7d">7 jours</button>
     <button type="button" data-period="30d" class="active">30 jours</button>
     <button type="button" data-period="season">Saison</button>
@@ -18,26 +18,26 @@
   </div>
 </section>
 
-<section class="v2-metrics" data-meta-summary aria-live="polite">
+<section class="competitive-metrics" data-meta-summary aria-live="polite">
   <article><span>Decks</span><strong>—</strong></article>
   <article><span>Matchs</span><strong>—</strong></article>
   <article><span>Format</span><strong>{{ selected_format or 'Tous' }}</strong></article>
 </section>
 
-<section class="v2-grid-two">
-  <article class="v2-panel">
-    <div class="v2-panel-title">
+<section class="competitive-grid-two">
+  <article class="competitive-panel">
+    <div class="competitive-panel-title">
       <div><span>🏆</span><h2>Podium de la période</h2></div>
       <small>Popularité · matchs · win rate</small>
     </div>
-    <div data-meta-podium class="v2-list"></div>
+    <div data-meta-podium class="competitive-list"></div>
   </article>
-  <article class="v2-panel">
-    <div class="v2-panel-title">
+  <article class="competitive-panel">
+    <div class="competitive-panel-title">
       <div><span>🚀</span><h2>Decks émergents</h2></div>
       <small>Évolution par rapport à la période précédente</small>
     </div>
-    <div data-meta-emerging class="v2-list"></div>
+    <div data-meta-emerging class="competitive-list"></div>
   </article>
 </section>
 
@@ -90,7 +90,7 @@
         <div><strong>{{ item.wins }}</strong><span>victoires</span></div>
         <div><strong>{{ item.losses + item.double_losses }}</strong><span>défaites</span></div>
       </div>
-      <div class="v2-card-insights" data-meta-deck="{{ item.deck }}"></div>
+      <div class="competitive-card-insights" data-meta-deck="{{ item.deck }}"></div>
       <div class="archetype-actions">
         <a href="/archetypes/{{ item.slug }}{% if selected_format %}?format={{ selected_format }}{% endif %}">Voir la fiche</a>
         <span>/artwork propose</span>
