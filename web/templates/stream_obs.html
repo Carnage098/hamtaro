@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}OBS Hamtaro Live{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/hamtaro_live.css">
+{% if match %}
+<section class="obs-stage">
+  <header>
+    <strong>HAMTARO LIVE</strong>
+    <span>🔴 MATCH VEDETTE · {{ match.tournament_format }}</span>
+  </header>
+  <div class="watch-grid" data-live-viewer data-kind="{{ stream_kind }}" data-match-id="{{ match.id }}">
+    <article>
+      <div class="video-shell"><video autoplay playsinline muted data-live-video="1"></video><div class="video-placeholder" data-live-placeholder="1">Écran J1</div></div>
+      <div class="watch-player"><strong>{{ match.player1_name }}</strong><span>{{ match.player1_deck or '' }}</span></div>
+    </article>
+    <article>
+      <div class="video-shell"><video autoplay playsinline muted data-live-video="2"></video><div class="video-placeholder" data-live-placeholder="2">Écran J2</div></div>
+      <div class="watch-player"><strong>{{ match.player2_name }}</strong><span>{{ match.player2_deck or '' }}</span></div>
+    </article>
+  </div>
+  <footer><span>{{ match.player1_score or 0 }}</span><strong>{{ match.player1_name }} · VS · {{ match.player2_name }}</strong><span>{{ match.player2_score or 0 }}</span></footer>
+</section>
+<script src="/static/hamtaro_live.js" defer></script>
+{% else %}
+<section class="obs-stage obs-empty">Aucun match vedette diffusé.</section>
+{% endif %}
+{% endblock %}

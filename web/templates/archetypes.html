@@ -1,19 +1,44 @@
 {% extends "base.html" %}
-{% block title %}Archétypes & Méta · Hamtaro{% endblock %}
+{% block title %}Meta Center · Hamtaro{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/archetypes.css">
+<link rel="stylesheet" href="/static/competitive_v2.css">
 
-<section class="archetype-hero">
+<section class="v2-hero">
   <div>
-    <span class="archetype-kicker">HAMTARO META</span>
-    <h1>Archétypes du serveur</h1>
-    <p>Popularité, joueurs, résultats et win rates calculés à partir des matchs validés par Hamtaro.</p>
+    <span class="v2-kicker">HAMTARO META CENTER V2</span>
+    <h1>Méta & Archétypes</h1>
+    <p>Popularité, tendances, win rates, match-ups, meilleurs pilotes et decks émergents.</p>
   </div>
-  <div class="archetype-summary">
-    <div><strong>{{ archetypes|length }}</strong><span>decks joués</span></div>
-    <div><strong>{{ total_players }}</strong><span>joueurs</span></div>
-    <div><strong>{{ total_matches }}</strong><span>matchs comptés</span></div>
+  <div class="v2-periods" data-meta-periods>
+    <button type="button" data-period="7d">7 jours</button>
+    <button type="button" data-period="30d" class="active">30 jours</button>
+    <button type="button" data-period="season">Saison</button>
+    <button type="button" data-period="all">Historique</button>
   </div>
+</section>
+
+<section class="v2-metrics" data-meta-summary aria-live="polite">
+  <article><span>Decks</span><strong>—</strong></article>
+  <article><span>Matchs</span><strong>—</strong></article>
+  <article><span>Format</span><strong>{{ selected_format or 'Tous' }}</strong></article>
+</section>
+
+<section class="v2-grid-two">
+  <article class="v2-panel">
+    <div class="v2-panel-title">
+      <div><span>🏆</span><h2>Podium de la période</h2></div>
+      <small>Popularité · matchs · win rate</small>
+    </div>
+    <div data-meta-podium class="v2-list"></div>
+  </article>
+  <article class="v2-panel">
+    <div class="v2-panel-title">
+      <div><span>🚀</span><h2>Decks émergents</h2></div>
+      <small>Évolution par rapport à la période précédente</small>
+    </div>
+    <div data-meta-emerging class="v2-list"></div>
+  </article>
 </section>
 
 <form class="archetype-toolbar" action="/archetypes" method="get">
@@ -46,7 +71,7 @@
 {% if archetypes %}
 <section class="archetype-grid">
   {% for item in archetypes %}
-  <article class="archetype-card">
+  <article class="archetype-card" data-deck-name="{{ item.deck }}">
     <a class="archetype-art" href="/archetypes/{{ item.slug }}{% if selected_format %}?format={{ selected_format }}{% endif %}">
       <img src="{{ item.artwork.image_url }}" alt="Artwork {{ item.artwork.card_name or item.deck }}" loading="lazy" onerror="this.onerror=null;this.src='/static/hamtaro-pancarte-fin.png';">
       <span class="artwork-source {{ item.artwork.source }}">
@@ -65,12 +90,10 @@
         <div><strong>{{ item.wins }}</strong><span>victoires</span></div>
         <div><strong>{{ item.losses + item.double_losses }}</strong><span>défaites</span></div>
       </div>
-      {% if item.artwork.source == 'community' and item.artwork.submitted_name %}
-        <p class="community-credit">Proposé par {{ item.artwork.submitted_name }}</p>
-      {% endif %}
+      <div class="v2-card-insights" data-meta-deck="{{ item.deck }}"></div>
       <div class="archetype-actions">
         <a href="/archetypes/{{ item.slug }}{% if selected_format %}?format={{ selected_format }}{% endif %}">Voir la fiche</a>
-        <span title="Commande Discord">/artwork propose</span>
+        <span>/artwork propose</span>
       </div>
     </div>
   </article>
@@ -79,7 +102,7 @@
 {% else %}
 <section class="archetype-empty">
   <h2>Aucun deck trouvé</h2>
-  <p>Modifie les filtres ou attends que des decks soient enregistrés dans un tournoi Hamtaro.</p>
+  <p>Modifie les filtres ou attends les prochaines inscriptions Hamtaro.</p>
 </section>
 {% endif %}
 {% endblock %}
