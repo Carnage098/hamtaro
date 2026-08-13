@@ -84,13 +84,33 @@ REQUIRED_COGS = (
     "cogs.casual_results_plus",
     "cogs.community_tools",
     "cogs.tournament_start_preview",
-    "cogs.archetype_artworks",
+    "cogs.tournament_manage",
+    "cogs.archetype_catalog",
 )
 
 OPTIONAL_COGS = (
+    "cogs.archetype_artworks",
     "cogs.graphics_preview",
     "cogs.swiss_graphics",
 )
+
+
+# Commandes remplacées par les parcours modernes Hamtaro.
+# Elles sont retirées de l'arbre AVANT chaque synchronisation afin que Discord
+# supprime aussi les anciennes versions restées en cache sur le serveur.
+RETIRED_APPLICATION_COMMANDS = {
+    "tournament_select",
+    "tournament_current",
+    "tournament_unselect",
+    "checkin",
+    "uncheckin",
+    "report_result",
+    "swiss_result",
+    "change_tournament_format",
+    "change_tournament_capacity",
+    "pause_tournament",
+    "resume_tournament",
+}
 
 
 def interaction_name(interaction: discord.Interaction) -> str:
@@ -210,14 +230,64 @@ class HamtaroBot(commands.Bot):
                 ", ".join(required_failures),
             )
 
+    def _drop_retired_application_commands(self) -> None:
+        removed: list[str] = []
+        for name in sorted(RETIRED_APPLICATION_COMMANDS):
+            command = self.tree.get_command(name)
+            if command is None:
+                continue
+            self.tree.remove_command(
+                name,
+                type=discord.AppCommandType.chat_input,
+            )
+            removed.append(name)
+
+        if removed:
+            LOGGER.info(
+                "Commandes obsolètes retirées de l'arbre : %s",
+                ", ".join(removed),
+            )
+
+    async def _clear_remote_global_commands_preserving_tree(self) -> None:
+        """Supprime les anciennes commandes globales sans perdre l'arbre local.
+
+        Quand Hamtaro fonctionne en synchronisation de serveur, d'anciennes
+        commandes globales peuvent rester visibles en plus des commandes du
+        serveur. Discord affiche alors des doublons. On synchronise donc une
+        fois un arbre global vide, puis on restaure immédiatement les objets
+        locaux avant de publier l'arbre propre au serveur.
+        """
+        snapshot = list(self.tree.get_commands())
+        if not snapshot:
+            return
+
+        self.tree.clear_commands(guild=None)
+        try:
+            removed = await self.tree.sync()
+            LOGGER.info(
+                "Ancien arbre global nettoyé (%s commande(s) distante(s) restante(s)).",
+                len(removed),
+            )
+        finally:
+            for command in snapshot:
+                self.tree.add_command(command)
+
     async def _sync_application_commands(self) -> None:
+        self._drop_retired_application_commands()
         performed = False
 
         if SYNC_GUILD_COMMANDS:
             if GUILD_ID.isdigit():
+                if not SYNC_GLOBAL_COMMANDS:
+                    await self._clear_remote_global_commands_preserving_tree()
                 guild = discord.Object(id=int(GUILD_ID))
                 started = time.perf_counter()
+
+                # Nettoyage réel côté Discord : un sync de l'arbre guild vide
+                # retire les anciennes commandes locales / doublons, puis on
+                # republie exactement l'arbre global actuellement chargé.
                 self.tree.clear_commands(guild=guild)
+                await self.tree.sync(guild=guild)
                 self.tree.copy_global_to(guild=guild)
                 commands_synced = await self.tree.sync(guild=guild)
                 LOGGER.info(

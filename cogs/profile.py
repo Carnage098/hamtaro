@@ -94,6 +94,25 @@ class ProfileView(discord.ui.View):
             if summary.best_deck and summary.best_deck_win_rate is not None
             else "Pas assez de matchs"
         )
+        formats = ", ".join(summary.formats_played) if summary.formats_played else "Aucun"
+        embed.add_field(
+            name="⚔️ Parcours de duel",
+            value=(
+                f"BO joués : **{summary.bo_played}**\n"
+                f"Phases à élimination : **{summary.bracket_wins}/{summary.bracket_matches} victoire(s)**\n"
+                f"Rondes suisses : **{summary.swiss_wins}/{summary.swiss_matches} victoire(s)**\n"
+                f"Adversaires différents : **{summary.unique_opponents}**"
+            ),
+            inline=True,
+        )
+        embed.add_field(
+            name="🧭 Formats et adversaires",
+            value=(
+                f"Formats joués : **{formats}**\n"
+                f"Adversaire le plus rencontré : **{summary.most_faced_opponent or 'Aucun'}**"
+            ),
+            inline=True,
+        )
         embed.add_field(
             name="🎴 Decks",
             value=(
@@ -132,14 +151,13 @@ class ProfileView(discord.ui.View):
             else:
                 result = "❌ Défaite"
             score = f"{match.get('player1_score', 0)}-{match.get('player2_score', 0)}"
-            system = "🇨🇭" if match.get("match_kind") == "swiss" else "🌳"
             round_name = (
                 f"Ronde {match.get('round_number')} · Table {match.get('table_number')}"
                 if match.get("match_kind") == "swiss"
-                else f"Round {match.get('round_number')} · Match {match.get('table_number')}"
+                else f"Phase {match.get('round_number')} · Match {match.get('table_number')}"
             )
             lines.append(
-                f"{system} **{match.get('tournament_name', 'Tournoi')}** "
+                f"⚔️ **{match.get('tournament_name', 'Tournoi')}** "
                 f"`{match.get('tournament_code', '?')}`\n"
                 f"{result} contre **{opponent}** · `{score}` · {round_name}"
             )

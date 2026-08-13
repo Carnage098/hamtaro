@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections import Counter
+import re
+import unicodedata
 from typing import Any
 
 from services.competitive_service import CompetitiveService, MIN_OFFICIAL_GAMES
@@ -34,6 +36,15 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return float(value or 0.0)
     except (TypeError, ValueError):
         return default
+
+
+def _deck_identity_key(value: Any) -> str:
+    """Clé tolérante pour rattacher une inscription à une fiche archétype."""
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    text = text.casefold().replace("&", " and ")
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return " ".join(text.split())
 
 
 class SiteExperienceService:
@@ -140,21 +151,18 @@ class SiteExperienceService:
                         else ""
                     )
                     status_filter = (
-                    """
-                      AND m.status IN (
-                          'waiting',
-                          'playing',
-                          'pending',
-                          'scheduled',
-                          'in_progress',
-                          'reported',
-                          'pending_validation',
-                          'validation'
-                      )
-                    """
-                    if "status" in match_columns
-                    else ""
-                )
+                        """
+                          AND m.status IN (
+                              'waiting',
+                              'playing',
+                              'reported',
+                              'pending_validation',
+                              'validation'
+                          )
+                        """
+                        if "status" in match_columns
+                        else ""
+                    )
                     order_date_sql = (
                         "COALESCE(m.reported_at, m.created_at)"
                         if {
@@ -949,13 +957,14 @@ class SiteExperienceService:
         actual_match_keys: set[str] = set()
         aggregate: dict[tuple[str, str], dict[str, Any]] = {}
         registration_deck: dict[tuple[int, str], tuple[str, str]] = {}
+        catalog_metadata: dict[str, dict[str, Any]] = {}
 
         def ensure_entry(
             deck_name: str,
             tournament_format: str,
         ) -> tuple[tuple[str, str], dict[str, Any]]:
             key = (
-                " ".join(deck_name.split()).casefold(),
+                _deck_identity_key(deck_name),
                 " ".join(tournament_format.split()).casefold(),
             )
             entry = aggregate.get(key)
@@ -1112,6 +1121,48 @@ class SiteExperienceService:
                     if str(row["format"] or "").strip()
                 ]
 
+                # Les fiches du catalogue existent indépendamment des inscriptions.
+                # Un deck joué plus tard est rattaché par sa clé normalisée.
+                if await table_exists(db, "archetype_catalog") and not tournament_id:
+                    catalog_conditions = ["guild_id=?"]
+                    catalog_parameters: list[Any] = [guild_id]
+                    if selected_format:
+                        catalog_conditions.append(
+                            "(format IS NULL OR TRIM(format)='' OR LOWER(TRIM(format))=LOWER(TRIM(?)))"
+                        )
+                        catalog_parameters.append(selected_format)
+                    catalog_rows = await (
+                        await db.execute(
+                            f"""
+                            SELECT name, normalized_name, description, playstyle,
+                                   format, artwork_url
+                            FROM archetype_catalog
+                            WHERE {' AND '.join(catalog_conditions)}
+                            ORDER BY LOWER(name)
+                            """,
+                            tuple(catalog_parameters),
+                        )
+                    ).fetchall()
+                    for catalog_row in catalog_rows:
+                        catalog = dict(catalog_row)
+                        normalized = str(catalog.get("normalized_name") or "").strip()
+                        if not normalized:
+                            normalized = _deck_identity_key(catalog.get("name"))
+                        catalog_metadata[normalized] = catalog
+                        catalog_format = str(
+                            catalog.get("format") or selected_format or "Général"
+                        ).strip() or "Général"
+                        if catalog_format not in formats:
+                            formats.append(catalog_format)
+                        if not any(key[0] == normalized for key in aggregate):
+                            _, catalog_entry = ensure_entry(
+                                str(catalog.get("name") or "Archétype"),
+                                catalog_format,
+                            )
+                            catalog_entry["_catalog_only"] = True
+
+                formats.sort(key=str.casefold)
+
                 common_conditions = ["t.guild_id=?"]
                 common_parameters: list[Any] = [guild_id]
                 if selected_format:
@@ -1245,6 +1296,7 @@ class SiteExperienceService:
             format_names: Counter[str] = entry.pop("_formats")
             player_ids: set[str] = entry.pop("_players")
             tournament_ids: set[int] = entry.pop("_tournaments")
+            catalog_only = bool(entry.pop("_catalog_only", False))
 
             deck_name = sorted(
                 names.items(),
@@ -1263,6 +1315,14 @@ class SiteExperienceService:
             if matches < minimum_matches:
                 continue
 
+            catalog = catalog_metadata.get(_deck_identity_key(deck_name), {})
+            # La fiche du catalogue devient l'identité canonique : les variantes
+            # d'écriture saisies par les joueurs (accents, tirets, casse...) sont
+            # regroupées sous le nom officiel défini par le staff.
+            if catalog.get("name"):
+                deck_name = str(catalog["name"])
+            if catalog.get("format"):
+                tournament_format = str(catalog["format"])
             all_players.update(player_ids)
             total_appearances += appearances
             decks.append(
@@ -1280,7 +1340,12 @@ class SiteExperienceService:
                         if matches
                         else 0.0
                     ),
-                    "sample_warning": matches < 5,
+                    "sample_warning": matches < 5 and matches > 0,
+                    "catalog_only": catalog_only and appearances == 0,
+                    "catalog_description": catalog.get("description"),
+                    "catalog_playstyle": catalog.get("playstyle"),
+                    "catalog_artwork_url": catalog.get("artwork_url"),
+                    "catalog_format": catalog.get("format"),
                 }
             )
 
