@@ -1,8 +1,206 @@
 {% extends "base.html" %}
 
 {% block title %}{{ tournament.name }} — Hamtaro{% endblock %}
-
 {% block content %}
+
+<style>
+    .champion-ceremony {
+        position: relative;
+        margin: 0 0 42px;
+        overflow: hidden;
+        border: 1px solid rgba(240, 199, 94, 0.44);
+        border-radius: 26px;
+        background:
+            radial-gradient(
+                circle at 42% 15%,
+                rgba(240, 199, 94, 0.22),
+                transparent 34%
+            ),
+            linear-gradient(
+                135deg,
+                rgba(31, 23, 10, 0.98),
+                rgba(16, 20, 34, 0.98)
+            );
+        box-shadow:
+            0 28px 90px rgba(0, 0, 0, 0.32),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+    }
+
+    .champion-ceremony::before,
+    .champion-ceremony::after {
+        position: absolute;
+        color: rgba(240, 199, 94, 0.13);
+        font-size: clamp(80px, 12vw, 180px);
+        line-height: 1;
+        content: "✦";
+        pointer-events: none;
+    }
+
+    .champion-ceremony::before {
+        top: -40px;
+        left: 3%;
+    }
+
+    .champion-ceremony::after {
+        right: 4%;
+        bottom: -60px;
+    }
+
+    .champion-ceremony-stage {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns:
+            minmax(140px, 0.55fr)
+            auto
+            minmax(260px, 1.45fr);
+        align-items: center;
+        gap: clamp(24px, 5vw, 68px);
+        min-height: 250px;
+        padding: clamp(28px, 5vw, 56px);
+    }
+
+    .champion-hamtaro {
+        display: grid;
+        justify-items: center;
+        gap: 12px;
+    }
+
+    .champion-hamtaro-avatar,
+    .champion-hamtaro-fallback {
+        width: clamp(100px, 12vw, 150px);
+        height: clamp(100px, 12vw, 150px);
+        border: 4px solid rgba(240, 199, 94, 0.82);
+        border-radius: 50%;
+        background: #15110a;
+        box-shadow:
+            0 0 0 8px rgba(240, 199, 94, 0.08),
+            0 20px 55px rgba(0, 0, 0, 0.38);
+    }
+
+    .champion-hamtaro-avatar {
+        display: block;
+        object-fit: cover;
+    }
+
+    .champion-hamtaro-fallback {
+        display: grid;
+        place-items: center;
+        font-size: 64px;
+    }
+
+    .champion-hamtaro-label {
+        color: #f0c75e;
+        font-size: 11px;
+        font-weight: 950;
+        letter-spacing: 0.18em;
+    }
+
+    .champion-trophy-transfer {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        filter: drop-shadow(
+            0 10px 20px rgba(240, 199, 94, 0.22)
+        );
+    }
+
+    .champion-trophy {
+        font-size: clamp(54px, 7vw, 88px);
+        animation:
+            champion-trophy-float 2.8s ease-in-out infinite;
+    }
+
+    .champion-arrow {
+        color: rgba(255, 255, 255, 0.72);
+        font-size: clamp(26px, 4vw, 44px);
+    }
+
+    .champion-spark {
+        color: #f0c75e;
+        font-size: 24px;
+        animation: champion-spark 1.8s ease-in-out infinite;
+    }
+
+    .champion-winner {
+        min-width: 0;
+    }
+
+    .champion-winner .eyebrow {
+        margin-bottom: 12px;
+    }
+
+    .champion-winner-name {
+        display: block;
+        overflow-wrap: anywhere;
+        color: #fff4c7;
+        font-size: clamp(36px, 6vw, 76px);
+        font-weight: 950;
+        line-height: 0.98;
+        letter-spacing: -0.045em;
+        text-decoration: none;
+        text-shadow:
+            0 12px 34px rgba(240, 199, 94, 0.18);
+    }
+
+    a.champion-winner-name:hover {
+        color: #ffffff;
+    }
+
+    .champion-winner-copy {
+        margin: 18px 0 0;
+        color: var(--muted, #b9b9c8);
+        font-size: clamp(14px, 1.6vw, 18px);
+        line-height: 1.5;
+    }
+
+    @keyframes champion-trophy-float {
+        0%, 100% {
+            transform: translateY(0) rotate(-2deg);
+        }
+
+        50% {
+            transform: translateY(-8px) rotate(2deg);
+        }
+    }
+
+    @keyframes champion-spark {
+        0%, 100% {
+            opacity: 0.45;
+            transform: scale(0.82);
+        }
+
+        50% {
+            opacity: 1;
+            transform: scale(1.12);
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .champion-trophy,
+        .champion-spark {
+            animation: none;
+        }
+    }
+
+    @media (max-width: 760px) {
+        .champion-ceremony-stage {
+            grid-template-columns: 1fr;
+            justify-items: center;
+            gap: 18px;
+            text-align: center;
+        }
+
+        .champion-trophy-transfer {
+            transform: rotate(90deg);
+        }
+
+        .champion-winner-copy {
+            max-width: 32rem;
+        }
+    }
+</style>
+
 <section class="tournament-hero">
     <div>
         <p class="eyebrow">
@@ -15,11 +213,82 @@
             · {{ tournament.participant_count or 0 }} participants
         </p>
     </div>
-
     <span class="status status-{{ tournament.status | lower }}">
         {{ tournament.status or "inconnu" }}
     </span>
 </section>
+
+{% set tournament_status = (tournament.status or "") | lower %}
+{% if
+    tournament.winner_name
+    and tournament_status in [
+        "finished",
+        "completed",
+        "ended",
+        "closed",
+        "archived"
+    ]
+%}
+<section
+    class="champion-ceremony"
+    aria-label="Cérémonie du vainqueur"
+>
+    <div class="champion-ceremony-stage">
+        <div class="champion-hamtaro">
+            {% if bot_avatar_url %}
+            <img
+                src="{{ bot_avatar_url }}"
+                alt="Hamtaro"
+                class="champion-hamtaro-avatar"
+            >
+            {% else %}
+            <div
+                class="champion-hamtaro-fallback"
+                aria-hidden="true"
+            >
+                🐹
+            </div>
+            {% endif %}
+            <span class="champion-hamtaro-label">
+                HAMTARO
+            </span>
+        </div>
+
+        <div
+            class="champion-trophy-transfer"
+            aria-hidden="true"
+        >
+            <span class="champion-spark">✦</span>
+            <span class="champion-trophy">🏆</span>
+            <span class="champion-arrow">➜</span>
+        </div>
+
+        <div class="champion-winner">
+            <p class="eyebrow">
+                CHAMPION DU TOURNOI
+            </p>
+
+            {% if tournament.winner_id %}
+            <a
+                class="champion-winner-name"
+                href="/players/{{ tournament.winner_id }}"
+            >
+                {{ tournament.winner_name }}
+            </a>
+            {% else %}
+            <strong class="champion-winner-name">
+                {{ tournament.winner_name }}
+            </strong>
+            {% endif %}
+
+            <p class="champion-winner-copy">
+                Hamtaro remet officiellement le trophée
+                au vainqueur de {{ tournament.name }}.
+            </p>
+        </div>
+    </div>
+</section>
+{% endif %}
 
 <section class="content-section">
     <div class="section-heading">
@@ -27,7 +296,6 @@
             <p class="eyebrow">IMAGE OFFICIELLE</p>
             <h2>Bracket du tournoi</h2>
         </div>
-
         {% if bracket_version %}
         <a
             class="primary-button"
@@ -52,7 +320,6 @@
             alt="Bracket officiel du tournoi {{ tournament.name }}"
         >
     </div>
-
     <p class="refresh-note">
         L'image se vérifie automatiquement toutes les 30 secondes.
     </p>
@@ -106,7 +373,9 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="4">Aucun participant enregistré.</td>
+                        <td colspan="4">
+                            Aucun participant enregistré.
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -126,7 +395,9 @@
             {% for result in tournament.results %}
             <div class="result-item">
                 <div>
-                    <small>Ronde {{ result.round or "?" }}</small>
+                    <small>
+                        Ronde {{ result.round or "?" }}
+                    </small>
                     <strong>
                         {{ result.player1_name or "À déterminer" }}
                         <span>vs</span>
