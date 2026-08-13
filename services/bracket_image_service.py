@@ -768,7 +768,7 @@ class RoundGeometry:
 
 class BracketImageService:
     """
-    Génère les images PNG HD utilisées par — version V14 :
+    Génère les images PNG HD utilisées par — version V16 multi-capacités :
     
     - /bracket ;
     - /final_bracket ;
@@ -2507,12 +2507,15 @@ class BracketImageService:
         )
     
         if final_mode:
+            final_ratio_method = getattr(
+                self.theme,
+                "final_mode_vertical_ratio",
+                None,
+            )
             configured_final_ratio = float(
-                getattr(
-                    self.theme,
-                    "final_mode_vertical_ratio_64",
-                    0.275 if player_capacity == 64 else 0.285,
-                )
+                final_ratio_method(player_capacity)
+                if callable(final_ratio_method)
+                else (0.275 if player_capacity == 64 else 0.285)
             )
             configured_final_ratio = max(0.22, min(0.36, configured_final_ratio))
             final_y = max(
@@ -2655,7 +2658,7 @@ class BracketImageService:
                 geometries[round_number].width
                 for round_number in round_order
             )
-            minimum_gap = max(
+            configured_minimum_gap = max(
                 0,
                 int(
                     getattr(
@@ -2665,6 +2668,16 @@ class BracketImageService:
                     )
                 ),
             )
+
+            # V16 : le bracket en direct bénéficie lui aussi du placement
+            # bord-à-bord utilisé par la maquette 64 joueurs. En mode actif
+            # on accepte un interstice plus compact afin de conserver des
+            # cartes lisibles sur 8/16/32 joueurs sans chevauchement.
+            minimum_gap = (
+                configured_minimum_gap
+                if final_mode
+                else max(4, configured_minimum_gap // 3)
+            )
             required_width = (
                 total_card_width
                 + minimum_gap
@@ -2672,8 +2685,7 @@ class BracketImageService:
             )
 
             use_edge_aware_spacing = (
-                final_mode
-                and spread_all_columns
+                spread_all_columns
                 and usable_left_width >= required_width
             )
 
@@ -3588,12 +3600,31 @@ class BracketImageService:
         logo_left = width // 2 - logo_width // 2
         available_title_width = max(260, logo_left - title_x - 28)
         number_label = f"#{tournament_id}"
+
+        # V16 : on réduit la police avant de tronquer. Les previews 2/4/8/16
+        # conservent ainsi le vrai nom du tournoi au lieu de "HAMT...".
+        minimum_title_size = 42
+        minimum_number_size = 38
+        while title_size > minimum_title_size:
+            title_font = self._font(title_size, bold=True, italic=True)
+            number_font = self._font(number_size, bold=True, italic=True)
+            number_width = self._text_width(draw, number_label, number_font)
+            title_limit = max(120, available_title_width - number_width - 20)
+            if self._text_width(draw, tournament_name, title_font) <= title_limit:
+                break
+            title_size -= 2
+            if number_size > minimum_number_size:
+                number_size -= 1
+
+        title_font = self._font(title_size, bold=True, italic=True)
+        number_font = self._font(number_size, bold=True, italic=True)
         number_width = self._text_width(draw, number_label, number_font)
+        title_limit = max(120, available_title_width - number_width - 20)
         tournament_name = self._fit_text(
             draw,
             tournament_name,
             title_font,
-            max(120, available_title_width - number_width - 20),
+            title_limit,
         )
 
         title_y = max(10, int(getattr(self.theme, "header_title_y", 14)) - 2)
@@ -3630,6 +3661,13 @@ class BracketImageService:
             f"FORMAT : {tournament_format}   |   "
             f"ELIMINATION DIRECTE   |   {player_capacity} JOUEURS"
         )
+        # Même principe pour la ligne de format : priorité à la lisibilité.
+        while (
+            subtitle_size > 16
+            and self._text_width(draw, metadata, subtitle_font) > available_title_width
+        ):
+            subtitle_size -= 1
+            subtitle_font = self._font(subtitle_size, bold=True)
         metadata = self._fit_text(draw, metadata, subtitle_font, available_title_width)
         metadata_y = min(
             header_height - subtitle_size - 14,
@@ -4094,9 +4132,6 @@ class BracketImageService:
                 )
             ),
         )
-
-        if player_capacity == 64 and image.width >= 2560:
-            main_width = max(3, main_width)
 
         middle_method = getattr(
             self.theme,
