@@ -1,14 +1,28 @@
 {
-  "description": "Carte représentante Hamtaro par défaut. Les clés peuvent être des archétypes purs ou des mixes exacts.",
+  "description": "Carte représentante Hamtaro par défaut. Le site récupère l'artwork recadré via YGOPRODeck puis le met en cache localement. Les joueurs peuvent proposer un remplacement validé par le staff.",
   "defaults": {
     "Blue-Eyes": "Blue-Eyes White Dragon",
+    "Blue Eyes": "Blue-Eyes White Dragon",
     "P.U.N.K.": "Noh-P.U.N.K. Ze Amin",
+    "PUNK": "Noh-P.U.N.K. Ze Amin",
     "Gold Pride": "Gold Pride - Leon",
     "P.U.N.K. / Gold Pride": "Gold Pride - Leon",
+    "PUNK / Gold Pride": "Gold Pride - Leon",
     "Fiendsmith": "Fiendsmith Engraver",
     "Toon": "Toon Dark Magician",
     "HERO": "Elemental HERO Stratos",
     "Dragon Ruler": "Blaster, Dragon Ruler of Infernos",
-    "TeleDAD": "Dark Armed Dragon"
+    "TeleDAD": "Dark Armed Dragon",
+    "Maliss": "Maliss <P> White Rabbit",
+    "Ryzeal": "Ice Ryzeal",
+    "Yubel": "Yubel",
+    "Snake-Eye": "Snake-Eye Ash",
+    "Tenpai Dragon": "Tenpai Dragon Paidra",
+    "Branded": "Fallen of Albaz",
+    "Kashtira": "Kashtira Fenrir",
+    "Labrynth": "Lovely Labrynth of the Silver Castle",
+    "Purrely": "Purrely",
+    "Sky Striker": "Sky Striker Ace - Raye",
+    "Swordsoul": "Swordsoul of Mo Ye"
   }
 }

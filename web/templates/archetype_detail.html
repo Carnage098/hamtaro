@@ -5,7 +5,7 @@
 
 <section class="archetype-detail-hero">
   <div class="detail-art">
-    <img src="{{ archetype.artwork.image_url }}" alt="Artwork {{ archetype.artwork.card_name or archetype.deck }}">
+    <img src="{{ archetype.artwork.image_url }}" alt="Artwork {{ archetype.artwork.card_name or archetype.deck }}" onerror="this.onerror=null;this.src='/static/hamtaro-pancarte-fin.png';">
   </div>
   <div class="detail-copy">
     <a class="back-link" href="/archetypes{% if selected_format %}?format={{ selected_format }}{% endif %}">← Retour à la méta</a>
