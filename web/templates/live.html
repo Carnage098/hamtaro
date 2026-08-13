@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Hamtaro Live{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/hamtaro_live.css">
+<section class="live-hero">
+  <div>
+    <span class="live-dot">●</span>
+    <span class="v2-kicker">HAMTARO LIVE</span>
+    <h1>Tournoi en direct</h1>
+    {% if center %}
+      <p>{{ center.tournament.name }} · {{ center.tournament.format }} · {{ center.progress.round and ('Ronde ' ~ center.progress.round) or 'En cours' }}</p>
+    {% else %}
+      <p>{{ error or "Aucun tournoi actif." }}</p>
+    {% endif %}
+  </div>
+  {% if center %}
+  <div class="live-progress">
+    <strong>{{ center.progress.percent }}%</strong>
+    <span>{{ center.progress.completed }}/{{ center.progress.total }} matchs terminés</span>
+    <div><i style="width: {{ center.progress.percent }}%"></i></div>
+  </div>
+  {% endif %}
+</section>
+
+{% if center %}
+  {% if center.featured and center.featured.match %}
+  {% set f = center.featured.match %}
+  <section class="featured-live">
+    <div class="featured-label">⭐ MATCH VEDETTE</div>
+    <div class="featured-row">
+      <div><strong>{{ f.player1_name or 'Joueur 1' }}</strong><span>{{ f.player1_deck or 'Deck non public' }}</span></div>
+      <div class="featured-score">{{ f.player1_score or 0 }} — {{ f.player2_score or 0 }}</div>
+      <div><strong>{{ f.player2_name or 'Joueur 2' }}</strong><span>{{ f.player2_deck or 'Deck non public' }}</span></div>
+    </div>
+    <a class="live-primary" href="/live/match/{{ center.featured.match_kind }}/{{ center.featured.match_id }}">Regarder le match</a>
+  </section>
+  {% endif %}
+
+  <section class="live-section">
+    <div class="v2-panel-title">
+      <div><span>🔴</span><h2>Matchs actuellement diffusés</h2></div>
+      <small>{{ center.live_matches|length }} table(s) disponible(s)</small>
+    </div>
+    <div class="live-grid">
+      {% for m in center.live_matches %}
+      <article class="live-match-card">
+        <div class="live-card-top">
+          <span class="live-status">● DIRECT</span>
+          <span>{{ m.kind|upper }} · Table {{ m.table_number or '?' }}</span>
+        </div>
+        <h3>{{ m.player1_name or '?' }} <span>vs</span> {{ m.player2_name or '?' }}</h3>
+        <p>{{ m.player1_deck or 'Deck ?' }} · {{ m.player2_deck or 'Deck ?' }}</p>
+        <div class="live-stream-state">
+          <span class="{{ 'on' if m.slot1_live else '' }}">Écran J1</span>
+          <span class="{{ 'on' if m.slot2_live else '' }}">Écran J2</span>
+        </div>
+        <a href="/live/match/{{ m.kind }}/{{ m.id }}">Ouvrir la table</a>
+      </article>
+      {% else %}
+      <article class="live-empty">Aucun joueur ne diffuse son écran actuellement.</article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="live-section">
+    <div class="v2-panel-title">
+      <div><span>🎮</span><h2>Toutes les tables</h2></div>
+      <small>Les flux ne sont chargés qu'après ouverture d'un match.</small>
+    </div>
+    <div class="live-table-list">
+      {% for m in center.matches %}
+      <a href="/live/match/{{ m.kind }}/{{ m.id }}">
+        <span>Table {{ m.table_number or '?' }} · R{{ m.round_number or '?' }}</span>
+        <strong>{{ m.player1_name or '?' }} vs {{ m.player2_name or '?' }}</strong>
+        <em>{{ '🔴 Direct' if m.is_live else ('✅ Terminé' if m.status in ['approved','validated','completed'] else '⚫ Non diffusé') }}</em>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

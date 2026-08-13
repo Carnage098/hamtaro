@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ match.player1_name }} vs {{ match.player2_name }} · Hamtaro Live{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/hamtaro_live.css">
+<section class="watch-header">
+  <div>
+    <span class="live-status">● DIRECT</span>
+    <h1>{{ match.player1_name or 'Joueur 1' }} vs {{ match.player2_name or 'Joueur 2' }}</h1>
+    <p>{{ match.tournament_name }} · {{ match.tournament_format }} · {{ stream_kind|upper }}</p>
+  </div>
+  <div class="watch-score">{{ match.player1_score or 0 }} — {{ match.player2_score or 0 }}</div>
+</section>
+<section class="watch-grid" data-live-viewer data-kind="{{ stream_kind }}" data-match-id="{{ match.id }}">
+  <article>
+    <div class="video-shell">
+      <video autoplay playsinline muted data-live-video="1"></video>
+      <div class="video-placeholder" data-live-placeholder="1">En attente du partage de {{ match.player1_name or 'Joueur 1' }}…</div>
+    </div>
+    <div class="watch-player">
+      <strong>{{ match.player1_name or 'Joueur 1' }}</strong>
+      <span>{{ match.player1_deck or 'Deck non public' }}</span>
+    </div>
+  </article>
+  <article>
+    <div class="video-shell">
+      <video autoplay playsinline muted data-live-video="2"></video>
+      <div class="video-placeholder" data-live-placeholder="2">En attente du partage de {{ match.player2_name or 'Joueur 2' }}…</div>
+    </div>
+    <div class="watch-player">
+      <strong>{{ match.player2_name or 'Joueur 2' }}</strong>
+      <span>{{ match.player2_deck or 'Deck non public' }}</span>
+    </div>
+  </article>
+</section>
+<p class="live-privacy">Les écrans sont partagés volontairement par les joueurs. Hamtaro ne démarre aucun partage sans leur action.</p>
+<script src="/static/hamtaro_live.js" defer></script>
+{% endblock %}
