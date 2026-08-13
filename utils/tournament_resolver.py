@@ -46,10 +46,25 @@ async def _tournament_from_match_thread(
 ) -> Any | None:
     """Résout le tournoi lié au fil Hamtaro courant.
 
-    Les fils créés par Hamtaro sont déjà reliés à un match et à un tournament_id
-    dans match_center_sessions. progression_match_publications sert de fallback
-    pour les anciens fils ou les publications créées avant le Match Center.
+    match_thread_context est la source centrale. match_center_sessions puis
+    progression_match_publications servent de fallback pour les anciens fils.
     """
+
+    if await _table_exists(db, "match_thread_context"):
+        row = await db.fetchone(
+            """
+            SELECT tournament_id
+            FROM match_thread_context
+            WHERE guild_id = ? AND thread_id = ?
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (str(guild_id), str(channel_id)),
+        )
+        if row is not None:
+            tournament = await db.get_tournament(int(row["tournament_id"]))
+            if tournament is not None:
+                return tournament
 
     if await _table_exists(db, "match_center_sessions"):
         row = await db.fetchone(

@@ -6,7 +6,7 @@ import json
 import zipfile
 from collections import Counter, defaultdict
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Iterable
 
 import aiosqlite
@@ -43,6 +43,14 @@ class PlayerSummary:
     most_used_deck: str | None
     best_deck: str | None
     best_deck_win_rate: float | None
+    bo_played: int
+    bracket_matches: int
+    bracket_wins: int
+    swiss_matches: int
+    swiss_wins: int
+    formats_played: tuple[str, ...]
+    unique_opponents: int
+    most_faced_opponent: str | None
 
 
 @dataclass(slots=True)
@@ -446,6 +454,54 @@ class AnalyticsService:
                     )
                 )
 
+            bracket_matches = sum(
+                self._result_for_player(match, player_id) not in {"BYE", "N"}
+                and str(match.get("match_kind") or "") == "bracket"
+                for match in matches
+            )
+            swiss_matches = sum(
+                self._result_for_player(match, player_id) not in {"BYE", "N"}
+                and str(match.get("match_kind") or "") == "swiss"
+                for match in matches
+            )
+            bracket_wins = sum(
+                self._result_for_player(match, player_id) == "W"
+                and str(match.get("match_kind") or "") == "bracket"
+                for match in matches
+            )
+            swiss_wins = sum(
+                self._result_for_player(match, player_id) == "W"
+                and str(match.get("match_kind") or "") == "swiss"
+                for match in matches
+            )
+            formats_played = tuple(
+                sorted(
+                    {
+                        str(match.get("tournament_format") or "").strip()
+                        for match in matches
+                        if str(match.get("tournament_format") or "").strip()
+                    },
+                    key=str.casefold,
+                )
+            )
+            opponents: Counter[str] = Counter()
+            for match in matches:
+                if self._safe_int(match.get("is_bye")) == 1:
+                    continue
+                if str(match.get("player1_id") or "") == player_id:
+                    opponent_id = str(match.get("player2_id") or "").strip()
+                    opponent_name = str(match.get("player2_name") or "Adversaire").strip()
+                else:
+                    opponent_id = str(match.get("player1_id") or "").strip()
+                    opponent_name = str(match.get("player1_name") or "Adversaire").strip()
+                if opponent_id:
+                    opponents[f"{opponent_id}\x1f{opponent_name}"] += 1
+            most_faced_opponent = None
+            if opponents:
+                opponent_key, opponent_count = opponents.most_common(1)[0]
+                opponent_name = opponent_key.split("\x1f", 1)[1]
+                most_faced_opponent = f"{opponent_name} ({opponent_count})"
+
             summary = PlayerSummary(
                 player_id=player_id,
                 username=identity["username"],
@@ -467,8 +523,83 @@ class AnalyticsService:
                 most_used_deck=most_used_deck,
                 best_deck=deck_display.get(best_deck_key) if best_deck_key else None,
                 best_deck_win_rate=best_deck_rate,
+                bo_played=match_count,
+                bracket_matches=bracket_matches,
+                bracket_wins=bracket_wins,
+                swiss_matches=swiss_matches,
+                swiss_wins=swiss_wins,
+                formats_played=formats_played,
+                unique_opponents=len(opponents),
+                most_faced_opponent=most_faced_opponent,
             )
             return summary, matches, deck_summaries
+
+    async def _ensure_player_stats_cache(self, db: aiosqlite.Connection) -> None:
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS player_stats_cache (
+                guild_id TEXT NOT NULL,
+                player_id TEXT NOT NULL,
+                summary_json TEXT NOT NULL,
+                recalculated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (guild_id, player_id)
+            )
+            """
+        )
+        await db.commit()
+
+    async def refresh_player_statistics(
+        self,
+        guild_id: str,
+        player_ids: Iterable[str] | None = None,
+    ) -> int:
+        """Recalcule et mémorise les statistiques officielles des joueurs.
+
+        Les résultats restent la source de vérité. Ce cache est reconstruit après
+        chaque validation et à la fin d'un tournoi pour éviter tout compteur figé.
+        """
+        cleaned = {str(player_id).strip() for player_id in (player_ids or []) if str(player_id).strip()}
+        async with self._connect() as db:
+            await self._ensure_player_stats_cache(db)
+            if not cleaned:
+                cursor = await db.execute(
+                    """
+                    SELECT DISTINCT r.discord_id
+                    FROM registrations r
+                    JOIN tournaments t ON t.id = r.tournament_id
+                    WHERE t.guild_id = ? AND r.discord_id IS NOT NULL
+                    """,
+                    (guild_id,),
+                )
+                cleaned = {str(row[0]) for row in await cursor.fetchall() if row[0]}
+
+        refreshed = 0
+        for player_id in sorted(cleaned):
+            fallback = f"Joueur {player_id}"
+            try:
+                summary, _, _ = await self.get_player_profile(
+                    guild_id=guild_id,
+                    player_id=player_id,
+                    fallback_name=fallback,
+                )
+            except Exception:
+                continue
+            payload = json.dumps(asdict(summary), ensure_ascii=False, sort_keys=True)
+            async with self._connect() as db:
+                await self._ensure_player_stats_cache(db)
+                await db.execute(
+                    """
+                    INSERT INTO player_stats_cache (guild_id, player_id, summary_json, recalculated_at)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(guild_id, player_id)
+                    DO UPDATE SET summary_json = excluded.summary_json,
+                                  recalculated_at = CURRENT_TIMESTAMP
+                    """,
+                    (guild_id, player_id, payload),
+                )
+                await db.commit()
+            refreshed += 1
+        return refreshed
 
     async def get_deck_statistics(
         self,

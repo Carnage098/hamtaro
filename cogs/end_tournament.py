@@ -857,6 +857,369 @@ class EndTournamentCog(commands.Cog):
             await db.commit()
 
     # ==========================================================
+    # NETTOYAGE ET FINALISATION MODERNE
+    # ==========================================================
+
+    async def _table_exists(self, table_name: str) -> bool:
+        database = getattr(self.bot, "db", None)
+        if database is None:
+            return False
+        row = await database.fetchone(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+            (table_name,),
+        )
+        return row is not None
+
+    async def _assert_results_are_frozen_ready(self, tournament_id: int) -> None:
+        database = getattr(self.bot, "db", None)
+        if database is None:
+            return
+        if await self._table_exists("result_requests"):
+            pending = int(
+                await database.fetchval(
+                    """
+                    SELECT COUNT(*) FROM result_requests
+                    WHERE tournament_id = ?
+                      AND status IN ('pending','confirmed','contested','processing')
+                    """,
+                    (tournament_id,),
+                )
+                or 0
+            )
+            if pending:
+                raise ValueError(
+                    f"{pending} résultat(s) sont encore en validation. "
+                    "Traite-les avant de terminer le tournoi."
+                )
+
+        # Une ronde suisse inachevée ne doit pas être figée par erreur.
+        if await self._table_exists("swiss_matches"):
+            pending_swiss = int(
+                await database.fetchval(
+                    """
+                    SELECT COUNT(*) FROM swiss_matches
+                    WHERE tournament_id = ?
+                      AND COALESCE(is_bye, 0) = 0
+                      AND LOWER(COALESCE(status, 'pending')) NOT IN (
+                          'approved','validated','completed','finished','cancelled'
+                      )
+                    """,
+                    (tournament_id,),
+                )
+                or 0
+            )
+            if pending_swiss:
+                raise ValueError(
+                    f"{pending_swiss} match(s) suisse(s) ne sont pas terminés."
+                )
+
+    async def _cleanup_tournament_runtime(self, tournament_id: int) -> dict[str, int]:
+        database = getattr(self.bot, "db", None)
+        if database is None:
+            return {"threads": 0, "panels": 0, "assistance": 0}
+
+        sessions: list[dict] = []
+        if await self._table_exists("match_center_sessions"):
+            sessions = [
+                dict(row)
+                for row in await database.fetchall(
+                    "SELECT * FROM match_center_sessions WHERE tournament_id = ?",
+                    (tournament_id,),
+                )
+            ]
+
+        thread_ids: set[str] = {
+            str(row.get("thread_id"))
+            for row in sessions
+            if row.get("thread_id")
+        }
+        if await self._table_exists("match_thread_context"):
+            rows = await database.fetchall(
+                "SELECT thread_id FROM match_thread_context WHERE tournament_id = ?",
+                (tournament_id,),
+            )
+            thread_ids.update(str(row["thread_id"]) for row in rows if row["thread_id"])
+        if await self._table_exists("progression_match_publications"):
+            rows = await database.fetchall(
+                "SELECT thread_id FROM progression_match_publications WHERE tournament_id = ?",
+                (tournament_id,),
+            )
+            thread_ids.update(str(row["thread_id"]) for row in rows if row["thread_id"])
+
+        panels = 0
+        match_center = self.bot.get_cog("MatchCenterCog")
+        if match_center is not None:
+            for row in sessions:
+                try:
+                    await match_center._refresh_panel(
+                        str(row["match_kind"]),
+                        int(row["match_id"]),
+                        disabled=True,
+                    )
+                    panels += 1
+                except Exception:
+                    pass
+
+        archived = 0
+        for thread_id in thread_ids:
+            try:
+                channel = self.bot.get_channel(int(thread_id))
+                if channel is None:
+                    channel = await self.bot.fetch_channel(int(thread_id))
+                if isinstance(channel, discord.Thread):
+                    try:
+                        await channel.send(
+                            "🏁 **Tournoi terminé.** Les résultats sont figés et ce fil est archivé."
+                        )
+                    except (discord.Forbidden, discord.HTTPException):
+                        pass
+                    await channel.edit(
+                        archived=True,
+                        locked=True,
+                        reason="Fin automatique du tournoi Hamtaro",
+                    )
+                    archived += 1
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException, ValueError):
+                continue
+
+        if await self._table_exists("match_center_sessions"):
+            await database.execute(
+                """
+                UPDATE match_center_sessions
+                SET status='completed', updated_at=CURRENT_TIMESTAMP
+                WHERE tournament_id = ?
+                """,
+                (tournament_id,),
+            )
+        assistance = 0
+        if await self._table_exists("staff_assistance_requests"):
+            cursor = await database.execute(
+                """
+                UPDATE staff_assistance_requests
+                SET status='resolved', resolution='Tournoi terminé automatiquement',
+                    resolved_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+                WHERE tournament_id = ? AND status IN ('open','claimed')
+                """,
+                (tournament_id,),
+            )
+            assistance = max(int(cursor.rowcount or 0), 0)
+        if await self._table_exists("tournament_runtime_state"):
+            await database.execute(
+                """
+                UPDATE tournament_runtime_state
+                SET status='finished', pause_started_at=NULL,
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE tournament_id = ?
+                """,
+                (tournament_id,),
+            )
+        await database.commit()
+        return {"threads": archived, "panels": panels, "assistance": assistance}
+
+    async def _refresh_tournament_profiles(self, guild_id: str, tournament_id: int) -> int:
+        database = getattr(self.bot, "db", None)
+        if database is None:
+            return 0
+        player_ids = [
+            str(row["discord_id"])
+            for row in await database.fetchall(
+                "SELECT discord_id FROM registrations WHERE tournament_id = ?",
+                (tournament_id,),
+            )
+            if row["discord_id"]
+        ]
+        try:
+            from services.analytics_service import AnalyticsService
+
+            return await AnalyticsService().refresh_player_statistics(
+                guild_id=guild_id,
+                player_ids=player_ids,
+            )
+        except Exception as error:
+            print(f"⚠️ Recalcul des profils à la fin du tournoi : {error}")
+            return 0
+
+    async def _swiss_final_top(self, tournament_id: int) -> list[dict]:
+        database = getattr(self.bot, "db", None)
+        if database is None or not hasattr(database, "get_swiss_standings"):
+            return []
+        try:
+            standings = await database.get_swiss_standings(tournament_id)
+        except Exception:
+            return []
+        output: list[dict] = []
+        for row in standings[:10]:
+            try:
+                output.append(dict(row))
+            except (TypeError, ValueError):
+                output.append(
+                    {
+                        "username": getattr(row, "username", "Joueur"),
+                        "points": getattr(row, "points", 0),
+                    }
+                )
+        return output
+
+    async def _complete_tournament(
+        self,
+        interaction: discord.Interaction,
+        tournament,
+        *,
+        manual_winner: Optional[discord.Member] = None,
+        other_threshold_percent: int = 5,
+    ) -> None:
+        tournament_id = int(tournament["id"])
+        tournament_name = tournament["name"]
+        guild_id = str(tournament["guild_id"])
+
+        await self._assert_results_are_frozen_ready(tournament_id)
+
+        (
+            has_bracket,
+            final_winner_id,
+            final_winner_name,
+        ) = await self._get_verified_bracket_winner(tournament_id)
+
+        winner_id: str | None = None
+        winner_name: str | None = None
+        if has_bracket:
+            winner_id = final_winner_id
+            winner_name = final_winner_name
+        elif manual_winner is not None:
+            winner_id = str(manual_winner.id)
+            winner_name = manual_winner.display_name
+        else:
+            winner_id, winner_name = await self._get_winner_from_tournament(tournament_id)
+            if winner_id is None:
+                winner_id, winner_name = await self._get_winner_from_final_match(tournament_id)
+            if winner_id is None:
+                swiss_preview = await self._swiss_final_top(tournament_id)
+                if swiss_preview:
+                    first = swiss_preview[0]
+                    winner_id = str(
+                        first.get("discord_id")
+                        or first.get("player_id")
+                        or first.get("id")
+                        or ""
+                    ) or None
+                    winner_name = str(
+                        first.get("username")
+                        or first.get("display_name")
+                        or first.get("player_name")
+                        or "Champion suisse"
+                    )
+
+        distribution = await self._get_deck_distribution(
+            tournament_id=tournament_id,
+            other_threshold_percent=other_threshold_percent,
+        )
+        chart_file = self._create_deck_pie_chart(
+            distribution=distribution,
+            tournament_name=tournament_name,
+        )
+
+        await self._finish_tournament(
+            tournament_id=tournament_id,
+            winner_id=winner_id,
+            winner_name=winner_name,
+        )
+        cleanup = await self._cleanup_tournament_runtime(tournament_id)
+        profiles = await self._refresh_tournament_profiles(guild_id, tournament_id)
+        swiss_top = await self._swiss_final_top(tournament_id)
+
+        embed = discord.Embed(
+            title="🏁 Tournoi terminé",
+            description=(
+                f"Le tournoi **{tournament_name}** est terminé. Les résultats sont figés, "
+                "les panneaux sont désactivés et les fils ont été archivés."
+            ),
+            color=discord.Color.gold(),
+        )
+        embed.add_field(name="Format", value=tournament["format"], inline=True)
+        embed.add_field(name="Code", value=f"`{tournament['code']}`", inline=True)
+        if winner_id is not None and winner_name is not None:
+            embed.add_field(name="Vainqueur", value=f"🏆 **{winner_name}**", inline=False)
+        else:
+            embed.add_field(name="Vainqueur", value="Non détecté automatiquement.", inline=False)
+
+        if distribution:
+            deck_lines = [
+                f"• **{item['deck']}** : {item['count']} joueur(s) — {item['percent']:.1f}%"
+                for item in distribution
+            ]
+            embed.add_field(
+                name="📊 Répartition des decks",
+                value="\n".join(deck_lines)[:1024],
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="📊 Répartition des decks",
+                value="Aucun deck renseigné pour ce tournoi.",
+                inline=False,
+            )
+
+        if swiss_top:
+            lines = []
+            for index, row in enumerate(swiss_top[:10], start=1):
+                name = row.get("username") or row.get("player_name") or row.get("display_name") or f"Joueur {index}"
+                points = row.get("points", row.get("score", 0))
+                lines.append(f"**{index}.** {name} — **{points} pt(s)**")
+            embed.add_field(name="🇨🇭 Classement final", value="\n".join(lines), inline=False)
+
+        embed.add_field(
+            name="🧹 Nettoyage automatique",
+            value=(
+                f"Fils archivés : **{cleanup['threads']}**\n"
+                f"Panneaux désactivés : **{cleanup['panels']}**\n"
+                f"Demandes staff clôturées : **{cleanup['assistance']}**\n"
+                f"Profils recalculés : **{profiles}**"
+            ),
+            inline=False,
+        )
+        embed.set_footer(
+            text=(
+                f"Les decks sous {other_threshold_percent}% sont regroupés dans Autres. "
+                "Hamtaro a figé l'état final du tournoi."
+            )
+        )
+
+        if chart_file is not None:
+            embed.set_image(url="attachment://deck_distribution.png")
+            await interaction.followup.send(embed=embed, file=chart_file, ephemeral=False)
+        else:
+            await interaction.followup.send(embed=embed, ephemeral=False)
+
+        if has_bracket:
+            try:
+                await self._publish_final_bracket(interaction, tournament_id)
+            except Exception as error:
+                await interaction.followup.send(
+                    "⚠️ Le tournoi est bien terminé, mais l'image du bracket final "
+                    f"n'a pas pu être publiée : `{type(error).__name__}: {error}`.",
+                    ephemeral=True,
+                )
+
+    async def finish_from_manage(
+        self,
+        interaction: discord.Interaction,
+        tournament_id: int,
+    ) -> None:
+        """Entrée utilisée par le bouton Terminer de /tournament_manage."""
+        await interaction.response.defer(ephemeral=False, thinking=True)
+        tournament = await self._get_tournament_for_end(
+            str(interaction.guild_id),
+            str(tournament_id),
+        )
+        if tournament is None:
+            await interaction.followup.send("❌ Tournoi introuvable.", ephemeral=True)
+            return
+        try:
+            await self._complete_tournament(interaction, tournament)
+        except ValueError as error:
+            await interaction.followup.send(f"❌ {error}", ephemeral=True)
+
+    # ==========================================================
     # COMMANDE END TOURNAMENT
     # ==========================================================
 
@@ -911,16 +1274,12 @@ class EndTournamentCog(commands.Cog):
             )
             return
 
-        tournament_id = int(tournament["id"])
-        tournament_name = tournament["name"]
-
         try:
-            (
-                has_bracket,
-                final_winner_id,
-                final_winner_name,
-            ) = await self._get_verified_bracket_winner(
-                tournament_id
+            await self._complete_tournament(
+                interaction,
+                tournament,
+                manual_winner=winner,
+                other_threshold_percent=other_threshold_percent,
             )
         except ValueError as error:
             await interaction.followup.send(
@@ -929,140 +1288,6 @@ class EndTournamentCog(commands.Cog):
             )
             return
 
-        winner_id: str | None = None
-        winner_name: str | None = None
-
-        if has_bracket:
-            # Le résultat officiel de la vraie finale est prioritaire.
-            winner_id = final_winner_id
-            winner_name = final_winner_name
-
-        elif winner is not None:
-            # Le paramètre manuel reste possible pour un tournoi sans bracket.
-            winner_id = str(winner.id)
-            winner_name = winner.display_name
-
-        else:
-            winner_id, winner_name = await self._get_winner_from_tournament(
-                tournament_id
-            )
-
-            if winner_id is None:
-                winner_id, winner_name = await self._get_winner_from_final_match(
-                    tournament_id
-                )
-
-        distribution = await self._get_deck_distribution(
-            tournament_id=tournament_id,
-            other_threshold_percent=other_threshold_percent,
-        )
-
-        chart_file = self._create_deck_pie_chart(
-            distribution=distribution,
-            tournament_name=tournament_name,
-        )
-
-        await self._finish_tournament(
-            tournament_id=tournament_id,
-            winner_id=winner_id,
-            winner_name=winner_name,
-        )
-
-        embed = discord.Embed(
-            title="🏁 Tournoi terminé",
-            description=f"Le tournoi **{tournament_name}** est maintenant terminé.",
-            color=discord.Color.gold(),
-        )
-
-        embed.add_field(
-            name="Format",
-            value=tournament["format"],
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Code",
-            value=f"`{tournament['code']}`",
-            inline=True,
-        )
-
-        if winner_id is not None and winner_name is not None:
-            embed.add_field(
-                name="Vainqueur",
-                value=f"🏆 **{winner_name}**",
-                inline=False,
-            )
-        else:
-            embed.add_field(
-                name="Vainqueur",
-                value="Non détecté automatiquement.",
-                inline=False,
-            )
-
-        if distribution:
-            deck_lines = []
-
-            for item in distribution:
-                deck_lines.append(
-                    f"• **{item['deck']}** : "
-                    f"{item['count']} joueur(s) — "
-                    f"{item['percent']:.1f}%"
-                )
-
-            embed.add_field(
-                name="📊 Répartition des decks",
-                value="\n".join(deck_lines),
-                inline=False,
-            )
-
-            embed.set_footer(
-                text=(
-                    f"Les decks sous {other_threshold_percent}% "
-                    "sont regroupés dans Autres."
-                )
-            )
-        else:
-            embed.add_field(
-                name="📊 Répartition des decks",
-                value="Aucun deck renseigné pour ce tournoi.",
-                inline=False,
-            )
-
-        if chart_file is not None:
-            embed.set_image(
-                url="attachment://deck_distribution.png"
-            )
-
-            await interaction.followup.send(
-                embed=embed,
-                file=chart_file,
-                ephemeral=False,
-            )
-        else:
-            await interaction.followup.send(
-                embed=embed,
-                ephemeral=False,
-            )
-
-        # Pour un bracket à élimination directe, on publie immédiatement
-        # la même affiche finale que /final_bracket.
-        if has_bracket:
-            try:
-                await self._publish_final_bracket(
-                    interaction,
-                    tournament_id,
-                )
-            except Exception as error:
-                await interaction.followup.send(
-                    (
-                        "⚠️ Le tournoi est terminé et le champion est bien "
-                        "enregistré, mais le bracket final n'a pas pu être "
-                        "envoyé automatiquement.\n"
-                        f"Erreur : `{type(error).__name__}: {error}`\n"
-                        "Tu peux réessayer avec `/final_bracket`."
-                    ),
-                    ephemeral=True,
-                )
 
 
 async def setup(bot: commands.Bot):

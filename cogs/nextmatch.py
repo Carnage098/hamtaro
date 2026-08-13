@@ -1,377 +1,246 @@
 from __future__ import annotations
 
-import aiosqlite
+from typing import Any
+
 import discord
-
-from discord.ext import commands
 from discord import app_commands
+from discord.ext import commands
 
-try:
-    from config import DATABASE
-except ImportError:
-    from database import DATABASE
+from services.match_context_service import MatchContextService
+
+
+def _phase_label(match: dict[str, Any]) -> str:
+    label = str(match.get("round_label") or "").strip()
+    if label:
+        return label.replace("Bracket — ", "").replace("Ronde suisse ", "Ronde ")
+    if match.get("table_number") is not None:
+        return f"Ronde {match.get('round_number', '?')} · Table {match.get('table_number', '?')}"
+    return f"Ronde {match.get('round_number', '?')}"
+
+
+class NextMatchSelect(discord.ui.Select):
+    def __init__(self, cog: "NextMatchCog", requester_id: int, matches: list[dict[str, Any]]) -> None:
+        self.cog = cog
+        self.requester_id = requester_id
+        self.matches = matches
+        options: list[discord.SelectOption] = []
+        for index, match in enumerate(matches[:25]):
+            options.append(
+                discord.SelectOption(
+                    label=str(match.get("tournament_name") or "Tournoi Hamtaro")[:100],
+                    description=(
+                        f"vs {match.get('opponent_name', 'Adversaire')} · {_phase_label(match)}"
+                    )[:100],
+                    value=str(index),
+                )
+            )
+        super().__init__(
+            placeholder="Choisir un de tes matchs",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.requester_id:
+            await interaction.response.send_message(
+                "❌ Ce menu appartient au joueur qui a lancé la commande.",
+                ephemeral=True,
+            )
+            return
+        match = self.matches[int(self.values[0])]
+        await interaction.response.edit_message(
+            embed=self.cog._embed(match, str(interaction.user.id)),
+            view=NextMatchView(self.cog, self.requester_id, match, self.matches),
+        )
+
+
+class NextMatchView(discord.ui.View):
+    def __init__(
+        self,
+        cog: "NextMatchCog",
+        requester_id: int,
+        match: dict[str, Any],
+        all_matches: list[dict[str, Any]],
+    ) -> None:
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.requester_id = requester_id
+        self.match = match
+        if len(all_matches) > 1:
+            self.add_item(NextMatchSelect(cog, requester_id, all_matches))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.requester_id:
+            await interaction.response.send_message(
+                "❌ Ce panneau ne correspond pas à ton match.",
+                ephemeral=True,
+            )
+            return False
+        return True
+
+    @discord.ui.button(
+        label="Déclarer le résultat",
+        emoji="✅",
+        style=discord.ButtonStyle.success,
+    )
+    async def result_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        results = self.cog.bot.get_cog("ResultsCog")
+        if results is None:
+            await interaction.response.send_message(
+                "❌ Le système de résultats n'est pas chargé.", ephemeral=True
+            )
+            return
+        await results.open_result_flow(
+            interaction,
+            match_kind=str(self.match["match_kind"]),
+            match_id=int(self.match["match_id"]),
+        )
 
 
 class NextMatchCog(commands.Cog):
-
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self.db = bot.db
+        self.contexts = MatchContextService(self.db)
 
-    def _guild_id(self, interaction: discord.Interaction) -> str:
-        if interaction.guild is None:
-            raise ValueError(
-                "Cette commande doit être utilisée dans un serveur."
+    async def cog_load(self) -> None:
+        await self.contexts.ensure_table()
+
+    def _embed(self, match: dict[str, Any], user_id: str) -> discord.Embed:
+        opponent = str(match.get("opponent_name") or "Adversaire")
+        if not match.get("opponent_name"):
+            opponent = (
+                str(match.get("player2_name") or "Adversaire")
+                if str(match.get("player1_id") or "") == user_id
+                else str(match.get("player1_name") or "Adversaire")
             )
 
-        return str(interaction.guild.id)
-
-    async def _get_active_tournament(
-        self,
-        guild_id: str,
-    ) -> aiosqlite.Row | None:
-
-        async with aiosqlite.connect(DATABASE) as db:
-            db.row_factory = aiosqlite.Row
-
-            cursor = await db.execute("""
-                SELECT *
-                FROM tournaments
-                WHERE guild_id = ?
-                AND status IN (
-                    'registration',
-                    'running'
-                )
-                ORDER BY created_at DESC
-                LIMIT 1
-            """, (guild_id,))
-
-            return await cursor.fetchone()
-
-    async def _get_next_bracket_match(
-        self,
-        tournament_id: int,
-        player_id: str,
-    ) -> aiosqlite.Row | None:
-
-        async with aiosqlite.connect(DATABASE) as db:
-            db.row_factory = aiosqlite.Row
-
-            cursor = await db.execute("""
-                SELECT *
-                FROM matches
-                WHERE tournament_id = ?
-                AND (
-                    player1_id = ?
-                    OR player2_id = ?
-                )
-                AND status IN (
-                    'waiting',
-                    'playing',
-                    'reported'
-                )
-                AND is_bye = 0
-                ORDER BY round ASC, match_number ASC, id ASC
-                LIMIT 1
-            """, (
-                tournament_id,
-                player_id,
-                player_id,
-            ))
-
-            return await cursor.fetchone()
-
-    async def _get_next_swiss_match(
-        self,
-        tournament_id: int,
-        player_id: str,
-    ) -> aiosqlite.Row | None:
-
-        async with aiosqlite.connect(DATABASE) as db:
-            db.row_factory = aiosqlite.Row
-
-            cursor = await db.execute("""
-                SELECT *
-                FROM swiss_matches
-                WHERE tournament_id = ?
-                AND (
-                    player1_id = ?
-                    OR player2_id = ?
-                )
-                AND status = 'pending'
-                ORDER BY round_number ASC, table_number ASC, id ASC
-                LIMIT 1
-            """, (
-                tournament_id,
-                player_id,
-                player_id,
-            ))
-
-            return await cursor.fetchone()
-
-    def _format_bracket_embed(
-        self,
-        tournament: aiosqlite.Row,
-        match: aiosqlite.Row,
-        player_id: str,
-        target: discord.abc.User,
-    ) -> discord.Embed:
-
-        player1_id = match["player1_id"]
-        player2_id = match["player2_id"]
-
-        player1_name = match["player1_name"] or "Joueur 1"
-        player2_name = match["player2_name"] or "Joueur 2"
-
-        if player_id == player1_id:
-            opponent_name = player2_name
-        else:
-            opponent_name = player1_name
-
         embed = discord.Embed(
-            title="⚔️ Prochain match",
-            description=f"Prochain match de {target.mention}",
-            color=discord.Color.blurple(),
+            title="🎯 Ton match Hamtaro",
+            color=discord.Color.gold(),
         )
-
         embed.add_field(
-            name="Tournoi",
-            value=f"**{tournament['name']}** `({tournament['code']})`",
+            name="🏟️ Tournoi",
+            value=(
+                f"**{match.get('tournament_name', 'Tournoi Hamtaro')}**\n"
+                f"`{match.get('tournament_code', '?')}`"
+            ),
             inline=False,
         )
-
+        tournament_format = str(match.get("tournament_format") or "").strip()
+        if tournament_format:
+            embed.add_field(name="🎴 Format", value=tournament_format, inline=True)
+        embed.add_field(name="🔄 Phase", value=_phase_label(match), inline=True)
+        embed.add_field(name="⚔️ Adversaire", value=f"**{opponent}**", inline=False)
         embed.add_field(
-            name="Format",
-            value=tournament["format"],
+            name="📍 État",
+            value=str(match.get("status") or "À jouer"),
             inline=True,
         )
-
-        embed.add_field(
-            name="Type",
-            value="Bracket classique",
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Round",
-            value=str(match["round"]),
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Match",
-            value=f"#{match['match_number']}",
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Adversaire",
-            value=opponent_name or "Adversaire à déterminer",
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Statut",
-            value=match["status"],
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Affiche",
-            value=f"**{player1_name}** VS **{player2_name}**",
-            inline=False,
-        )
-
         embed.set_footer(
-            text="Utilise /result pour déclarer le résultat du match."
+            text="Bracket ou Suisse : Hamtaro gère la différence automatiquement. Utilise /result à la fin."
         )
-
         return embed
 
-    def _format_swiss_embed(
-        self,
-        tournament: aiosqlite.Row,
-        match: aiosqlite.Row,
-        player_id: str,
-        target: discord.abc.User,
-    ) -> discord.Embed:
-
-        player1_id = match["player1_id"]
-
-        player1_name = match["player1_name"] or "Joueur 1"
-        player2_name = match["player2_name"] or "BYE"
-
-        is_bye = match["is_bye"]
-
-        if is_bye:
-            opponent_name = "BYE"
-        elif player_id == player1_id:
-            opponent_name = player2_name
-        else:
-            opponent_name = player1_name
-
-        embed = discord.Embed(
-            title="⚔️ Prochain match",
-            description=f"Prochain match de {target.mention}",
-            color=discord.Color.green(),
+    async def _thread_match(self, interaction: discord.Interaction) -> dict[str, Any] | None:
+        if interaction.guild is None or interaction.channel_id is None:
+            return None
+        context = await self.contexts.by_thread(
+            guild_id=str(interaction.guild.id),
+            thread_id=str(interaction.channel_id),
         )
-
-        embed.add_field(
-            name="Tournoi",
-            value=f"**{tournament['name']}** `({tournament['code']})`",
-            inline=False,
+        if context is None:
+            match_center = self.bot.get_cog("MatchCenterCog")
+            if match_center is not None:
+                try:
+                    context = await match_center.resolve_thread_match(
+                        guild_id=str(interaction.guild.id),
+                        thread_id=str(interaction.channel_id),
+                    )
+                except Exception:
+                    context = None
+        if context is None:
+            return None
+        user_id = str(interaction.user.id)
+        if user_id not in {
+            str(context.get("player1_id") or ""),
+            str(context.get("player2_id") or ""),
+        }:
+            return None
+        context["status"] = "Match de ce fil"
+        context["opponent_name"] = (
+            context.get("player2_name")
+            if str(context.get("player1_id") or "") == user_id
+            else context.get("player1_name")
         )
-
-        embed.add_field(
-            name="Format",
-            value=tournament["format"],
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Type",
-            value="Rondes suisses",
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Ronde",
-            value=str(match["round_number"]),
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Table",
-            value=str(match["table_number"]),
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Adversaire",
-            value=opponent_name,
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Statut",
-            value=match["status"],
-            inline=True,
-        )
-
-        embed.add_field(
-            name="Affiche",
-            value=f"**{player1_name}** VS **{player2_name}**",
-            inline=False,
-        )
-
-        if is_bye:
-            embed.set_footer(
-                text="Tu as un BYE pour cette ronde."
-            )
-        else:
-            embed.set_footer(
-                text="Utilise /swiss_result ou la commande de résultat prévue pour déclarer le score."
-            )
-
-        return embed
+        return context
 
     @app_commands.command(
         name="nextmatch",
-        description="Voir ton prochain match dans le tournoi actif"
+        description="Voir ton match Hamtaro sans choisir de tournoi ni de type",
     )
-    @app_commands.describe(
-        member="Joueur à consulter"
-    )
-    async def nextmatch(
-        self,
-        interaction: discord.Interaction,
-        member: discord.Member | None = None,
-    ):
+    async def nextmatch(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message("❌ Serveur requis.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
 
-        await interaction.response.defer(
-            ephemeral=True
+        current = await self._thread_match(interaction)
+        if current is not None:
+            await interaction.followup.send(
+                embed=self._embed(current, str(interaction.user.id)),
+                view=NextMatchView(self, interaction.user.id, current, [current]),
+                ephemeral=True,
+            )
+            return
+
+        results = self.bot.get_cog("ResultsCog")
+        if results is None:
+            await interaction.followup.send(
+                "❌ Le système de matchs n'est pas chargé.", ephemeral=True
+            )
+            return
+
+        matches = await results._list_player_open_matches(
+            guild_id=str(interaction.guild.id),
+            user_id=str(interaction.user.id),
         )
-
-        try:
-            guild_id = self._guild_id(interaction)
-
-        except ValueError as error:
+        if not matches:
             await interaction.followup.send(
-                f"❌ {error}",
-                ephemeral=True,
+                "✅ Aucun match à jouer n'a été trouvé pour toi.", ephemeral=True
             )
             return
 
-        target = member or interaction.user
-        player_id = str(target.id)
+        # Complète le format depuis le tournoi sans exposer match_kind au joueur.
+        for match in matches:
+            try:
+                tournament = await self.db.get_tournament(int(match["tournament_id"]))
+                match["tournament_format"] = getattr(tournament, "format", None)
+            except Exception:
+                pass
 
-        tournament = await self._get_active_tournament(
-            guild_id
-        )
-
-        if tournament is None:
-            await interaction.followup.send(
-                "❌ Aucun tournoi actif trouvé sur ce serveur.",
-                ephemeral=True,
+        selected = matches[0]
+        content = None
+        if len(matches) > 1:
+            content = (
+                f"Tu as **{len(matches)} matchs actifs**. Hamtaro n'impose plus de tournoi courant : "
+                "choisis simplement le match dans le menu."
             )
-            return
-
-        if tournament["status"] == "registration":
-            await interaction.followup.send(
-                "📋 Le tournoi est encore en phase d'inscription. Aucun match n'a encore été généré.",
-                ephemeral=True,
-            )
-            return
-
-        bracket_match = await self._get_next_bracket_match(
-            tournament_id=tournament["id"],
-            player_id=player_id,
-        )
-
-        if bracket_match is not None:
-            embed = self._format_bracket_embed(
-                tournament=tournament,
-                match=bracket_match,
-                player_id=player_id,
-                target=target,
-            )
-
-            await interaction.followup.send(
-                embed=embed,
-                ephemeral=True,
-            )
-            return
-
-        swiss_match = await self._get_next_swiss_match(
-            tournament_id=tournament["id"],
-            player_id=player_id,
-        )
-
-        if swiss_match is not None:
-            embed = self._format_swiss_embed(
-                tournament=tournament,
-                match=swiss_match,
-                player_id=player_id,
-                target=target,
-            )
-
-            await interaction.followup.send(
-                embed=embed,
-                ephemeral=True,
-            )
-            return
-
         await interaction.followup.send(
-            f"✅ Aucun match en attente trouvé pour {target.mention}.",
+            content=content,
+            embed=self._embed(selected, str(interaction.user.id)),
+            view=NextMatchView(self, interaction.user.id, selected, matches),
             ephemeral=True,
         )
 
 
-async def setup(bot: commands.Bot):
-    existing_command = bot.tree.get_command("nextmatch")
-
-    if existing_command is not None:
-        bot.tree.remove_command("nextmatch")
-
-    await bot.add_cog(
-        NextMatchCog(bot)
-    )
+async def setup(bot: commands.Bot) -> None:
+    existing = bot.tree.get_command("nextmatch")
+    if existing is not None:
+        bot.tree.remove_command("nextmatch", type=discord.AppCommandType.chat_input)
+    await bot.add_cog(NextMatchCog(bot))

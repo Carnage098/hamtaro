@@ -8,6 +8,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from services.match_context_service import MatchContextService
 from services.swiss_service import SwissService
 from utils.embeds import error_embed, info_embed, success_embed
 from utils.permissions import is_staff_member
@@ -75,9 +76,19 @@ def _bracket_round_name(round_number: int) -> str:
 
 
 def _mention(discord_id: Any, fallback: str) -> str:
+    """Retourne une mention Discord uniquement pour un vrai snowflake.
+
+    Certains anciens brackets ont pu stocker temporairement un seed (1, 2, 3...)
+    dans un champ player*_id. Dans ce cas, on affiche le nom résolu au lieu de
+    produire une fausse mention comme <@1>.
+    """
     if discord_id is None:
         return fallback
-    return f"<@{discord_id}>"
+
+    value = str(discord_id).strip()
+    if value.isdigit() and len(value) >= 15:
+        return f"<@{value}>"
+    return fallback
 
 
 # ==========================================================
@@ -186,6 +197,7 @@ class TournamentProgressionCog(commands.Cog):
         self.bot = bot
         self.db = bot.db
         self.swiss = SwissService(self.db)
+        self.contexts = MatchContextService(self.db)
         self._publish_locks: dict[tuple[str, int], asyncio.Lock] = {}
 
     # ==========================================================
@@ -194,6 +206,7 @@ class TournamentProgressionCog(commands.Cog):
 
     async def cog_load(self) -> None:
         await self._init_tables()
+        await self.contexts.ensure_table()
         self.bot.add_view(NextSwissRoundView(self))
         if not self.scan_new_matches.is_running():
             self.scan_new_matches.start()
@@ -539,6 +552,82 @@ class TournamentProgressionCog(commands.Cog):
     # RÉCUPÉRATION DES MATCHS
     # ==========================================================
 
+    async def _resolve_match_players(
+        self,
+        tournament_id: int,
+        matches: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Résout toujours les vrais joueurs depuis registrations.
+
+        Compatibilité avec les anciens matchs où un seed a pu se retrouver dans
+        player1_id/player2_id ou player1_name/player2_name. La résolution se fait
+        d'abord par discord_id, puis par seed. Les données utilisées pour la
+        publication contiennent ensuite le vrai discord_id et le vrai username.
+        """
+        if not matches:
+            return []
+
+        rows = await self.db.fetchall(
+            """
+            SELECT discord_id, username, seed
+            FROM registrations
+            WHERE tournament_id = ?
+              AND COALESCE(dropped, 0) = 0
+              AND COALESCE(disqualified, 0) = 0
+            """,
+            (tournament_id,),
+        )
+
+        by_id: dict[str, dict[str, Any]] = {}
+        by_seed: dict[int, dict[str, Any]] = {}
+        for row in rows:
+            registration = dict(row)
+            discord_id = str(registration.get("discord_id") or "").strip()
+            if discord_id:
+                by_id[discord_id] = registration
+
+            seed = registration.get("seed")
+            if seed is not None:
+                try:
+                    by_seed[int(seed)] = registration
+                except (TypeError, ValueError):
+                    pass
+
+        resolved_matches: list[dict[str, Any]] = []
+
+        for raw_match in matches:
+            match = dict(raw_match)
+
+            for slot in (1, 2):
+                id_key = f"player{slot}_id"
+                name_key = f"player{slot}_name"
+
+                raw_id = match.get(id_key)
+                raw_name = match.get(name_key)
+                id_text = str(raw_id or "").strip()
+                name_text = str(raw_name or "").strip()
+
+                registration = by_id.get(id_text) if id_text else None
+
+                if registration is None:
+                    for candidate in (id_text, name_text):
+                        if not candidate or not candidate.isdigit():
+                            continue
+                        try:
+                            registration = by_seed.get(int(candidate))
+                        except (TypeError, ValueError):
+                            registration = None
+                        if registration is not None:
+                            break
+
+                if registration is not None:
+                    match[id_key] = str(registration["discord_id"])
+                    match[name_key] = str(registration["username"])
+
+            resolved_matches.append(match)
+
+        return resolved_matches
+
     async def _ready_bracket_matches(self, tournament_id: int) -> list[dict[str, Any]]:
         query = """
             SELECT *
@@ -553,7 +642,10 @@ class TournamentProgressionCog(commands.Cog):
             ORDER BY round DESC, match_number ASC, id ASC
         """
         rows = await self.db.fetchall(query, (tournament_id,))
-        return [dict(row) for row in rows]
+        return await self._resolve_match_players(
+            tournament_id,
+            [dict(row) for row in rows],
+        )
 
     async def _all_bracket_round_matches(
         self,
@@ -569,7 +661,10 @@ class TournamentProgressionCog(commands.Cog):
             """,
             (tournament_id, round_number),
         )
-        return [dict(row) for row in rows]
+        return await self._resolve_match_players(
+            tournament_id,
+            [dict(row) for row in rows],
+        )
 
     @staticmethod
     def _bracket_round_is_fully_known(matches: list[dict[str, Any]]) -> bool:
@@ -597,7 +692,10 @@ class TournamentProgressionCog(commands.Cog):
             """,
             (tournament_id, round_number),
         )
-        return [dict(row) for row in rows]
+        return await self._resolve_match_players(
+            tournament_id,
+            [dict(row) for row in rows],
+        )
 
     # ==========================================================
     # EMBEDS ET PUBLICATION
@@ -698,16 +796,54 @@ class TournamentProgressionCog(commands.Cog):
             except (discord.Forbidden, discord.HTTPException):
                 pass
 
+        await self.contexts.bind_thread(
+            thread_id=thread.id,
+            tournament=tournament,
+            match_kind=match_kind,
+            match=match,
+        )
+
+        if match_kind == MATCH_KIND_SWISS:
+            phase = (
+                f"Ronde {int(match.get('round_number') or 0)} · "
+                f"Table {int(match.get('table_number') or 0)}"
+            )
+        else:
+            phase = (
+                f"{_bracket_round_name(int(match.get('round') or 0))} · "
+                f"Match {int(match.get('match_number') or match.get('id') or 0)}"
+            )
+
         await thread.send(
             content=(
                 f"{_mention(match.get('player1_id'), player1_name)} "
                 f"{_mention(match.get('player2_id'), player2_name)}\n\n"
-                "Ce fil est votre espace de match. Vous pouvez y organiser le duel, "
-                "poser une question et conserver les informations utiles.\n\n"
-                "À la fin, utilisez `/result`."
+                f"🏟️ **Tournoi :** {_value(tournament, 'name', 'Tournoi Hamtaro')} "
+                f"(`{_value(tournament, 'code', '?')}`)\n"
+                f"🎴 **Format :** {_value(tournament, 'format', 'Format inconnu')}\n"
+                f"🔄 **Phase :** {phase}\n\n"
+                "Ce fil est autonome : Hamtaro connaît déjà le tournoi, le match, "
+                "les joueurs et la phase. Aucun `/tournament_select` ni identifiant "
+                "de match n'est nécessaire.\n\n"
+                "À la fin, utilisez `/result` ou le bouton **Déclarer le résultat**."
             ),
             allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
         )
+
+        # Le panneau Match Center est désormais créé au même moment que le fil.
+        match_center = self.bot.get_cog("MatchCenterCog")
+        if match_center is not None:
+            try:
+                await match_center.create_match_panel(
+                    thread=thread,
+                    tournament=tournament,
+                    match_kind=match_kind,
+                    match=match,
+                )
+            except Exception as error:
+                print(
+                    f"⚠️ Panneau automatique {match_kind}:{match.get('id')} : {error}"
+                )
         return thread
 
     async def _notify_match_players(

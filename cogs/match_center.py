@@ -9,6 +9,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from services.match_context_service import MatchContextService
 from utils.embeds import error_embed, info_embed, success_embed
 from utils.permissions import is_staff_member
 from utils.tournament_resolver import resolve_tournament
@@ -632,6 +633,7 @@ class MatchCenterCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.db = bot.db
+        self.contexts = MatchContextService(self.db)
         self._locks: dict[tuple[str, int], asyncio.Lock] = {}
 
     async def cog_load(self) -> None:
@@ -738,6 +740,7 @@ class MatchCenterCog(commands.Cog):
             """
         )
         await self.db.commit()
+        await self.contexts.ensure_table()
 
     # ==========================================================
     # CONFIGURATION ET PERMISSIONS
@@ -893,6 +896,50 @@ class MatchCenterCog(commands.Cog):
             )
         )
 
+    async def resolve_thread_match(
+        self,
+        *,
+        guild_id: str | int,
+        thread_id: str | int,
+    ) -> dict[str, Any] | None:
+        """Retourne le contexte complet du fil sans demander de tournoi."""
+        context = await self.contexts.by_thread(
+            guild_id=str(guild_id),
+            thread_id=str(thread_id),
+        )
+        if context is not None:
+            return context
+
+        # Compatibilité avec les fils créés avant la table de contexte.
+        session = _row_to_dict(
+            await self.db.fetchone(
+                """
+                SELECT match_kind, match_id, guild_id, tournament_id, thread_id
+                FROM match_center_sessions
+                WHERE guild_id = ? AND thread_id = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (str(guild_id), str(thread_id)),
+            )
+        )
+        if session is None:
+            return None
+        match = await self._load_match(str(session["match_kind"]), int(session["match_id"]))
+        tournament = await self.db.get_tournament(int(session["tournament_id"]))
+        if match is None or tournament is None:
+            return session
+        await self.contexts.bind_thread(
+            thread_id=thread_id,
+            tournament=tournament,
+            match_kind=str(session["match_kind"]),
+            match=match,
+        )
+        return await self.contexts.by_thread(
+            guild_id=str(guild_id),
+            thread_id=str(thread_id),
+        )
+
     async def create_match_panel(
         self,
         *,
@@ -956,6 +1003,12 @@ class MatchCenterCog(commands.Cog):
             ),
         )
         await self.db.commit()
+        await self.contexts.bind_thread(
+            thread_id=thread.id,
+            tournament=tournament,
+            match_kind=match_kind,
+            match=match,
+        )
         return message
 
     async def _build_panel_embed(
@@ -1000,8 +1053,8 @@ class MatchCenterCog(commands.Cog):
         embed.add_field(
             name="📊 Résultat",
             value=(
-                "Le bouton permet une déclaration rapide. Pour joindre une preuve, "
-                "utilisez `/result`."
+                "Utilisez le bouton **Déclarer le résultat** ou `/result`. "
+                "Hamtaro reconnaît automatiquement ce match et son tournoi."
             ),
             inline=False,
         )

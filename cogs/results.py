@@ -2875,6 +2875,26 @@ class ResultsCog(commands.Cog):
                     f"{request['match_kind']}:{request['match_id']} : {error}"
                 )
 
+        # Les profils sont recalculés immédiatement après chaque validation.
+        # Le profil public continue à lire les tables officielles ; le cache sert
+        # aux écrans qui ont besoin d'un résumé instantané et à la fin de tournoi.
+        try:
+            from services.analytics_service import AnalyticsService
+
+            analytics = AnalyticsService()
+            await analytics.refresh_player_statistics(
+                guild_id=str(request["guild_id"]),
+                player_ids=[
+                    str(context.get("player1_id") or ""),
+                    str(context.get("player2_id") or ""),
+                ],
+            )
+        except Exception as error:
+            print(
+                "⚠️ Recalcul des statistiques après validation "
+                f"{request['match_kind']}:{request['match_id']} : {error}"
+            )
+
         return request
 
     async def _reject_request(
@@ -3404,6 +3424,20 @@ class ResultsCog(commands.Cog):
                 (table_name,),
             )
             return row is not None
+
+        if await table_exists("match_thread_context"):
+            row = await self.db.fetchone(
+                """
+                SELECT match_kind, match_id
+                FROM match_thread_context
+                WHERE guild_id = ? AND thread_id = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (str(guild_id), str(channel_id)),
+            )
+            if row is not None:
+                return str(row["match_kind"]), int(row["match_id"])
 
         if await table_exists("match_center_sessions"):
             row = await self.db.fetchone(
