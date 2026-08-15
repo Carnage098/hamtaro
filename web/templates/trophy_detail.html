@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}{{ trophy.id }} · {{ trophy.title }} · Hamtaro{% endblock %}
+
+{% block content %}
+<nav class="trophy-breadcrumb" aria-label="Fil d'Ariane">
+  <a href="/trophies">← Collection des trophées</a>
+</nav>
+
+<section class="trophy-detail-hero">
+  <div class="trophy-detail-copy">
+    <div class="trophy-id-line">
+      <span class="trophy-serial">{{ trophy.id }}</span>
+      <span class="trophy-rarity-badge">{{ trophy.rarity }}</span>
+    </div>
+    <span class="trophy-kicker">{{ trophy.distinction }}</span>
+    <h1>{{ trophy.title }}</h1>
+    <p class="trophy-lead">{{ trophy.description }}</p>
+    <blockquote>{{ trophy.legacy }}</blockquote>
+  </div>
+
+  <div class="trophy-viewer-shell" data-trophy-viewer-shell>
+    <div class="trophy-viewer-placeholder" data-trophy-placeholder>
+      <span class="trophy-viewer-icon">🏆</span>
+      <strong>{{ trophy.id }}</strong>
+      <p>Modèle 3D interactif · environ {{ trophy.model_size_mb }} Mo</p>
+      <button
+        class="trophy-primary-button"
+        type="button"
+        data-load-trophy-model
+        data-model-src="{{ trophy.model_path }}"
+      >
+        Charger le trophée en 3D
+      </button>
+      <small>Le chargement manuel évite de consommer inutilement les données mobiles.</small>
+    </div>
+
+    <model-viewer
+      class="trophy-model-viewer"
+      data-trophy-model-viewer
+      alt="Modèle 3D interactif du trophée {{ trophy.id }}"
+      camera-controls
+      auto-rotate
+      auto-rotate-delay="1200"
+      rotation-per-second="18deg"
+      shadow-intensity="1.1"
+      environment-image="neutral"
+      interaction-prompt="auto"
+      touch-action="pan-y"
+      loading="eager"
+      reveal="auto"
+      hidden
+    ></model-viewer>
+
+    <div class="trophy-viewer-toolbar" data-trophy-toolbar hidden>
+      <button type="button" data-trophy-reset>↺ Recentrer</button>
+      <button type="button" data-trophy-toggle-rotate>⟳ Rotation</button>
+      <button type="button" data-trophy-fullscreen>⛶ Plein écran</button>
+    </div>
+    <div class="trophy-loading" data-trophy-loading hidden>
+      <span data-trophy-loading-text>Chargement du modèle 3D…</span>
+    </div>
+  </div>
+</section>
+
+<section class="trophy-information-grid">
+  <article class="trophy-panel trophy-owner-panel">
+    <span class="trophy-kicker">DÉTENTEUR</span>
+    <h2>{{ trophy.display_holder }}</h2>
+    {% if trophy.holder_discord_id %}
+      <a href="/players/{{ trophy.holder_discord_id }}">Voir le profil du champion →</a>
+    {% else %}
+      <p>Ce trophée sera attribué au vainqueur du premier tournoi officiel concerné.</p>
+    {% endif %}
+  </article>
+
+  <article class="trophy-panel">
+    <span class="trophy-kicker">IDENTITÉ</span>
+    <dl class="trophy-data-list">
+      <div><dt>Numéro</dt><dd>{{ trophy.id }}</dd></div>
+      <div><dt>Classification</dt><dd>{{ trophy.classification }}</dd></div>
+      <div><dt>Édition</dt><dd>{{ trophy.edition }}</dd></div>
+      <div><dt>Statut</dt><dd>{{ trophy.status }}</dd></div>
+    </dl>
+  </article>
+
+  <article class="trophy-panel">
+    <span class="trophy-kicker">VICTOIRE</span>
+    <dl class="trophy-data-list">
+      <div><dt>Tournoi</dt><dd>{{ trophy.tournament_name or "À définir" }}</dd></div>
+      <div><dt>Format</dt><dd>{{ trophy.format or "À définir" }}</dd></div>
+      <div><dt>Deck</dt><dd>{{ trophy.deck or "À définir" }}</dd></div>
+      <div><dt>Date</dt><dd>{{ trophy.awarded_at or "À définir" }}</dd></div>
+    </dl>
+  </article>
+
+  <article class="trophy-panel trophy-badge-panel">
+    <span class="trophy-kicker">DISTINCTION ASSOCIÉE</span>
+    <div class="trophy-badge-icon">🥇</div>
+    <h2>{{ trophy.badge }}</h2>
+    <p>Un badge unique lié au premier sacre de l'histoire compétitive Hamtaro.</p>
+  </article>
+</section>
+
+<section class="trophy-quote-section">
+  <h2>« {{ trophy.tagline }} »</h2>
+</section>
+
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+{% endblock %}
