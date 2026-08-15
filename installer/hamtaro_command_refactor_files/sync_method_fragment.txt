@@ -1,0 +1,79 @@
+    async def _sync_application_commands(self) -> None:
+        self._drop_retired_application_commands()
+
+        performed = False
+        fingerprint = command_tree_fingerprint(self.tree)
+        sync_state = CommandSyncState(
+            DATABASE.parent / "command_sync_state.json",
+            logger=LOGGER,
+        )
+
+        if SYNC_GUILD_COMMANDS:
+            if GUILD_ID.isdigit():
+                guild = discord.Object(id=int(GUILD_ID))
+                scope = f"guild:{GUILD_ID}"
+
+                if sync_state.needs_sync(
+                    scope,
+                    fingerprint,
+                    force=FORCE_COMMAND_SYNC,
+                ):
+                    started = time.perf_counter()
+
+                    # Une seule écriture Discord pour l'arbre serveur.
+                    self.tree.copy_global_to(guild=guild)
+                    commands_synced = await self.tree.sync(guild=guild)
+                    sync_state.mark_synced(scope, fingerprint)
+
+                    LOGGER.info(
+                        "%s commandes racines synchronisées sur le serveur %s "
+                        "en %.3fs (empreinte=%s).",
+                        len(commands_synced),
+                        GUILD_ID,
+                        time.perf_counter() - started,
+                        fingerprint[:12],
+                    )
+                else:
+                    LOGGER.info(
+                        "Arbre Discord inchangé pour le serveur %s : "
+                        "sync ignorée (empreinte=%s).",
+                        GUILD_ID,
+                        fingerprint[:12],
+                    )
+
+                performed = True
+            else:
+                LOGGER.warning(
+                    "SYNC_GUILD_COMMANDS est actif, mais GUILD_ID est absent ou invalide."
+                )
+
+        if SYNC_GLOBAL_COMMANDS:
+            scope = "global"
+            if sync_state.needs_sync(
+                scope,
+                fingerprint,
+                force=FORCE_COMMAND_SYNC,
+            ):
+                started = time.perf_counter()
+                commands_synced = await self.tree.sync()
+                sync_state.mark_synced(scope, fingerprint)
+                LOGGER.info(
+                    "%s commandes globales synchronisées en %.3fs (empreinte=%s).",
+                    len(commands_synced),
+                    time.perf_counter() - started,
+                    fingerprint[:12],
+                )
+            else:
+                LOGGER.info(
+                    "Arbre Discord global inchangé : sync ignorée (empreinte=%s).",
+                    fingerprint[:12],
+                )
+            performed = True
+
+        if not performed:
+            LOGGER.info(
+                "Synchronisation Discord désactivée. "
+                "Les commandes déjà publiées restent actives."
+            )
+
+
