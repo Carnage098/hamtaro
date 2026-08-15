@@ -1,0 +1,340 @@
+.trophy-hero,
+.trophy-detail-hero {
+  display: grid;
+  gap: 28px;
+  margin: 20px 0 30px;
+}
+
+.trophy-hero {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  padding: 34px;
+  border: 1px solid rgba(255, 210, 82, .25);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 85% 10%, rgba(255, 205, 80, .16), transparent 34%),
+    linear-gradient(135deg, rgba(255,255,255,.05), rgba(255,255,255,.015));
+}
+
+.trophy-hero h1,
+.trophy-detail-copy h1 {
+  margin: 8px 0 12px;
+  font-size: clamp(2rem, 5vw, 4.2rem);
+  line-height: .98;
+}
+
+.trophy-hero p,
+.trophy-lead {
+  max-width: 760px;
+  font-size: 1.05rem;
+  opacity: .82;
+}
+
+.trophy-kicker {
+  display: inline-block;
+  font-size: .78rem;
+  font-weight: 900;
+  letter-spacing: .16em;
+  opacity: .72;
+}
+
+.trophy-hero-stats {
+  display: flex;
+  gap: 10px;
+}
+
+.trophy-hero-stats article {
+  min-width: 115px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(0,0,0,.24);
+  text-align: center;
+}
+
+.trophy-hero-stats strong {
+  display: block;
+  font-size: 2rem;
+}
+
+.trophy-hero-stats span {
+  font-size: .8rem;
+  opacity: .65;
+}
+
+.trophy-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.trophy-card {
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 24px;
+  background: rgba(255,255,255,.035);
+  color: inherit;
+  text-decoration: none;
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+
+.trophy-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 210, 82, .46);
+  box-shadow: 0 20px 55px rgba(0,0,0,.22);
+}
+
+.trophy-card-visual {
+  position: relative;
+  min-height: 230px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, rgba(255, 208, 79, .24), transparent 45%),
+    linear-gradient(145deg, rgba(255,255,255,.05), rgba(0,0,0,.16));
+}
+
+.trophy-card-icon {
+  font-size: 6rem;
+  filter: drop-shadow(0 15px 25px rgba(0,0,0,.28));
+}
+
+.trophy-card-number,
+.trophy-card-rarity {
+  position: absolute;
+  top: 16px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.45);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.trophy-card-number { left: 16px; }
+.trophy-card-rarity { right: 16px; }
+
+.trophy-card-body { padding: 24px; }
+.trophy-card-body h2 { margin: 7px 0 10px; font-size: 1.45rem; }
+.trophy-card-body p { opacity: .72; line-height: 1.65; }
+
+.trophy-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.trophy-card-meta span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  font-size: .82rem;
+}
+
+.trophy-card-cta { font-weight: 800; }
+
+.trophy-breadcrumb { margin: 18px 0; }
+.trophy-breadcrumb a { color: inherit; opacity: .72; text-decoration: none; }
+
+.trophy-detail-hero {
+  grid-template-columns: minmax(0, .92fr) minmax(420px, 1.08fr);
+  align-items: stretch;
+}
+
+.trophy-detail-copy,
+.trophy-viewer-shell,
+.trophy-panel,
+.trophy-quote-section {
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 28px;
+  background: rgba(255,255,255,.035);
+}
+
+.trophy-detail-copy { padding: clamp(26px, 5vw, 48px); }
+.trophy-detail-copy blockquote {
+  margin: 28px 0 0;
+  padding: 18px 0 0 22px;
+  border-left: 3px solid rgba(255, 205, 70, .65);
+  font-size: 1.05rem;
+  line-height: 1.65;
+  opacity: .85;
+}
+
+.trophy-id-line { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+.trophy-serial,
+.trophy-rarity-badge {
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: .78rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.trophy-serial { background: rgba(255,255,255,.08); }
+.trophy-rarity-badge { background: rgba(255, 202, 63, .16); border: 1px solid rgba(255,202,63,.28); }
+
+.trophy-viewer-shell {
+  position: relative;
+  min-height: 590px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(255, 210, 70, .18), transparent 35%),
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.12));
+}
+
+.trophy-viewer-placeholder {
+  min-height: 590px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 30px;
+  text-align: center;
+}
+
+.trophy-viewer-placeholder p { opacity: .7; }
+.trophy-viewer-placeholder small { max-width: 420px; margin-top: 14px; opacity: .55; }
+.trophy-viewer-icon { font-size: 7rem; margin-bottom: 12px; }
+
+.trophy-primary-button,
+.trophy-viewer-toolbar button {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 14px;
+  background: rgba(255,255,255,.08);
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.trophy-primary-button { padding: 13px 18px; margin-top: 10px; }
+.trophy-primary-button:hover,
+.trophy-viewer-toolbar button:hover { background: rgba(255,255,255,.13); }
+
+.trophy-model-viewer {
+  width: 100%;
+  height: 590px;
+  background: transparent;
+  --poster-color: transparent;
+}
+
+.trophy-viewer-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 4;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgba(0,0,0,.46);
+  backdrop-filter: blur(14px);
+}
+
+.trophy-viewer-toolbar button { padding: 9px 11px; font-size: .82rem; }
+
+.trophy-loading {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 4;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.48);
+  font-size: .8rem;
+  backdrop-filter: blur(12px);
+}
+
+.trophy-information-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin: 18px 0;
+}
+
+.trophy-panel { padding: 26px; }
+.trophy-panel h2 { margin: 8px 0 12px; }
+.trophy-panel p { opacity: .72; }
+.trophy-panel a { color: inherit; font-weight: 800; }
+
+.trophy-data-list { margin: 16px 0 0; }
+.trophy-data-list div {
+  display: grid;
+  grid-template-columns: minmax(105px, .7fr) minmax(0, 1.3fr);
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.trophy-data-list dt { opacity: .56; }
+.trophy-data-list dd { margin: 0; font-weight: 750; text-align: right; }
+
+.trophy-badge-panel { text-align: center; }
+.trophy-badge-icon { font-size: 3.2rem; margin: 14px 0 5px; }
+
+.trophy-quote-section {
+  margin: 18px 0 30px;
+  padding: clamp(28px, 6vw, 60px);
+  text-align: center;
+  background:
+    radial-gradient(circle at center, rgba(255, 204, 62, .13), transparent 50%),
+    rgba(255,255,255,.025);
+}
+.trophy-quote-section h2 {
+  max-width: 920px;
+  margin: 10px auto 0;
+  font-size: clamp(1.8rem, 4vw, 3.2rem);
+}
+
+.trophy-empty-state { padding: 50px; text-align: center; }
+.trophy-empty-state span { font-size: 4rem; }
+
+.player-trophies-section { margin-top: 28px; }
+.player-trophies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.player-trophy-mini-card {
+  display: block;
+  padding: 18px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 18px;
+  background: rgba(255,255,255,.035);
+  color: inherit;
+  text-decoration: none;
+}
+.player-trophy-mini-card strong { display: block; margin: 6px 0; }
+.player-trophy-mini-card small { opacity: .62; }
+
+@media (max-width: 900px) {
+  .trophy-hero,
+  .trophy-detail-hero,
+  .trophy-information-grid { grid-template-columns: 1fr; }
+  .trophy-hero { align-items: start; }
+  .trophy-hero-stats { width: 100%; }
+  .trophy-hero-stats article { flex: 1; min-width: 0; }
+  .trophy-viewer-shell,
+  .trophy-viewer-placeholder,
+  .trophy-model-viewer { min-height: 480px; height: 480px; }
+}
+
+@media (max-width: 560px) {
+  .trophy-hero,
+  .trophy-detail-copy,
+  .trophy-panel { border-radius: 20px; }
+  .trophy-hero { padding: 24px 20px; }
+  .trophy-gallery { grid-template-columns: 1fr; }
+  .trophy-viewer-shell,
+  .trophy-viewer-placeholder,
+  .trophy-model-viewer { min-height: 420px; height: 420px; border-radius: 20px; }
+  .trophy-viewer-toolbar { width: calc(100% - 24px); justify-content: center; }
+  .trophy-viewer-toolbar button { flex: 1; padding: 8px 6px; font-size: .74rem; }
+  .trophy-data-list div { grid-template-columns: 1fr; gap: 4px; }
+  .trophy-data-list dd { text-align: left; }
+}
+
+.trophy-viewer-shell:fullscreen { width: 100vw; height: 100vh; border-radius: 0; }
+.trophy-viewer-shell:fullscreen .trophy-model-viewer { width: 100%; height: 100vh; }

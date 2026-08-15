@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Trophées · Hamtaro{% endblock %}
+
+{% block content %}
+<section class="trophy-hero">
+  <div>
+    <span class="trophy-kicker">COLLECTION OFFICIELLE</span>
+    <h1>Les trophées Hamtaro</h1>
+    <p>
+      Chaque trophée conserve une victoire, un champion et un morceau de l'histoire compétitive du serveur.
+    </p>
+  </div>
+  <div class="trophy-hero-stats" aria-label="Statistiques de la collection">
+    <article><strong>{{ total }}</strong><span>trophée(s)</span></article>
+    <article><strong>{{ awarded }}</strong><span>attribué(s)</span></article>
+  </div>
+</section>
+
+<section class="trophy-gallery" aria-label="Collection de trophées">
+  {% for trophy in trophies %}
+  <a class="trophy-card" href="{{ trophy.detail_url }}">
+    <div class="trophy-card-visual" aria-hidden="true">
+      <span class="trophy-card-number">{{ trophy.id }}</span>
+      <span class="trophy-card-icon">🏆</span>
+      <span class="trophy-card-rarity">{{ trophy.rarity }}</span>
+    </div>
+    <div class="trophy-card-body">
+      <span class="trophy-kicker">{{ trophy.distinction }}</span>
+      <h2>{{ trophy.title }}</h2>
+      <p>{{ trophy.description }}</p>
+      <div class="trophy-card-meta">
+        <span>👑 {{ trophy.display_holder }}</span>
+        <span>◈ {{ trophy.edition }}</span>
+      </div>
+      <span class="trophy-card-cta">Voir le trophée en 3D →</span>
+    </div>
+  </a>
+  {% else %}
+  <div class="trophy-empty-state">
+    <span>🏆</span>
+    <h2>La collection va bientôt commencer.</h2>
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}

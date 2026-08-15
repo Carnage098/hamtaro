@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "trophies": [
+    {
+      "id": "HT-001",
+      "number": 1,
+      "name": "First Champion",
+      "title": "Le trophée où tout a commencé",
+      "tagline": "Le trophée où tout a commencé.",
+      "description": "Premier trophée officiel créé dans l'histoire des compétitions Hamtaro. HT-001 marque la naissance de la collection et restera pour toujours associé au tout premier champion officiel.",
+      "legacy": "Il y aura d'autres trophées, d'autres champions et d'autres moments historiques. Mais il n'y aura jamais qu'un seul HT-001.",
+      "rarity": "HISTORIQUE — FIRST",
+      "classification": "Historique",
+      "edition": "1/1",
+      "distinction": "Premier Champion",
+      "status": "Premier trophée officiel Hamtaro",
+      "model_path": "/static/models/trophies/ht-001.glb",
+      "model_size_mb": "à générer",
+      "poster_path": null,
+      "holder_discord_id": null,
+      "holder_name": null,
+      "deck": null,
+      "format": null,
+      "tournament_name": null,
+      "tournament_id": null,
+      "awarded_at": null,
+      "badge": "Premier champion du serveur",
+      "source_master": "master/HT-001_Trophy_Kuriboh_Champion_Final_v3.blend",
+      "web_build": "À générer avec export_ht001.command"
+    }
+  ]
+}
