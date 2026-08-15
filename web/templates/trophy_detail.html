@@ -26,7 +26,8 @@
       </div>
       <div class="trophy-viewer-intro">
         <strong>Modèle 3D interactif</strong>
-        <p>Rotation à 360°, zoom et plein écran · environ {{ trophy.model_size_mb }} Mo</p>
+        <p>Rotation à 360°, zoom et plein écran · {% if trophy.model_size_mb %}environ {{ trophy.model_size_mb }} Mo{% else %}taille détectée après génération locale{% endif %}</p>
+        <p class="trophy-viewer-build">{{ trophy.web_build }}</p>
       </div>
       <button
         class="trophy-primary-button"
@@ -36,7 +37,7 @@
       >
         Charger le trophée en 3D
       </button>
-      <small>Le modèle n'est chargé qu'à ta demande pour rester rapide sur mobile.</small>
+      <small>Le modèle n'est chargé qu'à ta demande. Cette version privilégie la vraie forme du trophée sans le déformer.</small>
     </div>
 
     <model-viewer
@@ -81,6 +82,7 @@
     </div>
 
     <dl class="trophy-summary-list">
+      <div><dt>Version 3D</dt><dd>{{ trophy.web_build }}</dd></div>
       <div><dt>Numéro</dt><dd>{{ trophy.id }}</dd></div>
       <div><dt>Classification</dt><dd>{{ trophy.classification }}</dd></div>
       <div><dt>Édition</dt><dd>{{ trophy.edition }}</dd></div>

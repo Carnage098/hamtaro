@@ -777,3 +777,10 @@
     border-radius: 17px;
   }
 }
+
+
+.trophy-viewer-build {
+  margin: 0.15rem 0 0;
+  font-size: 0.92rem;
+  color: rgba(255,255,255,0.72);
+}
