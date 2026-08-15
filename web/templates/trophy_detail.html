@@ -3,8 +3,6 @@
 {% block title %}{{ trophy.id }} · {{ trophy.tagline or trophy.title }} · Hamtaro{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="/static/trophies.css?v=20260815-4">
-
 <nav class="trophy-breadcrumb" aria-label="Fil d'Ariane">
   <a href="/trophies">← Retour à la collection</a>
 </nav>
@@ -46,6 +44,8 @@
           type="button"
           data-load-trophy-model
           data-model-src="{{ trophy.model_path }}"
+          data-model-mobile-src="{{ trophy.mobile_model_path or trophy.model_path }}"
+          data-trophy-id="{{ trophy.id }}"
       data-model-mobile-src="{{ trophy.mobile_model_path or trophy.model_path }}"
         >
           Charger le trophée en 3D
@@ -171,5 +171,4 @@
 </section>
 
 <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-<script src="/static/trophies.js?v=20260815-4" defer></script>
 {% endblock %}
