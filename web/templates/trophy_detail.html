@@ -4,26 +4,30 @@
 
 {% block content %}
 <nav class="trophy-breadcrumb" aria-label="Fil d'Ariane">
-  <a href="/trophies">← Collection des trophées</a>
+  <a href="/trophies">← Retour à la collection</a>
 </nav>
 
-<section class="trophy-detail-hero">
-  <div class="trophy-detail-copy">
-    <div class="trophy-id-line">
-      <span class="trophy-serial">{{ trophy.id }}</span>
-      <span class="trophy-rarity-badge">{{ trophy.rarity }}</span>
-    </div>
-    <span class="trophy-kicker">{{ trophy.distinction }}</span>
-    <h1>{{ trophy.title }}</h1>
-    <p class="trophy-lead">{{ trophy.description }}</p>
-    <blockquote>{{ trophy.legacy }}</blockquote>
+<header class="trophy-detail-header">
+  <div class="trophy-id-line">
+    <span class="trophy-serial">{{ trophy.id }}</span>
+    <span class="trophy-rarity-badge">{{ trophy.rarity }}</span>
   </div>
+  <span class="trophy-eyebrow">{{ trophy.distinction }}</span>
+  <h1>{{ trophy.tagline or trophy.title }}</h1>
+  <p>{{ trophy.description }}</p>
+</header>
 
+<section class="trophy-detail-layout">
   <div class="trophy-viewer-shell" data-trophy-viewer-shell>
     <div class="trophy-viewer-placeholder" data-trophy-placeholder>
-      <span class="trophy-viewer-icon">🏆</span>
-      <strong>{{ trophy.id }}</strong>
-      <p>Modèle 3D interactif · environ {{ trophy.model_size_mb }} Mo</p>
+      <div class="trophy-viewer-monogram" aria-hidden="true">
+        <span>HT</span>
+        <strong>{{ "%03d"|format(trophy.number) }}</strong>
+      </div>
+      <div class="trophy-viewer-intro">
+        <strong>Modèle 3D interactif</strong>
+        <p>Rotation à 360°, zoom et plein écran · environ {{ trophy.model_size_mb }} Mo</p>
+      </div>
       <button
         class="trophy-primary-button"
         type="button"
@@ -32,7 +36,7 @@
       >
         Charger le trophée en 3D
       </button>
-      <small>Le chargement manuel évite de consommer inutilement les données mobiles.</small>
+      <small>Le modèle n'est chargé qu'à ta demande pour rester rapide sur mobile.</small>
     </div>
 
     <model-viewer
@@ -41,9 +45,10 @@
       alt="Modèle 3D interactif du trophée {{ trophy.id }}"
       camera-controls
       auto-rotate
-      auto-rotate-delay="1200"
-      rotation-per-second="18deg"
-      shadow-intensity="1.1"
+      auto-rotate-delay="800"
+      rotation-per-second="14deg"
+      shadow-intensity="1.15"
+      shadow-softness="0.8"
       environment-image="neutral"
       interaction-prompt="auto"
       touch-action="pan-y"
@@ -57,35 +62,38 @@
       <button type="button" data-trophy-toggle-rotate>⟳ Rotation</button>
       <button type="button" data-trophy-fullscreen>⛶ Plein écran</button>
     </div>
+
     <div class="trophy-loading" data-trophy-loading hidden>
+      <span class="trophy-loading-dot" aria-hidden="true"></span>
       <span data-trophy-loading-text>Chargement du modèle 3D…</span>
     </div>
   </div>
-</section>
 
-<section class="trophy-information-grid">
-  <article class="trophy-panel trophy-owner-panel">
-    <span class="trophy-kicker">DÉTENTEUR</span>
-    <h2>{{ trophy.display_holder }}</h2>
-    {% if trophy.holder_discord_id %}
-      <a href="/players/{{ trophy.holder_discord_id }}">Voir le profil du champion →</a>
-    {% else %}
-      <p>Ce trophée sera attribué au vainqueur du premier tournoi officiel concerné.</p>
-    {% endif %}
-  </article>
+  <aside class="trophy-summary-card">
+    <div class="trophy-summary-owner">
+      <span class="trophy-eyebrow">DÉTENTEUR</span>
+      <h2>{{ trophy.display_holder }}</h2>
+      {% if trophy.holder_discord_id %}
+        <a href="/players/{{ trophy.holder_discord_id }}">Voir le profil du champion →</a>
+      {% else %}
+        <p>HT-001 attend encore le premier champion auquel il sera officiellement attribué.</p>
+      {% endif %}
+    </div>
 
-  <article class="trophy-panel">
-    <span class="trophy-kicker">IDENTITÉ</span>
-    <dl class="trophy-data-list">
+    <dl class="trophy-summary-list">
       <div><dt>Numéro</dt><dd>{{ trophy.id }}</dd></div>
       <div><dt>Classification</dt><dd>{{ trophy.classification }}</dd></div>
       <div><dt>Édition</dt><dd>{{ trophy.edition }}</dd></div>
       <div><dt>Statut</dt><dd>{{ trophy.status }}</dd></div>
     </dl>
-  </article>
 
+    <p class="trophy-legacy-copy">{{ trophy.legacy }}</p>
+  </aside>
+</section>
+
+<section class="trophy-information-grid">
   <article class="trophy-panel">
-    <span class="trophy-kicker">VICTOIRE</span>
+    <span class="trophy-eyebrow">VICTOIRE ASSOCIÉE</span>
     <dl class="trophy-data-list">
       <div><dt>Tournoi</dt><dd>{{ trophy.tournament_name or "À définir" }}</dd></div>
       <div><dt>Format</dt><dd>{{ trophy.format or "À définir" }}</dd></div>
@@ -95,15 +103,13 @@
   </article>
 
   <article class="trophy-panel trophy-badge-panel">
-    <span class="trophy-kicker">DISTINCTION ASSOCIÉE</span>
-    <div class="trophy-badge-icon">🥇</div>
-    <h2>{{ trophy.badge }}</h2>
-    <p>Un badge unique lié au premier sacre de l'histoire compétitive Hamtaro.</p>
+    <span class="trophy-eyebrow">DISTINCTION ASSOCIÉE</span>
+    <div class="trophy-badge-symbol" aria-hidden="true">01</div>
+    <div>
+      <h2>{{ trophy.badge }}</h2>
+      <p>Une distinction unique réservée au premier sacre officiel de l'histoire compétitive Hamtaro.</p>
+    </div>
   </article>
-</section>
-
-<section class="trophy-quote-section">
-  <h2>« {{ trophy.tagline }} »</h2>
 </section>
 
 <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
