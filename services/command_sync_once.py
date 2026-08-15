@@ -81,19 +81,75 @@ def _edit_payload(command: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+
+_MISSING_DEFAULTS: dict[str, Any] = {
+    "nsfw": False,
+    "default_permission": True,
+    "required": False,
+    "autocomplete": False,
+}
+
+
+def _project_like(existing: Any, desired: Any) -> Any:
+    """Projette la réponse Discord sur la forme du payload désiré."""
+    if isinstance(desired, dict):
+        if not isinstance(existing, dict):
+            return existing
+
+        projected: dict[str, Any] = {}
+        for child_key, desired_value in desired.items():
+            if child_key in existing:
+                existing_value = existing[child_key]
+            elif child_key in _MISSING_DEFAULTS:
+                existing_value = _MISSING_DEFAULTS[child_key]
+            elif desired_value is None:
+                existing_value = None
+            else:
+                existing_value = object()
+
+            projected[child_key] = _project_like(
+                existing_value,
+                desired_value,
+            )
+        return projected
+
+    if isinstance(desired, list):
+        if not isinstance(existing, list):
+            return existing
+        if len(existing) != len(desired):
+            return existing
+        return [
+            _project_like(actual, wanted)
+            for actual, wanted in zip(existing, desired)
+        ]
+
+    return existing
+
+
+def _commands_equivalent(
+    existing_command: dict[str, Any],
+    desired_edit: dict[str, Any],
+) -> bool:
+    return _project_like(existing_command, desired_edit) == desired_edit
+
+
 def _retry_after(response: aiohttp.ClientResponse, body: Any) -> float:
-    value: Any = None
+    candidates: list[float] = []
 
-    if isinstance(body, dict):
-        value = body.get("retry_after")
+    values: list[Any] = [
+        body.get("retry_after") if isinstance(body, dict) else None,
+        response.headers.get("Retry-After"),
+        response.headers.get("X-RateLimit-Reset-After"),
+    ]
 
-    if value is None:
-        value = response.headers.get("Retry-After")
+    for value in values:
+        try:
+            if value is not None:
+                candidates.append(max(0.0, float(value)))
+        except (TypeError, ValueError):
+            continue
 
-    try:
-        return max(0.0, float(value or 0.0))
-    except (TypeError, ValueError):
-        return 0.0
+    return max(candidates, default=0.0)
 
 
 def _reset_after(response: aiohttp.ClientResponse) -> float:
@@ -208,7 +264,7 @@ async def _request(
             retry_after = _retry_after(response, body)
 
             if (
-                scope == "shared"
+                scope in {"shared", "user"}
                 and shared_waits < max_shared_waits
                 and 0.0 < retry_after <= 900.0
             ):
@@ -216,8 +272,9 @@ async def _request(
                 wait_for = retry_after + 1.0
 
                 LOGGER.warning(
-                    "429 shared sur %s : attente contrôlée %.1fs "
+                    "429 %s sur %s : attente contrôlée %.1fs "
                     "(%s/%s), puis UNE nouvelle tentative.",
+                    scope,
                     label,
                     wait_for,
                     shared_waits,
@@ -463,71 +520,87 @@ async def _sync_guild_differential(
         updated = 0
         created = 0
 
-        # On met d'abord à jour les commandes déjà existantes : PATCH ne crée
-        # pas de nouvelle commande et restaure leurs sous-commandes/options.
-        for desired_command in desired:
-            key = _command_key(desired_command)
-            existing_command = existing_by_key.get(key)
-
-            if existing_command is None or key in predeleted_keys:
-                continue
-
-            command_id = str(existing_command.get("id") or "")
-            if not command_id:
-                continue
-
-            label = f"PATCH /{key[1]}"
-            patch_url = f"{base_url}/{command_id}"
-
-            pstatus, _, pheaders, _ = await _request(
-                session,
-                "PATCH",
-                patch_url,
-                label=label,
-                json_payload=_edit_payload(desired_command),
+        # Pendant une restauration partielle, priorité absolue aux commandes
+        # manquantes. Aucun PATCH n'est envoyé pour les commandes existantes.
+        if missing_keys:
+            LOGGER.info(
+                "Mode restauration : %s racine(s) manquante(s) -> "
+                "PATCH des commandes existantes ignoré.",
+                len(missing_keys),
             )
+        else:
+            for desired_command in desired:
+                key = _command_key(desired_command)
+                existing_command = existing_by_key.get(key)
 
-            if pstatus != 200:
-                LOGGER.error(
-                    "Sync différentielle interrompue sur /%s : HTTP %s. "
-                    "%s commande(s) déjà mise(s) à jour.",
-                    key[1],
-                    pstatus,
-                    updated,
+                if existing_command is None or key in predeleted_keys:
+                    continue
+
+                command_id = str(existing_command.get("id") or "")
+                if not command_id:
+                    continue
+
+                desired_edit = _edit_payload(desired_command)
+
+                if _commands_equivalent(existing_command, desired_edit):
+                    LOGGER.info(
+                        "↪ commande déjà identique : /%s (PATCH ignoré)",
+                        key[1],
+                    )
+                    continue
+
+                label = f"PATCH /{key[1]}"
+                patch_url = f"{base_url}/{command_id}"
+
+                pstatus, _, pheaders, _ = await _request(
+                    session,
+                    "PATCH",
+                    patch_url,
+                    label=label,
+                    json_payload=desired_edit,
                 )
 
-                state[scope] = {
-                    "status": "partial",
-                    "mode": "differential",
-                    "fingerprint": fingerprint,
-                    "stage": "update",
-                    "updated": updated,
-                    "created": created,
-                    "http_status": pstatus,
-                    "updated_at": time.time(),
-                }
-                _save_state(state)
+                if pstatus != 200:
+                    LOGGER.error(
+                        "Sync différentielle interrompue sur /%s : HTTP %s. "
+                        "%s commande(s) déjà mise(s) à jour.",
+                        key[1],
+                        pstatus,
+                        updated,
+                    )
 
-                return {
-                    "status": "partial",
-                    "scope": scope,
-                    "stage": "update",
-                    "updated": updated,
-                    "created": created,
-                    "http_status": pstatus,
-                }
+                    state[scope] = {
+                        "status": "partial",
+                        "mode": "differential",
+                        "fingerprint": fingerprint,
+                        "stage": "update",
+                        "updated": updated,
+                        "created": created,
+                        "http_status": pstatus,
+                        "updated_at": time.time(),
+                    }
+                    _save_state(state)
 
-            updated += 1
-            LOGGER.info(
-                "✅ [%s/%s] commande mise à jour : /%s",
-                updated,
-                len(desired),
-                key[1],
-            )
-            await _pace_from_headers(
-                pheaders,
-                label=label,
-            )
+                    return {
+                        "status": "partial",
+                        "scope": scope,
+                        "stage": "update",
+                        "updated": updated,
+                        "created": created,
+                        "http_status": pstatus,
+                    }
+
+                updated += 1
+                LOGGER.info(
+                    "✅ [%s/%s] commande mise à jour : /%s",
+                    updated,
+                    len(desired),
+                    key[1],
+                )
+                await _pace_from_headers(
+                    pheaders,
+                    label=label,
+                )
 
         # Puis seulement les racines réellement absentes.
         for desired_command in desired:
