@@ -210,7 +210,7 @@ async def _request(
             if (
                 scope == "shared"
                 and shared_waits < max_shared_waits
-                and 0.0 < retry_after <= 120.0
+                and 0.0 < retry_after <= 900.0
             ):
                 shared_waits += 1
                 wait_for = retry_after + 1.0
