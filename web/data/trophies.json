@@ -14,7 +14,7 @@
       "edition": "1/1",
       "distinction": "Premier Champion",
       "status": "Premier trophée officiel Hamtaro",
-      "model_path": "/static/models/trophies/ht-001.glb",
+      "model_path": "/static/models/trophies/ht-001-web-light.glb?v=20260815-kuriboh-restored-2",
       "model_size_mb": 5.91,
       "poster_path": null,
       "holder_discord_id": null,
