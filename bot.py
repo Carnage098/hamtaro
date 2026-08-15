@@ -195,7 +195,10 @@ class HamtaroBot(commands.Bot):
         self._drop_retired_application_commands()
         compact_command_tree(self.tree, logger=LOGGER)
         log_command_tree_summary(self.tree, logger=LOGGER)
-        await self._sync_application_commands()
+        self.create_background_task(
+            self._sync_application_commands_after_ready(),
+            name="hamtaro-command-sync",
+        )
 
         if ENABLE_WATCHDOG:
             self.create_background_task(
@@ -307,6 +310,35 @@ class HamtaroBot(commands.Bot):
             LOGGER.error(
                 "Hamtaro démarre en mode dégradé. Modules essentiels absents : %s",
                 ", ".join(required_failures),
+            )
+
+    async def _sync_application_commands_after_ready(self) -> None:
+        """Synchronise les slash commands sans bloquer la connexion Discord.
+
+        Cette coroutine est demarree depuis setup_hook mais attend que le
+        Gateway Discord soit reellement pret avant de lancer les requetes HTTP.
+        Un rate-limit ou une erreur de synchronisation ne peut donc plus
+        empecher Hamtaro d'apparaitre en ligne.
+        """
+        try:
+            await self.wait_until_ready()
+
+            if self.is_closed():
+                return
+
+            LOGGER.info(
+                "Hamtaro est connecte : synchronisation des commandes "
+                "lancee en arriere-plan."
+            )
+
+            await self._sync_application_commands()
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            LOGGER.exception(
+                "Echec de la synchronisation des commandes en arriere-plan. "
+                "Hamtaro reste connecte."
             )
 
     async def _sync_application_commands(self) -> None:
