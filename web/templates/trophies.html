@@ -1,70 +1,46 @@
 {% extends "base.html" %}
 
 {% block title %}Trophées · Hamtaro{% endblock %}
-
 {% block content %}
-<section class="trophy-page-header">
-  <div class="trophy-page-heading">
-    <span class="trophy-eyebrow">COLLECTION OFFICIELLE</span>
+<section class="trophy-hero">
+  <div>
+    <span class="trophy-kicker">COLLECTION OFFICIELLE</span>
     <h1>Les trophées Hamtaro</h1>
     <p>
-      Une collection permanente qui conserve les victoires marquantes et les champions
-      de l'histoire compétitive du serveur.
+      Chaque trophée conserve une victoire, un champion et un morceau de l'histoire compétitive du serveur.
     </p>
   </div>
-
-  <div class="trophy-collection-stats" aria-label="Statistiques de la collection">
-    <div>
-      <strong>{{ total }}</strong>
-      <span>trophée{% if total != 1 %}s{% endif %}</span>
-    </div>
-    <div>
-      <strong>{{ awarded }}</strong>
-      <span>attribué{% if awarded != 1 %}s{% endif %}</span>
-    </div>
+  <div class="trophy-hero-stats" aria-label="Statistiques de la collection">
+    <article><strong>{{ total }}</strong><span>trophée(s)</span></article>
+    <article><strong>{{ awarded }}</strong><span>attribué(s)</span></article>
   </div>
 </section>
-
-<section class="trophy-gallery" aria-label="Collection des trophées Hamtaro">
+<section class="trophy-gallery" aria-label="Collection de trophées">
   {% for trophy in trophies %}
   <a class="trophy-card" href="{{ trophy.detail_url }}">
-    <div class="trophy-card-head">
-      <span class="trophy-serial">{{ trophy.id }}</span>
-      <span class="trophy-rarity-badge">{{ trophy.rarity }}</span>
+    <div class="trophy-card-visual" aria-hidden="true">
+      <span class="trophy-card-number">{{ trophy.id }}</span>
+      <span class="trophy-card-icon">🏆</span>
+      <span class="trophy-card-rarity">{{ trophy.rarity }}</span>
     </div>
-
-    <div class="trophy-card-showcase" aria-hidden="true">
-      <div class="trophy-card-orbit"></div>
-      <div class="trophy-card-mark">
-        <span>HT</span>
-        <strong>{{ "%03d"|format(trophy.number) }}</strong>
-      </div>
-    </div>
-
-    <div class="trophy-card-content">
-      <span class="trophy-eyebrow">{{ trophy.distinction }}</span>
-      <h2>{{ trophy.tagline or trophy.title }}</h2>
+    <div class="trophy-card-body">
+      <span class="trophy-kicker">{{ trophy.distinction }}</span>
+      <h2>{{ trophy.title }}</h2>
       <p>{{ trophy.description }}</p>
-
       <div class="trophy-card-meta">
-        <div>
-          <span>Détenteur</span>
-          <strong>{{ trophy.display_holder }}</strong>
-        </div>
-        <div>
-          <span>Édition</span>
-          <strong>{{ trophy.edition }}</strong>
-        </div>
+        <span>👑 {{ trophy.display_holder }}</span>
+        <span>◈ {{ trophy.edition }}</span>
+        {% if trophy.tournament_code %}
+        <span>🎟 {{ trophy.tournament_code }}</span>
+        {% endif %}
       </div>
-
-      <span class="trophy-card-link">Découvrir HT-001 en 3D <span aria-hidden="true">→</span></span>
+      <span class="trophy-card-cta">Voir {{ trophy.id }} en 3D →</span>
     </div>
   </a>
   {% else %}
   <div class="trophy-empty-state">
-    <span class="trophy-empty-mark">HT</span>
+    <span>🏆</span>
     <h2>La collection va bientôt commencer.</h2>
-    <p>Le premier trophée apparaîtra ici dès qu'il sera enregistré.</p>
   </div>
   {% endfor %}
 </section>
