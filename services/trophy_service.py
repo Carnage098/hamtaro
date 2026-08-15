@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import Any
 
 
@@ -69,6 +70,19 @@ class TrophyService:
         item["is_awarded"] = bool(holder_id or item.get("holder_name"))
         item["display_holder"] = item.get("holder_name") or "À attribuer"
         item["detail_url"] = f"/trophies/{item['id'].lower()}"
+
+        # Report the real deployed model size rather than a stale hard-coded value.
+        model_url = str(item.get("model_path") or "").strip()
+        model_web_path = urlsplit(model_url).path
+        if model_web_path.startswith("/static/"):
+            project_root = Path(__file__).resolve().parent.parent
+            model_file = project_root / "web" / model_web_path.lstrip("/")
+            if model_file.exists():
+                item["model_size_mb"] = f"{model_file.stat().st_size / (1024 * 1024):.1f}".replace(".", ",")
+                item["model_exists"] = True
+            else:
+                item["model_exists"] = False
+
         return item
 
     def all_trophies(self) -> list[dict[str, Any]]:
