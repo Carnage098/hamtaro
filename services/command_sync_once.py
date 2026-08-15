@@ -40,7 +40,7 @@ def _save_state(data: dict[str, Any]) -> None:
 
 def _payload(tree: app_commands.CommandTree) -> list[dict[str, Any]]:
     commands = list(tree.get_commands())
-    commands.sort(key=lambda command: (int(command.type.value), command.name))
+    commands.sort(key=lambda command: command.name)
     return [command.to_dict(tree) for command in commands]
 
 
