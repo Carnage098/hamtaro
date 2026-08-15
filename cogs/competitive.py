@@ -1,370 +1,444 @@
 from __future__ import annotations
 
+import os
+from typing import Any
+
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from services.competitive_service import CompetitiveService, MIN_OFFICIAL_GAMES
-from services.expansion_database import init_expansion_schema, normalize_format
-from utils.expansion_permissions import staff_only
+from services.deck_intelligence_service import DeckIntelligenceService
+from services.tournament_live_service import TournamentLiveService
+from utils.permissions import staff_only
 
 
+FORMATS = (
+    "Format Actuel",
+    "Master Duel",
+    "Genesys",
+    "GOAT",
+    "Edison",
+    "HAT",
+    "Tengu Plant",
+    "Dragon Ruler",
+    "TeleDAD",
+    "Rush Duel",
+    "Speed Duel",
+)
 
 
-def build_season_summary_embed(summary: dict[str, object]) -> discord.Embed:
-    season = summary["season"]
-    assert isinstance(season, dict)
-    embed = discord.Embed(
-        title=f"🏁 Fin de saison — {season['name']}",
-        description=(
-            f"**{summary['matches']}** match(s) classé(s) • "
-            f"**{summary['players']}** joueur(s) actif(s) • "
-            f"minimum officiel : **{summary['minimum_games']} matchs**"
-        ),
-        color=discord.Color.gold(),
+class TournamentNameModal(discord.ui.Modal, title="Créer le tournoi Hamtaro"):
+    name = discord.ui.TextInput(
+        label="Nom du tournoi",
+        placeholder="Hamtaro CUP #12",
+        max_length=80,
     )
-    podium = summary.get("podium") or []
-    if podium:
-        medals = ("🥇", "🥈", "🥉")
-        embed.add_field(
-            name="🏆 Podium général",
-            value="\n".join(
-                f"{medals[index]} **{row['player_name']}** — {row['rating']} ELO "
-                f"({row['wins']}V/{row['losses']}D)"
-                for index, row in enumerate(podium)
+
+    def __init__(self, owner_view: "TournamentAssistantView") -> None:
+        super().__init__()
+        self.owner_view = owner_view
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        view = self.owner_view
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "❌ Cette action doit être faite dans un serveur.",
+                ephemeral=True,
+            )
+            return
+        try:
+            tournament = await view.cog.bot.db.create_tournament(
+                guild_id=str(interaction.guild.id),
+                name=str(self.name.value).strip(),
+                format=view.format_name,
+                max_players=view.capacity,
+                created_by=str(interaction.user.id),
+            )
+            await view.cog.live.save_settings(
+                tournament.id,
+                structure=view.structure,
+                best_of=view.best_of,
+                public_decks=True,
+                live_enabled=True,
+            )
+            if interaction.channel_id is not None:
+                try:
+                    await view.cog.bot.db.select_tournament_for_channel(
+                        str(interaction.guild.id),
+                        str(interaction.channel_id),
+                        tournament.id,
+                        selected_by=str(interaction.user.id),
+                    )
+                except Exception:
+                    pass
+        except Exception as error:
+            await interaction.response.send_message(
+                f"❌ Création impossible : {error}",
+                ephemeral=True,
+            )
+            return
+
+        embed = discord.Embed(
+            title="✅ Tournoi créé",
+            description=(
+                f"**{tournament.name}** (`{tournament.code}`)\n"
+                "Le tournoi utilise les services Hamtaro existants ; "
+                "l'assistant ne remplace aucune commande."
             ),
-            inline=False,
+            color=discord.Color.gold(),
         )
-    else:
-        embed.add_field(
-            name="🏆 Podium général",
-            value="Aucun joueur n'a atteint le minimum de matchs requis.",
-            inline=False,
-        )
-    champions = summary.get("format_champions") or []
-    if champions:
-        embed.add_field(
-            name="🎴 Champions par format",
-            value="\n".join(
-                f"**{row['format']}** : {row['player_name']} — {row['rating']} ELO"
-                for row in champions[:15]
-            ),
-            inline=False,
-        )
-    embed.set_footer(text="Les classements finaux sont archivés et restent consultables.")
-    return embed
+        embed.add_field(name="Format", value=view.format_name)
+        embed.add_field(name="Structure", value=view.structure_label)
+        embed.add_field(name="Matchs", value=f"BO{view.best_of}")
+        embed.add_field(name="Capacité", value=str(view.capacity))
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-class CompetitiveCog(commands.Cog):
-    competitive = app_commands.Group(
-        name="competitive",
-        description="Classement ELO, saisons et comparaisons Hamtaro",
+class TournamentAssistantView(discord.ui.View):
+    def __init__(self, cog: "CompetitiveV2Cog", user_id: int) -> None:
+        super().__init__(timeout=600)
+        self.cog = cog
+        self.user_id = user_id
+        self.format_name = "Format Actuel"
+        self.structure = "elimination"
+        self.structure_label = "Élimination directe"
+        self.best_of = 3
+        self.capacity = 16
+
+        format_select = discord.ui.Select(
+            placeholder="1. Format",
+            options=[
+                discord.SelectOption(label=name, value=name)
+                for name in FORMATS
+            ],
+            row=0,
+        )
+        structure_select = discord.ui.Select(
+            placeholder="2. Structure",
+            options=[
+                discord.SelectOption(
+                    label="Élimination directe",
+                    value="elimination",
+                    emoji="🌳",
+                ),
+                discord.SelectOption(
+                    label="Rondes suisses",
+                    value="swiss",
+                    emoji="🇨🇭",
+                ),
+            ],
+            row=1,
+        )
+        bo_select = discord.ui.Select(
+            placeholder="3. Durée des matchs",
+            options=[
+                discord.SelectOption(label="BO1", value="1"),
+                discord.SelectOption(label="BO3", value="3", default=True),
+                discord.SelectOption(label="BO5", value="5"),
+            ],
+            row=2,
+        )
+        capacity_select = discord.ui.Select(
+            placeholder="4. Capacité",
+            options=[
+                discord.SelectOption(
+                    label=f"{value} joueurs",
+                    value=str(value),
+                    default=value == 16,
+                )
+                for value in (4, 8, 16, 32, 64)
+            ],
+            row=3,
+        )
+        create_button = discord.ui.Button(
+            label="Résumé et création",
+            style=discord.ButtonStyle.success,
+            emoji="🏆",
+            row=4,
+        )
+
+        async def format_cb(interaction: discord.Interaction) -> None:
+            self.format_name = format_select.values[0]
+            await interaction.response.defer()
+
+        async def structure_cb(interaction: discord.Interaction) -> None:
+            self.structure = structure_select.values[0]
+            self.structure_label = (
+                "Rondes suisses"
+                if self.structure == "swiss"
+                else "Élimination directe"
+            )
+            await interaction.response.defer()
+
+        async def bo_cb(interaction: discord.Interaction) -> None:
+            self.best_of = int(bo_select.values[0])
+            await interaction.response.defer()
+
+        async def capacity_cb(interaction: discord.Interaction) -> None:
+            self.capacity = int(capacity_select.values[0])
+            await interaction.response.defer()
+
+        async def create_cb(interaction: discord.Interaction) -> None:
+            await interaction.response.send_modal(TournamentNameModal(self))
+
+        format_select.callback = format_cb
+        structure_select.callback = structure_cb
+        bo_select.callback = bo_cb
+        capacity_select.callback = capacity_cb
+        create_button.callback = create_cb
+
+        self.add_item(format_select)
+        self.add_item(structure_select)
+        self.add_item(bo_select)
+        self.add_item(capacity_select)
+        self.add_item(create_button)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "❌ Cet assistant appartient au membre du staff qui l'a ouvert.",
+                ephemeral=True,
+            )
+            return False
+        return True
+
+
+class CompetitiveV2Cog(commands.Cog):
+    broadcast = app_commands.Group(
+        name="broadcast",
+        description="Diffusion et matchs live Hamtaro",
+    )
+    deck_registry = app_commands.Group(
+        name="deck_registry",
+        description="Normalisation des noms de decks Hamtaro",
     )
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.service = CompetitiveService()
+        self.live = TournamentLiveService()
+        self.decks = DeckIntelligenceService()
 
     async def cog_load(self) -> None:
-        await init_expansion_schema()
+        await self.live.ensure_schema()
+        await self.decks.ensure_schema(self.bot.db)
 
-    @competitive.command(name="ranking", description="Afficher le classement ELO officiel d'un format")
-    @app_commands.describe(format="Format Yu-Gi-Oh!", visible="Afficher publiquement")
-    async def ranking(
+    @app_commands.command(
+        name="tournament_assistant",
+        description="Créer un tournoi avec l'assistant interactif Hamtaro",
+    )
+    @staff_only()
+    async def tournament_assistant(
         self,
         interaction: discord.Interaction,
-        format: str = "Général",
-        visible: bool = False,
     ) -> None:
-        if interaction.guild is None:
-            await interaction.response.send_message("❌ Commande réservée aux serveurs.", ephemeral=True)
-            return
-        await interaction.response.defer(ephemeral=not visible)
-        guild_id = str(interaction.guild.id)
-        season = await self.service.display_season(guild_id)
-        rows = await self.service.ranking(guild_id, format, limit=20)
+        view = TournamentAssistantView(self, interaction.user.id)
         embed = discord.Embed(
-            title=f"🏆 Classement ELO — {normalize_format(format)}",
-            description=None,
-            color=discord.Color.gold(),
-        )
-        embed.add_field(
-            name="Saison affichée",
-            value=f"**{season['name']}** — {str(season['status']).title()}",
-            inline=False,
-        )
-        if not rows:
-            embed.description = (
-                f"Aucun joueur n'a encore atteint les **{MIN_OFFICIAL_GAMES} matchs classés** "
-                "requis pour apparaître officiellement."
-            )
-        else:
-            lines = []
-            medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-            for index, row in enumerate(rows, start=1):
-                label = medals.get(index, f"`#{index}`")
-                lines.append(
-                    f"{label} **{row['player_name']}** — **{row['rating']}** ELO "
-                    f"({row['wins']}V/{row['losses']}D, {row['games']} matchs)"
-                )
-            embed.description = "\n".join(lines)
-        embed.set_footer(
-            text=f"Minimum : {MIN_OFFICIAL_GAMES} matchs • Les BYE et Double Loss ne modifient pas l'ELO."
-        )
-        await interaction.followup.send(embed=embed, ephemeral=not visible)
-
-    @competitive.command(name="elo", description="Afficher la cote ELO d'un joueur")
-    async def elo(
-        self,
-        interaction: discord.Interaction,
-        joueur: discord.Member | None = None,
-        format: str = "Général",
-    ) -> None:
-        if interaction.guild is None:
-            await interaction.response.send_message("❌ Commande réservée aux serveurs.", ephemeral=True)
-            return
-        target = joueur or interaction.user
-        row = await self.service.player_rating(
-            str(interaction.guild.id), str(target.id), format
-        )
-        games = int(row["games"])
-        win_rate = int(row["wins"]) / games * 100 if games else 0.0
-        embed = discord.Embed(
-            title=f"📈 ELO de {target.display_name}",
-            description=f"Format : **{normalize_format(format)}**",
+            title="🧠 Assistant de création de tournoi",
+            description=(
+                "Choisis le **format**, la **structure**, le **BO** et la "
+                "**capacité**, puis clique sur **Résumé et création**.\n\n"
+                "Les commandes historiques restent disponibles."
+            ),
             color=discord.Color.blurple(),
         )
-        embed.set_thumbnail(url=target.display_avatar.url)
-        rank_value = (
-            f"**#{row['rank']}**"
-            if row.get("official") and row.get("rank") is not None
-            else f"**Provisoire** ({row['games']}/{MIN_OFFICIAL_GAMES})"
-        )
-        embed.add_field(name="Classement", value=rank_value, inline=True)
-        embed.add_field(name="Cote", value=f"**{row['rating']}**", inline=True)
-        embed.add_field(name="Record", value=f"**{row['peak_rating']}**", inline=True)
-        embed.add_field(name="Saison", value=f"**{row.get('season_name', 'Classement permanent')}**", inline=False)
-        embed.add_field(
-            name="Bilan",
-            value=f"{row['wins']} victoire(s) • {row['losses']} défaite(s)\n{win_rate:.1f} % de victoire",
-            inline=False,
-        )
-        embed.add_field(
-            name="Séries",
-            value=f"Actuelle : **{row['current_streak']}** • Record : **{row['best_streak']}**",
-            inline=False,
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @competitive.command(name="history", description="Afficher les dernières variations ELO")
-    async def history(
-        self,
-        interaction: discord.Interaction,
-        joueur: discord.Member | None = None,
-        format: str = "Général",
-    ) -> None:
-        if interaction.guild is None:
-            await interaction.response.send_message("❌ Commande réservée aux serveurs.", ephemeral=True)
-            return
-        target = joueur or interaction.user
-        rows = await self.service.history(
-            str(interaction.guild.id), str(target.id), normalize_format(format)
-        )
-        embed = discord.Embed(
-            title=f"📊 Historique ELO — {target.display_name}",
-            color=discord.Color.blurple(),
-        )
-        if not rows:
-            embed.description = "Aucune variation enregistrée."
-        else:
-            embed.description = "\n".join(
-                f"{'✅' if row['result']=='win' else '❌'} **{row['format']}** `{row['source_key']}` : "
-                f"**{row['old_rating']} → {row['new_rating']}** "
-                f"({int(row['delta']):+d})"
-                for row in rows
-            )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @competitive.command(name="compare", description="Comparer les confrontations de deux joueurs")
-    async def compare(
-        self,
-        interaction: discord.Interaction,
-        joueur_1: discord.Member,
-        joueur_2: discord.Member,
-        format: str | None = None,
-    ) -> None:
-        if interaction.guild is None:
-            await interaction.response.send_message("❌ Commande réservée aux serveurs.", ephemeral=True)
-            return
-        if joueur_1.id == joueur_2.id:
-            await interaction.response.send_message("❌ Choisis deux joueurs différents.", ephemeral=True)
-            return
-        data = await self.service.head_to_head(
-            str(interaction.guild.id), str(joueur_1.id), str(joueur_2.id), format
-        )
-        scope = normalize_format(format) if format else "Tous les formats"
-        embed = discord.Embed(
-            title="⚔️ Face-à-face",
-            description=f"**{joueur_1.display_name}** contre **{joueur_2.display_name}**\nPortée : **{scope}**",
-            color=discord.Color.red(),
-        )
-        embed.add_field(name=joueur_1.display_name, value=f"**{data['player1_wins']}** victoire(s)", inline=True)
-        embed.add_field(name="Matchs", value=f"**{data['matches']}**", inline=True)
-        embed.add_field(name=joueur_2.display_name, value=f"**{data['player2_wins']}** victoire(s)", inline=True)
-        if data["last"]:
-            last = data["last"]
-            winner = joueur_1.display_name if str(last["winner_id"]) == str(joueur_1.id) else joueur_2.display_name
-            embed.add_field(
-                name="Dernier affrontement",
-                value=f"Vainqueur : **{winner}** • {last['format']} • `{last['source_key']}`",
-                inline=False,
-            )
-        await interaction.response.send_message(embed=embed)
-
-    @competitive.command(name="sync", description="Synchroniser les nouveaux résultats avec le classement")
-    @staff_only()
-    async def sync(self, interaction: discord.Interaction) -> None:
-        if interaction.guild is None:
-            await interaction.response.send_message("❌ Commande réservée aux serveurs.", ephemeral=True)
-            return
-        await interaction.response.defer(ephemeral=True)
-        count = await self.service.sync_completed_matches(str(interaction.guild.id))
-        await interaction.followup.send(f"✅ **{count}** nouveau(x) match(s) ajouté(s) au classement.", ephemeral=True)
-
-    @competitive.command(name="rebuild", description="Reconstruire entièrement le classement du serveur")
-    @staff_only()
-    async def rebuild(self, interaction: discord.Interaction) -> None:
-        if interaction.guild is None:
-            await interaction.response.send_message("❌ Commande réservée aux serveurs.", ephemeral=True)
-            return
-        await interaction.response.defer(ephemeral=True)
-        count = await self.service.reset_and_rebuild(str(interaction.guild.id))
-        await interaction.followup.send(
-            f"✅ Classement reconstruit à partir de **{count}** match(s) validé(s).",
+        await interaction.response.send_message(
+            embed=embed,
+            view=view,
             ephemeral=True,
         )
 
-    @competitive.command(name="season_create", description="Créer une nouvelle saison compétitive")
-    @staff_only()
-    async def season_create(
+    @deck_registry.command(
+        name="resolve",
+        description="Voir le nom canonique qu'Hamtaro utilisera",
+    )
+    async def deck_resolve(
         self,
         interaction: discord.Interaction,
         nom: str,
-        facteur_reset: app_commands.Range[float, 0.0, 1.0] = 0.50,
-        fin_iso: str | None = None,
     ) -> None:
         if interaction.guild is None:
-            await interaction.response.send_message("❌ Commande réservée aux serveurs.", ephemeral=True)
             return
-        try:
-            season_id = await self.service.create_season(
-                guild_id=str(interaction.guild.id),
-                name=nom,
-                created_by=str(interaction.user.id),
-                ends_at=fin_iso,
-                soft_reset_factor=float(facteur_reset),
-            )
-        except ValueError as error:
-            await interaction.response.send_message(f"❌ {error}", ephemeral=True)
-            return
+        canonical = await self.decks.canonicalize(
+            self.bot.db,
+            str(interaction.guild.id),
+            nom,
+        )
         await interaction.response.send_message(
-            f"✅ Saison **{nom}** créée (`#{season_id}`). Reset progressif : **{facteur_reset:.0%}**. "
-            f"Le classement officiel demandera **{MIN_OFFICIAL_GAMES} matchs**.",
+            f"🎴 `{nom}` → **{canonical or 'Non renseigné'}**",
             ephemeral=True,
         )
 
-    @competitive.command(name="season_close", description="Clore la saison et publier son bilan final")
+    @deck_registry.command(
+        name="alias",
+        description="Associer un alias à un nom de deck canonique",
+    )
     @staff_only()
-    async def season_close(self, interaction: discord.Interaction) -> None:
-        if interaction.guild is None:
-            await interaction.response.send_message("❌ Commande réservée aux serveurs.", ephemeral=True)
-            return
-        await interaction.response.defer(ephemeral=True)
-        try:
-            season = await self.service.close_season(str(interaction.guild.id))
-        except ValueError as error:
-            await interaction.followup.send(f"❌ {error}", ephemeral=True)
-            return
-        summary = season["summary"]
-        embed = build_season_summary_embed(summary)
-        channel = None
-        channel_id = await self.service.announcement_channel_id(str(interaction.guild.id))
-        if channel_id:
-            candidate = interaction.guild.get_channel(int(channel_id))
-            if isinstance(candidate, discord.TextChannel):
-                channel = candidate
-        if channel is None and isinstance(interaction.channel, discord.TextChannel):
-            channel = interaction.channel
-        if channel is not None:
-            message = await channel.send(embed=embed)
-            await self.service.mark_season_summary_sent(int(season["id"]))
-            await interaction.followup.send(
-                f"✅ Saison **{season['name']}** clôturée. Bilan publié : {message.jump_url}",
-                ephemeral=True,
-            )
-        else:
-            await interaction.followup.send(
-                content=f"✅ Saison **{season['name']}** clôturée, mais aucun salon d'annonce valide n'a été trouvé.",
-                embed=embed,
-                ephemeral=True,
-            )
-
-    @competitive.command(name="season_ranking", description="Revoir le classement final d'une ancienne saison")
-    async def season_ranking(
+    async def deck_alias(
         self,
         interaction: discord.Interaction,
-        saison_id: int,
-        format: str = "Général",
-        visible: bool = False,
+        alias: str,
+        canonique: str,
     ) -> None:
         if interaction.guild is None:
-            await interaction.response.send_message("❌ Commande réservée aux serveurs.", ephemeral=True)
             return
-        await interaction.response.defer(ephemeral=not visible)
-        try:
-            rows = await self.service.season_ranking(
-                str(interaction.guild.id), saison_id, format, limit=20
-            )
-            summary = await self.service.season_summary(str(interaction.guild.id), saison_id)
-        except ValueError as error:
-            await interaction.followup.send(f"❌ {error}", ephemeral=True)
-            return
-        season = summary["season"]
-        embed = discord.Embed(
-            title=f"📜 {season['name']} — {normalize_format(format)}",
-            color=discord.Color.gold(),
+        value = await self.decks.add_alias(
+            self.bot.db,
+            str(interaction.guild.id),
+            alias,
+            canonique,
+            str(interaction.user.id),
         )
-        if rows:
-            medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-            embed.description = "\n".join(
-                f"{medals.get(index, f'`#{index}`')} **{row['player_name']}** — "
-                f"**{row['rating']}** ELO ({row['wins']}V/{row['losses']}D)"
-                for index, row in enumerate(rows, start=1)
-            )
-        else:
-            embed.description = "Aucun joueur officiellement classé dans ce format."
-        embed.set_footer(text=f"Archive de saison • minimum {MIN_OFFICIAL_GAMES} matchs")
-        await interaction.followup.send(embed=embed, ephemeral=not visible)
+        await interaction.response.send_message(
+            f"✅ `{alias}` sera désormais enregistré comme **{value}**.",
+            ephemeral=True,
+        )
 
-    @competitive.command(name="season_status", description="Afficher la saison compétitive actuelle")
-    async def season_status(self, interaction: discord.Interaction) -> None:
-        if interaction.guild is None:
-            await interaction.response.send_message("❌ Commande réservée aux serveurs.", ephemeral=True)
-            return
-        season = await self.service.season_status(str(interaction.guild.id))
-        if season is None:
+    @broadcast.command(
+        name="feature",
+        description="Mettre un match en vedette sur Hamtaro Live",
+    )
+    @staff_only()
+    async def feature(
+        self,
+        interaction: discord.Interaction,
+        tournoi_id: int,
+        match_id: int,
+        type_match: str = "bracket",
+    ) -> None:
+        kind = "swiss" if type_match.lower().startswith("s") else "bracket"
+        try:
+            await self.live.set_featured(
+                tournoi_id,
+                kind,
+                match_id,
+                str(interaction.user.id),
+            )
+        except ValueError as error:
             await interaction.response.send_message(
-                "ℹ️ Aucun découpage saisonnier actif : Hamtaro utilise le classement permanent.",
-                ephemeral=True,
+                f"❌ {error}", ephemeral=True
             )
             return
-        embed = discord.Embed(title=f"🗓️ Saison — {season['name']}", color=discord.Color.gold())
-        embed.add_field(name="Statut", value=str(season["status"]).title(), inline=True)
-        embed.add_field(name="Début", value=str(season["starts_at"]), inline=True)
-        embed.add_field(name="Fin", value=str(season["ends_at"] or "Non définie"), inline=True)
-        embed.add_field(name="Reset progressif", value=f"{float(season['soft_reset_factor']):.0%}", inline=True)
-        await interaction.response.send_message(embed=embed)
+        base = os.getenv("WEBSITE_BASE_URL", "").rstrip("/")
+        await interaction.response.send_message(
+            f"⭐ Match `{kind}:{match_id}` mis en vedette.\n"
+            + (f"🌐 {base}/live" if base else ""),
+            ephemeral=False,
+        )
+
+    @broadcast.command(
+        name="links",
+        description="Envoyer aux joueurs leurs liens privés de partage d'écran",
+    )
+    @staff_only()
+    async def links(
+        self,
+        interaction: discord.Interaction,
+        tournoi_id: int,
+        match_id: int,
+        type_match: str = "bracket",
+    ) -> None:
+        if interaction.guild is None:
+            return
+        await interaction.response.defer(ephemeral=True)
+        kind = "swiss" if type_match.lower().startswith("s") else "bracket"
+        match = await self.live.match(kind, match_id)
+        if not match or int(match["tournament_id"]) != tournoi_id:
+            await interaction.followup.send("❌ Match introuvable.", ephemeral=True)
+            return
+        base = os.getenv("WEBSITE_BASE_URL", "").rstrip("/")
+        if not base:
+            await interaction.followup.send(
+                "❌ WEBSITE_BASE_URL n'est pas configurée.", ephemeral=True
+            )
+            return
+
+        sent = []
+        failed = []
+        for slot in (1, 2):
+            player_id = str(match.get(f"player{slot}_id") or "")
+            player_name = str(match.get(f"player{slot}_name") or player_id)
+            if not player_id.isdigit():
+                continue
+            token = await self.live.create_publish_token(
+                tournament_id=tournoi_id,
+                kind=kind,
+                match_id=match_id,
+                player_id=player_id,
+            )
+            url = f"{base}/live/publish/{token}"
+            member = interaction.guild.get_member(int(player_id))
+            if member is None:
+                try:
+                    member = await interaction.guild.fetch_member(int(player_id))
+                except Exception:
+                    member = None
+            if member is None:
+                failed.append(player_name)
+                continue
+            try:
+                await member.send(
+                    "🔴 **Hamtaro Live**\n"
+                    "Tu peux diffuser volontairement ton écran pour ce match.\n"
+                    "Le navigateur te demandera exactement quel écran ou onglet "
+                    "tu souhaites partager. Aucun enregistrement automatique.\n\n"
+                    f"{url}"
+                )
+                sent.append(player_name)
+            except discord.HTTPException:
+                failed.append(player_name)
+
+        message = (
+            f"✅ Liens envoyés : {', '.join(sent) if sent else 'aucun'}."
+        )
+        if failed:
+            message += f"\n⚠️ DM impossible : {', '.join(failed)}."
+        await interaction.followup.send(message, ephemeral=True)
+
+    @broadcast.command(
+        name="stop",
+        description="Révoquer les liens de diffusion d'un match",
+    )
+    @staff_only()
+    async def stop(
+        self,
+        interaction: discord.Interaction,
+        match_id: int,
+        type_match: str = "bracket",
+    ) -> None:
+        kind = "swiss" if type_match.lower().startswith("s") else "bracket"
+        await self.live.revoke_match_tokens(kind, match_id)
+        await interaction.response.send_message(
+            f"⏹️ Liens de diffusion révoqués pour `{kind}:{match_id}`.",
+            ephemeral=True,
+        )
+
+    @broadcast.command(
+        name="status",
+        description="Voir les matchs actuellement diffusés",
+    )
+    async def status(
+        self,
+        interaction: discord.Interaction,
+        tournoi_id: int,
+    ) -> None:
+        try:
+            center = await self.live.live_center(tournoi_id)
+        except ValueError as error:
+            await interaction.response.send_message(
+                f"❌ {error}", ephemeral=True
+            )
+            return
+        live_matches = center["live_matches"]
+        lines = [
+            f"🔴 `{m['kind']}:{m['id']}` — "
+            f"{m.get('player1_name') or '?'} vs {m.get('player2_name') or '?'}"
+            for m in live_matches
+        ]
+        await interaction.response.send_message(
+            "\n".join(lines) if lines else "⚫ Aucun match diffusé actuellement.",
+            ephemeral=True,
+        )
 
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(CompetitiveCog(bot))
+    await bot.add_cog(CompetitiveV2Cog(bot))
