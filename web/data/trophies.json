@@ -29,7 +29,9 @@
       "badge_description": "Un badge unique lié au premier sacre de l'histoire compétitive Hamtaro.",
       "source_master": "Trophy_Kuriboh_Champion_Final_v3.blend",
       "web_build": "github-optimized-glb",
-      "web_triangles": 220000
+      "web_triangles": 220000,
+      "mobile_model_path": "/static/models/trophies/ht-001-mobile.glb?v=20260815-mobile-viewer-1",
+      "mobile_web_build": "Mobile Viewer — géométrie allégée, textures 1K, Draco/WebP"
     },
     {
       "id": "HT-002",
