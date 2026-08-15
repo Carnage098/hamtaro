@@ -24,6 +24,7 @@ from config import (
     EVENT_LOOP_WARNING_SECONDS,
     EVENT_LOOP_WATCHDOG_INTERVAL,
     FAIL_ON_COG_ERROR,
+    FORCE_COMMAND_SYNC,
     GUILD_ID,
     INSTANCE_LOCK_PATH,
     LOG_LEVEL,
@@ -38,6 +39,7 @@ from services.database_maintenance import (
     prepare_database,
 )
 from services.database_service import DatabaseService
+from services.command_sync_once import publish_application_commands_once
 from services.command_compactor import compact_command_tree, log_command_tree_summary
 from services.command_sync_guard import CommandSyncState, command_tree_fingerprint
 from utils.permissions import StaffOnly
@@ -313,13 +315,7 @@ class HamtaroBot(commands.Bot):
             )
 
     async def _sync_application_commands_after_ready(self) -> None:
-        """Synchronise les slash commands sans bloquer la connexion Discord.
-
-        Cette coroutine est demarree depuis setup_hook mais attend que le
-        Gateway Discord soit reellement pret avant de lancer les requetes HTTP.
-        Un rate-limit ou une erreur de synchronisation ne peut donc plus
-        empecher Hamtaro d'apparaitre en ligne.
-        """
+        """Attend le Gateway puis lance une seule tentative de publication."""
         try:
             await self.wait_until_ready()
 
@@ -327,8 +323,8 @@ class HamtaroBot(commands.Bot):
                 return
 
             LOGGER.info(
-                "Hamtaro est connecte : synchronisation des commandes "
-                "lancee en arriere-plan."
+                "Hamtaro est connecté : tentative ONE-SHOT de "
+                "synchronisation des commandes."
             )
 
             await self._sync_application_commands()
@@ -337,79 +333,54 @@ class HamtaroBot(commands.Bot):
             raise
         except Exception:
             LOGGER.exception(
-                "Echec de la synchronisation des commandes en arriere-plan. "
-                "Hamtaro reste connecte."
+                "Échec de la tentative ONE-SHOT des commandes. "
+                "Hamtaro reste connecté."
             )
 
     async def _sync_application_commands(self) -> None:
+        """Publie les commandes sans jamais entrer dans une boucle de retry."""
         self._drop_retired_application_commands()
 
-        fingerprint = command_tree_fingerprint(self.tree)
-        state_path = Path(str(INSTANCE_LOCK_PATH)).parent / "command_sync_state.json"
-        sync_state = CommandSyncState(state_path, logger=LOGGER)
-        force_sync = os.getenv("FORCE_COMMAND_SYNC", "false").strip().lower() in {
-            "1", "true", "yes", "on"
-        }
-        performed = False
+        if not SYNC_GUILD_COMMANDS and not SYNC_GLOBAL_COMMANDS:
+            LOGGER.info(
+                "Synchronisation Discord désactivée. "
+                "Aucune requête de commandes ne sera envoyée."
+            )
+            return
+
+        application_id = (
+            int(self.application_id)
+            if self.application_id is not None
+            else int(self.user.id if self.user is not None else 0)
+        )
+
+        if not application_id:
+            LOGGER.error(
+                "Application ID Discord indisponible : sync one-shot annulée."
+            )
+            return
 
         if SYNC_GUILD_COMMANDS:
             if GUILD_ID.isdigit():
-                guild = discord.Object(id=int(GUILD_ID))
-                scope = f"guild:{GUILD_ID}"
-
-                if sync_state.needs_sync(scope, fingerprint, force=force_sync):
-                    started = time.perf_counter()
-
-                    # copy_global_to est local : aucun appel HTTP ici.
-                    # Un seul PUT est effectué par sync(guild=guild).
-                    self.tree.copy_global_to(guild=guild)
-                    commands_synced = await self.tree.sync(guild=guild)
-
-                    sync_state.mark_synced(scope, fingerprint)
-                    LOGGER.info(
-                        "%s commandes RACINES synchronisées sur le serveur %s "
-                        "en %.3fs (empreinte=%s)",
-                        len(commands_synced),
-                        GUILD_ID,
-                        time.perf_counter() - started,
-                        fingerprint[:12],
-                    )
-                else:
-                    LOGGER.info(
-                        "Arbre Discord inchangé pour le serveur %s : "
-                        "synchronisation ignorée (empreinte=%s)",
-                        GUILD_ID,
-                        fingerprint[:12],
-                    )
-                performed = True
+                await publish_application_commands_once(
+                    self.tree,
+                    application_id=application_id,
+                    token=TOKEN,
+                    guild_id=int(GUILD_ID),
+                    force=FORCE_COMMAND_SYNC,
+                )
             else:
                 LOGGER.warning(
-                    "SYNC_GUILD_COMMANDS est actif, mais GUILD_ID est absent ou invalide."
+                    "SYNC_GUILD_COMMANDS est actif, mais GUILD_ID est invalide."
                 )
 
         if SYNC_GLOBAL_COMMANDS:
-            scope = "global"
-            if sync_state.needs_sync(scope, fingerprint, force=force_sync):
-                started = time.perf_counter()
-                commands_synced = await self.tree.sync()
-                sync_state.mark_synced(scope, fingerprint)
-                LOGGER.info(
-                    "%s commandes globales synchronisées en %.3fs (empreinte=%s)",
-                    len(commands_synced),
-                    time.perf_counter() - started,
-                    fingerprint[:12],
-                )
-            else:
-                LOGGER.info(
-                    "Arbre Discord global inchangé : synchronisation ignorée "
-                    "(empreinte=%s)",
-                    fingerprint[:12],
-                )
-            performed = True
-
-        if not performed:
-            LOGGER.info(
-                "Synchronisation Discord désactivée. Les commandes déjà publiées restent actives."
+            await publish_application_commands_once(
+                self.tree,
+                application_id=application_id,
+                token=TOKEN,
+                guild_id=None,
+                force=FORCE_COMMAND_SYNC,
             )
 
     async def _database_backup_loop(self) -> None:

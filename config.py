@@ -71,6 +71,7 @@ GUILD_ID = (os.getenv("GUILD_ID") or PUBLIC_GUILD_ID or "").strip()
 ENABLE_MESSAGE_CONTENT = env_bool("ENABLE_MESSAGE_CONTENT", False)
 SYNC_GLOBAL_COMMANDS = env_bool("SYNC_GLOBAL_COMMANDS", False)
 SYNC_GUILD_COMMANDS = env_bool("SYNC_GUILD_COMMANDS", True)
+FORCE_COMMAND_SYNC = env_bool("FORCE_COMMAND_SYNC", False)
 
 # Identifiants facultatifs de salons.
 # Les matchs vedettes sont normalement configurés via /setup_plus configure.
