@@ -54,6 +54,81 @@ def _fingerprint(payload: list[dict[str, Any]]) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def _rate_limit_diagnostics(response, body, raw_text: str) -> dict[str, object]:
+    header_names = (
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+        "X-RateLimit-Reset-After",
+        "X-RateLimit-Bucket",
+        "X-RateLimit-Scope",
+        "Retry-After",
+        "Date",
+        "Via",
+        "CF-Ray",
+    )
+
+    headers = {
+        name: response.headers.get(name)
+        for name in header_names
+        if response.headers.get(name) is not None
+    }
+
+    return {
+        "status": response.status,
+        "headers": headers,
+        "body": body if body else raw_text[:2000],
+    }
+
+
+def _log_rate_limit_diagnostics(response, body, raw_text: str) -> None:
+    import json as _json
+
+    diagnostics = _rate_limit_diagnostics(
+        response,
+        body,
+        raw_text,
+    )
+
+    LOGGER.error("━━━━━━━━ DISCORD RATE LIMIT DIAGNOSTIC ━━━━━━━━")
+    LOGGER.error("HTTP status              : %s", diagnostics["status"])
+
+    headers = diagnostics["headers"]
+
+    for key in (
+        "X-RateLimit-Scope",
+        "X-RateLimit-Bucket",
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+        "X-RateLimit-Reset-After",
+        "Retry-After",
+        "Date",
+        "Via",
+        "CF-Ray",
+    ):
+        LOGGER.error(
+            "%-24s : %s",
+            key,
+            headers.get(key, "<absent>"),
+        )
+
+    try:
+        body_text = _json.dumps(
+            diagnostics["body"],
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    except Exception:
+        body_text = repr(diagnostics["body"])
+
+    LOGGER.error(
+        "Discord response body    : %s",
+        body_text[:3000],
+    )
+    LOGGER.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+
 async def publish_application_commands_once(
     tree: app_commands.CommandTree,
     *,
@@ -148,6 +223,12 @@ async def publish_application_commands_once(
                     body = {}
 
                 if response.status == 429:
+                    _log_rate_limit_diagnostics(
+                        response,
+                        body,
+                        raw_text,
+                    )
+
                     retry_after = 0.0
 
                     try:
