@@ -14,7 +14,7 @@
       "edition": "1/1",
       "distinction": "Premier Champion",
       "status": "Premier trophée officiel Hamtaro",
-      "model_path": "/static/models/trophies/ht-001-v3-web-balanced.glb?v=20260815-balanced-1",
+      "model_path": "/media/trophies/ht-001-fast.glb?v=20260815-fast-fidelity-1",
       "model_size_mb": null,
       "poster_path": null,
       "holder_discord_id": null,
@@ -26,7 +26,7 @@
       "awarded_at": null,
       "badge": "Premier champion du serveur",
       "source_master": "master/HT-001_Trophy_Kuriboh_Champion_Final_v3.blend",
-      "web_build": "Version web équilibrée — géométrie fidèle, textures allégées"
+      "web_build": "Fast Fidelity — maillage conservé, textures WebP, transfert gzip"
     }
   ]
 }
