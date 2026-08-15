@@ -3,18 +3,21 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
 from urllib.parse import urlsplit
+from typing import Any
 
 
 class TrophyService:
-    """Catalogue public des trophées Hamtaro."""
+    """Catalogue public des trophées Hamtaro.
+
+    Le catalogue est volontairement stocké dans web/data/trophies.json :
+    ajouter un futur HT-002 ne demande donc aucune modification des routes.
+    """
 
     def __init__(self, bot: Any, catalog_path: Path | None = None) -> None:
         self.bot = bot
-        self.project_root = Path(__file__).resolve().parent.parent
-        self.catalog_path = catalog_path or self.project_root / "web" / "data" / "trophies.json"
-        self.model_directory = self.project_root / "web" / "static" / "models" / "trophies"
+        project_root = Path(__file__).resolve().parent.parent
+        self.catalog_path = catalog_path or project_root / "web" / "data" / "trophies.json"
 
     @staticmethod
     def normalize_id(value: str) -> str:
@@ -30,10 +33,6 @@ class TrophyService:
             if suffix.isdigit():
                 return f"HT-{int(suffix):03d}"
         return raw
-
-    @staticmethod
-    def _format_mib(path: Path) -> str:
-        return f"{path.stat().st_size / (1024 * 1024):.1f}".replace(".", ",")
 
     def _load_catalog(self) -> dict[str, Any]:
         if not self.catalog_path.exists():
@@ -62,15 +61,6 @@ class TrophyService:
                 return getattr(member, "display_name", None) or getattr(member, "name", None) or fallback
         return fallback
 
-    def _resolve_model_file(self, model_url: str) -> Path | None:
-        model_web_path = urlsplit(model_url).path
-        if model_web_path.startswith("/media/trophies/"):
-            filename = Path(model_web_path).name
-            return self.model_directory / filename
-        if model_web_path.startswith("/static/"):
-            return self.project_root / "web" / model_web_path.lstrip("/")
-        return None
-
     def _enrich(self, trophy: dict[str, Any]) -> dict[str, Any]:
         item = deepcopy(trophy)
         item["id"] = self.normalize_id(str(item.get("id") or ""))
@@ -81,21 +71,17 @@ class TrophyService:
         item["display_holder"] = item.get("holder_name") or "À attribuer"
         item["detail_url"] = f"/trophies/{item['id'].lower()}"
 
+        # Report the real deployed model size rather than a stale hard-coded value.
         model_url = str(item.get("model_path") or "").strip()
-        model_file = self._resolve_model_file(model_url)
-        item["model_exists"] = bool(model_file and model_file.exists())
-        item["model_size_mb"] = None
-        item["transfer_size_mb"] = None
-        item["has_precompressed_model"] = False
-
-        if model_file and model_file.exists():
-            item["model_size_mb"] = self._format_mib(model_file)
-            gzip_file = Path(str(model_file) + ".gz")
-            if gzip_file.exists():
-                item["transfer_size_mb"] = self._format_mib(gzip_file)
-                item["has_precompressed_model"] = True
+        model_web_path = urlsplit(model_url).path
+        if model_web_path.startswith("/static/"):
+            project_root = Path(__file__).resolve().parent.parent
+            model_file = project_root / "web" / model_web_path.lstrip("/")
+            if model_file.exists():
+                item["model_size_mb"] = f"{model_file.stat().st_size / (1024 * 1024):.1f}".replace(".", ",")
+                item["model_exists"] = True
             else:
-                item["transfer_size_mb"] = item["model_size_mb"]
+                item["model_exists"] = False
 
         return item
 
