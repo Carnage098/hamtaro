@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 import traceback
 from contextlib import suppress
+from pathlib import Path
 from typing import Any
 
 import discord
@@ -36,6 +38,8 @@ from services.database_maintenance import (
     prepare_database,
 )
 from services.database_service import DatabaseService
+from services.command_compactor import compact_command_tree, log_command_tree_summary
+from services.command_sync_guard import CommandSyncState, command_tree_fingerprint
 from utils.permissions import StaffOnly
 from utils.runtime_lock import AlreadyRunningError, RuntimeLock
 
@@ -188,6 +192,9 @@ class HamtaroBot(commands.Bot):
         await self.db.connect()
 
         await self._load_extensions()
+        self._drop_retired_application_commands()
+        compact_command_tree(self.tree, logger=LOGGER)
+        log_command_tree_summary(self.tree, logger=LOGGER)
         await self._sync_application_commands()
 
         if ENABLE_WATCHDOG:
@@ -303,32 +310,45 @@ class HamtaroBot(commands.Bot):
             )
 
     async def _sync_application_commands(self) -> None:
-        # Toujours nettoyer localement juste avant publication au cas où un
-        # extension chargée tardivement ait recréé une commande retirée.
         self._drop_retired_application_commands()
-        self._log_application_command_budget("avant synchronisation")
 
+        fingerprint = command_tree_fingerprint(self.tree)
+        state_path = Path(str(INSTANCE_LOCK_PATH)).parent / "command_sync_state.json"
+        sync_state = CommandSyncState(state_path, logger=LOGGER)
+        force_sync = os.getenv("FORCE_COMMAND_SYNC", "false").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
         performed = False
 
         if SYNC_GUILD_COMMANDS:
             if GUILD_ID.isdigit():
                 guild = discord.Object(id=int(GUILD_ID))
-                started = time.perf_counter()
+                scope = f"guild:{GUILD_ID}"
 
-                # Une seule publication côté serveur. Discord remplace l'état
-                # distant par l'arbre local envoyé lors du sync : il n'est pas
-                # nécessaire d'envoyer d'abord un arbre vide, ce qui doublait
-                # les PUT et favorisait les 429.
-                self.tree.clear_commands(guild=guild)
-                self.tree.copy_global_to(guild=guild)
-                commands_synced = await self.tree.sync(guild=guild)
+                if sync_state.needs_sync(scope, fingerprint, force=force_sync):
+                    started = time.perf_counter()
 
-                LOGGER.info(
-                    "%s commandes synchronisées sur le serveur %s en %.3fs",
-                    len(commands_synced),
-                    GUILD_ID,
-                    time.perf_counter() - started,
-                )
+                    # copy_global_to est local : aucun appel HTTP ici.
+                    # Un seul PUT est effectué par sync(guild=guild).
+                    self.tree.copy_global_to(guild=guild)
+                    commands_synced = await self.tree.sync(guild=guild)
+
+                    sync_state.mark_synced(scope, fingerprint)
+                    LOGGER.info(
+                        "%s commandes RACINES synchronisées sur le serveur %s "
+                        "en %.3fs (empreinte=%s)",
+                        len(commands_synced),
+                        GUILD_ID,
+                        time.perf_counter() - started,
+                        fingerprint[:12],
+                    )
+                else:
+                    LOGGER.info(
+                        "Arbre Discord inchangé pour le serveur %s : "
+                        "synchronisation ignorée (empreinte=%s)",
+                        GUILD_ID,
+                        fingerprint[:12],
+                    )
                 performed = True
             else:
                 LOGGER.warning(
@@ -336,18 +356,28 @@ class HamtaroBot(commands.Bot):
                 )
 
         if SYNC_GLOBAL_COMMANDS:
-            started = time.perf_counter()
-            commands_synced = await self.tree.sync()
-            LOGGER.info(
-                "%s commandes globales synchronisées en %.3fs",
-                len(commands_synced),
-                time.perf_counter() - started,
-            )
+            scope = "global"
+            if sync_state.needs_sync(scope, fingerprint, force=force_sync):
+                started = time.perf_counter()
+                commands_synced = await self.tree.sync()
+                sync_state.mark_synced(scope, fingerprint)
+                LOGGER.info(
+                    "%s commandes globales synchronisées en %.3fs (empreinte=%s)",
+                    len(commands_synced),
+                    time.perf_counter() - started,
+                    fingerprint[:12],
+                )
+            else:
+                LOGGER.info(
+                    "Arbre Discord global inchangé : synchronisation ignorée "
+                    "(empreinte=%s)",
+                    fingerprint[:12],
+                )
             performed = True
 
         if not performed:
             LOGGER.info(
-                "Synchronisation Discord ignorée. Les commandes déjà publiées restent actives."
+                "Synchronisation Discord désactivée. Les commandes déjà publiées restent actives."
             )
 
     async def _database_backup_loop(self) -> None:
