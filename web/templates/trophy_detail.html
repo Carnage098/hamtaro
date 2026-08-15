@@ -26,7 +26,12 @@
       </div>
       <div class="trophy-viewer-intro">
         <strong>Modèle 3D interactif</strong>
-        <p>Rotation à 360°, zoom et plein écran · {% if trophy.model_size_mb %}environ {{ trophy.model_size_mb }} Mo{% else %}taille détectée après génération locale{% endif %}</p>
+        <p>Rotation à 360°, zoom et plein écran</p>
+        {% if trophy.transfer_size_mb %}
+          <p class="trophy-model-size"><strong>Chargement réseau : ~{{ trophy.transfer_size_mb }} Mo</strong>{% if trophy.model_size_mb and trophy.model_size_mb != trophy.transfer_size_mb %} · modèle décompressé : {{ trophy.model_size_mb }} Mo{% endif %}</p>
+        {% else %}
+          <p class="trophy-model-size">Taille calculée automatiquement après génération du GLB.</p>
+        {% endif %}
         <p class="trophy-viewer-build">{{ trophy.web_build }}</p>
       </div>
       <button
@@ -37,7 +42,7 @@
       >
         Charger le trophée en 3D
       </button>
-      <small>Le modèle n'est chargé qu'à ta demande. Cette version privilégie la vraie forme du trophée sans le déformer.</small>
+      <small>Le maillage du trophée n'est pas simplifié. Hamtaro utilise une version optimisée pour le transfert afin de réduire l'attente.</small>
     </div>
 
     <model-viewer
