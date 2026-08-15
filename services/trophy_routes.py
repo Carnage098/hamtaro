@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from aiohttp import web
@@ -12,8 +11,6 @@ class TrophyRoutes:
     def __init__(self, website_cog: Any) -> None:
         self.website_cog = website_cog
         self.service = TrophyService(website_cog.bot)
-        project_root = Path(__file__).resolve().parent.parent
-        self.model_directory = project_root / "web" / "static" / "models" / "trophies"
 
     async def gallery_page(self, request: web.Request) -> web.Response:
         trophies = self.service.all_trophies()
@@ -34,32 +31,6 @@ class TrophyRoutes:
             request=request,
             trophy=trophy,
         )
-
-    async def model_asset(self, request: web.Request) -> web.StreamResponse:
-        filename = str(request.match_info["filename"])
-        if Path(filename).name != filename or not filename.lower().endswith(".glb"):
-            raise web.HTTPNotFound(text="Modèle introuvable")
-
-        model_file = self.model_directory / filename
-        if not model_file.exists():
-            raise web.HTTPNotFound(text="Modèle 3D introuvable")
-
-        accepts_gzip = "gzip" in request.headers.get("Accept-Encoding", "").lower()
-        gzip_file = Path(str(model_file) + ".gz")
-        headers = {
-            "Cache-Control": "public, max-age=31536000, immutable",
-            "Vary": "Accept-Encoding",
-            "X-Content-Type-Options": "nosniff",
-        }
-
-        if accepts_gzip and gzip_file.exists():
-            headers["Content-Encoding"] = "gzip"
-            response = web.FileResponse(gzip_file, headers=headers)
-        else:
-            response = web.FileResponse(model_file, headers=headers)
-
-        response.content_type = "model/gltf-binary"
-        return response
 
     async def list_api(self, request: web.Request) -> web.Response:
         trophies = self.service.all_trophies()
@@ -90,10 +61,6 @@ def register_trophy_routes(
     routes = TrophyRoutes(website_cog)
     application.router.add_get("/trophies", routes.gallery_page)
     application.router.add_get(r"/trophies/{trophy_id:[A-Za-z0-9_-]+}", routes.detail_page)
-    application.router.add_get(
-        r"/media/trophies/{filename:[A-Za-z0-9._-]+}",
-        routes.model_asset,
-    )
     application.router.add_get("/api/trophies", routes.list_api)
     application.router.add_get(r"/api/trophies/{trophy_id:[A-Za-z0-9_-]+}", routes.detail_api)
     application.router.add_get(

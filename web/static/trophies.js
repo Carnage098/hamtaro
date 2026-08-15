@@ -23,26 +23,6 @@
 
     loadButton?.addEventListener('click', loadModel);
 
-    // Préchargement discret sur grand écran uniquement. Le modèle reste caché
-    // jusqu'au clic, mais le navigateur peut déjà remplir son cache HTTP.
-    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-    const saveData = Boolean(connection?.saveData);
-    const slowConnection = ['slow-2g', '2g'].includes(connection?.effectiveType || '');
-    const shouldWarmCache = window.matchMedia('(min-width: 900px)').matches && !saveData && !slowConnection;
-
-    if (shouldWarmCache && loadButton?.dataset.modelSrc) {
-      const source = loadButton.dataset.modelSrc;
-      const warm = () => {
-        if (document.visibilityState !== 'visible') return;
-        fetch(source, { cache: 'force-cache', credentials: 'same-origin' }).catch(() => {});
-      };
-      if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(warm, { timeout: 2500 });
-      } else {
-        window.setTimeout(warm, 1500);
-      }
-    }
-
     viewer?.addEventListener('progress', (event) => {
       if (!loadingText || !event.detail) return;
       const pct = Math.round((event.detail.totalProgress || 0) * 100);
