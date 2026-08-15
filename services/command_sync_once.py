@@ -346,22 +346,8 @@ async def _sync_guild_differential(
     if not isinstance(entry, dict):
         entry = {}
 
-    if (
-        not force
-        and entry.get("status") == "synced"
-        and entry.get("fingerprint") == fingerprint
-        and entry.get("mode") == "differential"
-    ):
-        LOGGER.info(
-            "Arbre Discord inchangé et déjà synchronisé : %s. "
-            "Aucune écriture envoyée.",
-            scope,
-        )
-        return {
-            "status": "unchanged",
-            "scope": scope,
-            "fingerprint": fingerprint,
-        }
+    # STATE-CACHE EARLY RETURN DISABLED
+    # Toujours vérifier l'état réel des commandes sur Discord avant de décider de ne rien faire.
 
     base_url = (
         f"{API_BASE}/applications/{application_id}"
