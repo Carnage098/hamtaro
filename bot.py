@@ -94,10 +94,10 @@ OPTIONAL_COGS = (
     "cogs.swiss_graphics",
 )
 
-
 # Commandes remplacées par les parcours modernes Hamtaro.
-# Elles sont retirées de l'arbre AVANT chaque synchronisation afin que Discord
-# supprime aussi les anciennes versions restées en cache sur le serveur.
+# IMPORTANT : elles doivent être retirées AVANT le chargement des cogs
+# optionnels. Sinon elles occupent encore des places dans la limite des
+# 100 commandes chat-input et peuvent empêcher swiss_graphics de se charger.
 RETIRED_APPLICATION_COMMANDS = {
     "tournament_select",
     "tournament_current",
@@ -111,6 +111,9 @@ RETIRED_APPLICATION_COMMANDS = {
     "pause_tournament",
     "resume_tournament",
 }
+
+APPLICATION_COMMAND_LIMIT = 100
+APPLICATION_COMMAND_WARNING_THRESHOLD = 95
 
 
 def interaction_name(interaction: discord.Interaction) -> str:
@@ -199,24 +202,93 @@ class HamtaroBot(commands.Bot):
                 name="hamtaro-database-backups",
             )
 
+    async def _load_one_extension(
+        self,
+        extension: str,
+        *,
+        required_failures: list[str],
+    ) -> None:
+        started = time.perf_counter()
+        try:
+            await self.load_extension(extension)
+        except Exception as error:
+            self.failed_extensions[extension] = repr(error)
+            LOGGER.exception("Échec du chargement de %s", extension)
+            if extension in REQUIRED_COGS:
+                required_failures.append(extension)
+        else:
+            LOGGER.info(
+                "Cog chargé : %s en %.3fs",
+                extension,
+                time.perf_counter() - started,
+            )
+
+    def _chat_input_command_count(self) -> int:
+        return sum(
+            1
+            for command in self.tree.get_commands()
+            if isinstance(command, (app_commands.Command, app_commands.Group))
+        )
+
+    def _log_application_command_budget(self, stage: str) -> None:
+        count = self._chat_input_command_count()
+        level = logging.WARNING if count >= APPLICATION_COMMAND_WARNING_THRESHOLD else logging.INFO
+        LOGGER.log(
+            level,
+            "Budget commandes slash (%s) : %s/%s commandes de premier niveau.",
+            stage,
+            count,
+            APPLICATION_COMMAND_LIMIT,
+        )
+
+    def _drop_retired_application_commands(self) -> None:
+        removed: list[str] = []
+
+        for name in sorted(RETIRED_APPLICATION_COMMANDS):
+            command = self.tree.get_command(name)
+            if command is None:
+                continue
+
+            self.tree.remove_command(
+                name,
+                type=discord.AppCommandType.chat_input,
+            )
+            removed.append(name)
+
+        if removed:
+            LOGGER.info(
+                "Commandes obsolètes retirées de l'arbre : %s",
+                ", ".join(removed),
+            )
+
     async def _load_extensions(self) -> None:
         required_failures: list[str] = []
 
-        for extension in (*REQUIRED_COGS, *OPTIONAL_COGS):
-            started = time.perf_counter()
-            try:
-                await self.load_extension(extension)
-            except Exception as error:
-                self.failed_extensions[extension] = repr(error)
-                LOGGER.exception("Échec du chargement de %s", extension)
-                if extension in REQUIRED_COGS:
-                    required_failures.append(extension)
-            else:
-                LOGGER.info(
-                    "Cog chargé : %s en %.3fs",
-                    extension,
-                    time.perf_counter() - started,
-                )
+        # 1) Charger d'abord le noyau.
+        for extension in REQUIRED_COGS:
+            await self._load_one_extension(
+                extension,
+                required_failures=required_failures,
+            )
+
+        # 2) Libérer immédiatement les anciennes commandes.
+        # Dans l'ancienne version cette étape arrivait seulement au moment du
+        # sync, donc après swiss_graphics : trop tard pour éviter le 100/100.
+        self._drop_retired_application_commands()
+        self._log_application_command_budget("après noyau + nettoyage")
+
+        # 3) Charger les modules optionnels seulement après avoir récupéré les
+        # places occupées par les commandes retirées.
+        for extension in OPTIONAL_COGS:
+            await self._load_one_extension(
+                extension,
+                required_failures=required_failures,
+            )
+            self._log_application_command_budget(f"après {extension}")
+
+        # Sécurité : un cog peut avoir recréé une ancienne commande.
+        self._drop_retired_application_commands()
+        self._log_application_command_budget("final")
 
         if required_failures and FAIL_ON_COG_ERROR:
             raise RuntimeError(
@@ -230,66 +302,27 @@ class HamtaroBot(commands.Bot):
                 ", ".join(required_failures),
             )
 
-    def _drop_retired_application_commands(self) -> None:
-        removed: list[str] = []
-        for name in sorted(RETIRED_APPLICATION_COMMANDS):
-            command = self.tree.get_command(name)
-            if command is None:
-                continue
-            self.tree.remove_command(
-                name,
-                type=discord.AppCommandType.chat_input,
-            )
-            removed.append(name)
-
-        if removed:
-            LOGGER.info(
-                "Commandes obsolètes retirées de l'arbre : %s",
-                ", ".join(removed),
-            )
-
-    async def _clear_remote_global_commands_preserving_tree(self) -> None:
-        """Supprime les anciennes commandes globales sans perdre l'arbre local.
-
-        Quand Hamtaro fonctionne en synchronisation de serveur, d'anciennes
-        commandes globales peuvent rester visibles en plus des commandes du
-        serveur. Discord affiche alors des doublons. On synchronise donc une
-        fois un arbre global vide, puis on restaure immédiatement les objets
-        locaux avant de publier l'arbre propre au serveur.
-        """
-        snapshot = list(self.tree.get_commands())
-        if not snapshot:
-            return
-
-        self.tree.clear_commands(guild=None)
-        try:
-            removed = await self.tree.sync()
-            LOGGER.info(
-                "Ancien arbre global nettoyé (%s commande(s) distante(s) restante(s)).",
-                len(removed),
-            )
-        finally:
-            for command in snapshot:
-                self.tree.add_command(command)
-
     async def _sync_application_commands(self) -> None:
+        # Toujours nettoyer localement juste avant publication au cas où un
+        # extension chargée tardivement ait recréé une commande retirée.
         self._drop_retired_application_commands()
+        self._log_application_command_budget("avant synchronisation")
+
         performed = False
 
         if SYNC_GUILD_COMMANDS:
             if GUILD_ID.isdigit():
-                if not SYNC_GLOBAL_COMMANDS:
-                    await self._clear_remote_global_commands_preserving_tree()
                 guild = discord.Object(id=int(GUILD_ID))
                 started = time.perf_counter()
 
-                # Nettoyage réel côté Discord : un sync de l'arbre guild vide
-                # retire les anciennes commandes locales / doublons, puis on
-                # republie exactement l'arbre global actuellement chargé.
+                # Une seule publication côté serveur. Discord remplace l'état
+                # distant par l'arbre local envoyé lors du sync : il n'est pas
+                # nécessaire d'envoyer d'abord un arbre vide, ce qui doublait
+                # les PUT et favorisait les 429.
                 self.tree.clear_commands(guild=guild)
-                await self.tree.sync(guild=guild)
                 self.tree.copy_global_to(guild=guild)
                 commands_synced = await self.tree.sync(guild=guild)
+
                 LOGGER.info(
                     "%s commandes synchronisées sur le serveur %s en %.3fs",
                     len(commands_synced),
