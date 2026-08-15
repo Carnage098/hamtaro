@@ -24,6 +24,7 @@ from services.bracket_export_service import (
 from services.archetype_web_routes import register_archetype_routes
 from services.banlist_routes import register_banlist_routes
 from services.site_experience_routes import register_site_experience_routes
+from services.trophy_routes import register_trophy_routes
 
 
 LOGGER = logging.getLogger(__name__)
@@ -254,6 +255,17 @@ class PublicWebsiteCog(commands.Cog):
         LOGGER.info(
             "Routes Méta/Archétypes enregistrées : "
             "/archetypes, /archetypes/<slug>, /api/archetypes"
+        )
+
+        # Trophées : galerie publique, fiches HT-xxx et API joueur.
+        register_trophy_routes(
+            application,
+            self,
+        )
+        LOGGER.info(
+            "Routes Trophées enregistrées : "
+            "/trophies, /trophies/<trophy_id>, /api/trophies, "
+            "/api/players/<discord_id>/trophies"
         )
 
         # Banlists : page publique, API et synchronisation périodique.
