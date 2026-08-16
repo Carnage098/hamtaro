@@ -1,0 +1,845 @@
+{
+  "version": 1,
+  "source": "YGOPRODeck API v7",
+  "note": "Images téléchargées localement conformément au guide API ; pas de hotlink continu.",
+  "cards": {
+    "Bébé Araignée": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Araignée Matriarche Fendeuse": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Araignée Matriarche": {
+      "status": "ok",
+      "card_id": 17021204,
+      "api_name": "Araignée Matriarche",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/17021204.jpg"
+    },
+    "Araignée des Cavernes": {
+      "status": "ok",
+      "card_id": 17243896,
+      "api_name": "Araignée des Cavernes",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/17243896.jpg"
+    },
+    "Araignée des Ténèbres": {
+      "status": "ok",
+      "card_id": 81759748,
+      "api_name": "Araignée des Ténèbres",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/81759748.jpg"
+    },
+    "Araignée du Sacrifice": {
+      "status": "ok",
+      "card_id": 54248491,
+      "api_name": "Araignée du Sacrifice",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/54248491.jpg"
+    },
+    "Araignée Sniper": {
+      "status": "ok",
+      "card_id": 80637190,
+      "api_name": "Araignée Sniper",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/80637190.jpg"
+    },
+    "Araignée Chasseuse": {
+      "status": "ok",
+      "card_id": 80141480,
+      "api_name": "Araignée Chasseuse",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/80141480.jpg"
+    },
+    "Kumootoko": {
+      "status": "ok",
+      "card_id": 56283725,
+      "api_name": "Kumootoko",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/56283725.jpg"
+    },
+    "Jirai Gumo": {
+      "status": "ok",
+      "card_id": 94773007,
+      "api_name": "Jirai Gumo",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/94773007.jpg"
+    },
+    "Araignée Informateur": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Araignée Bloc": {
+      "status": "ok",
+      "card_id": 79636594,
+      "api_name": "Araignée Bloc",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/79636594.jpg"
+    },
+    "P'tit Croc l'Araignée Naturia": {
+      "status": "ok",
+      "card_id": 25654671,
+      "api_name": "P'tit Croc l'Araignée Naturia",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/25654671.jpg"
+    },
+    "Araignée Lanceuse": {
+      "status": "ok",
+      "card_id": 87322377,
+      "api_name": "Araignée Lanceuse",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/87322377.jpg"
+    },
+    "Araignée Karakuri": {
+      "status": "ok",
+      "card_id": 45688586,
+      "api_name": "Araignée Karakuri",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/45688586.jpg"
+    },
+    "Esprit de la Terre Immortel Uru": {
+      "status": "ok",
+      "card_id": 15187079,
+      "api_name": "Esprit de la Terre Immortel Uru",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/15187079.jpg"
+    },
+    "Kumongous, Kaiju des Fils Gluants": {
+      "status": "ok",
+      "card_id": 29726552,
+      "api_name": "Kumongous, Kaiju des Fils Gluants",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/29726552.jpg"
+    },
+    "Jeroid des Ténèbres": {
+      "status": "ok",
+      "card_id": 90980792,
+      "api_name": "Jeroid des Ténèbres",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/90980792.jpg"
+    },
+    "Ennéacrimaisseau - Atil.SPIA": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Arachnée Souterraine": {
+      "status": "ok",
+      "card_id": 63465535,
+      "api_name": "Arachnée Souterraine",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/63465535.jpg"
+    },
+    "Numéro 35 : Tarentule Vorace": {
+      "status": "ok",
+      "card_id": 90162951,
+      "api_name": "Numéro 35 : Tarentule Vorace",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/90162951.jpg"
+    },
+    "Numéro 70 : Péché Malveillant": {
+      "status": "ok",
+      "card_id": 80796456,
+      "api_name": "Numéro 70 : Péché Malveillant",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/80796456.jpg"
+    },
+    "Numéro 84 : Prise-Douleur": {
+      "status": "ok",
+      "card_id": 26556950,
+      "api_name": "Numéro 84 : Prise-Douleur",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/26556950.jpg"
+    },
+    "Numéro 77 : Les Sept Péchés": {
+      "status": "ok",
+      "card_id": 62541668,
+      "api_name": "Numéro 77 : Les Sept Péchés",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/62541668.jpg"
+    },
+    "Traptrix Atrax": {
+      "status": "ok",
+      "card_id": 55428242,
+      "api_name": "Traptrix Atrax",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/55428242.jpg"
+    },
+    "Traptrix Atypus": {
+      "status": "ok",
+      "card_id": 48183890,
+      "api_name": "Traptrix Atypus",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/48183890.jpg"
+    },
+    "Traptrix Arachnocampa": {
+      "status": "ok",
+      "card_id": 75416738,
+      "api_name": "Traptrix Arachnocampa",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/75416738.jpg"
+    },
+    "Antre des Araignées": {
+      "status": "ok",
+      "card_id": 26640671,
+      "api_name": "Antre des Araignées",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/26640671.jpg"
+    },
+    "Roulette Araignée": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Proie du Jirai Gumo": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Soudetoile Insecte Numérique": {
+      "status": "ok",
+      "card_id": 94344242,
+      "api_name": "Soudetoile Insecte Numérique",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/94344242.jpg"
+    },
+    "Joruri-P.U.N.K. Madame Araignée": {
+      "status": "ok",
+      "card_id": 82041999,
+      "api_name": "Joruri-P.U.N.K. Madame Araignée",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/82041999.jpg"
+    },
+    "Orchidée Araignée Prédaplante": {
+      "status": "ok",
+      "card_id": 30537973,
+      "api_name": "Orchidée Araignée Prédaplante",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/30537973.jpg"
+    },
+    "Numéro 37 : Espoir Tissé Dragon Araignée Requin": {
+      "status": "ok",
+      "card_id": 37279508,
+      "api_name": "Numéro 37 : Espoir Tissé Dragon Araignée Requin",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/37279508.jpg"
+    },
+    "Tsukahagi, Mayakashi du Poison": {
+      "status": "ok",
+      "card_id": 5325155,
+      "api_name": "Tsukahagi, Mayakashi du Poison",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/5325155.jpg"
+    },
+    "Dragon de Lave": {
+      "status": "ok",
+      "card_id": 41741922,
+      "api_name": "Dragon de Lave",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/41741922.jpg"
+    },
+    "Âme de l'Ombre": {
+      "status": "ok",
+      "card_id": 86229493,
+      "api_name": "Âme de l'Ombre",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/86229493.jpg"
+    },
+    "Mayakashi Mayhem": {
+      "status": "ok",
+      "card_id": 41867019,
+      "api_name": "Mayakashi Mayhem",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/41867019.jpg"
+    },
+    "Araignée de Verre": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Scorpion Noir – Meute de la Vallée": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Scorpion Noir – Cimeterre": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Scorpion Noir – Gorgone": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Scorpion Noir – Pilleur": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Scorpion Noir – Maître des Ténèbres": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Scorpion Noir – Grand Maître": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Scorpion Noir – Sorcier": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Scorpion Noir – Aigle de la Vallée": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Numéro S37 : Araignée Requin": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Tsuchigumo, Mayakashi du Poison": {
+      "status": "ok",
+      "card_id": 77092311,
+      "api_name": "Tsuchigumo, Mayakashi du Poison",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/77092311.jpg"
+    },
+    "Matrice Insecte": {
+      "status": "ok",
+      "card_id": 86643777,
+      "api_name": "Matrice Insecte",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/86643777.jpg"
+    },
+    "Fil de Chasse": {
+      "status": "ok",
+      "card_id": 81128478,
+      "api_name": "Fil de Chasse",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/81128478.jpg"
+    },
+    "Stade Géant": {
+      "status": "ok",
+      "card_id": 58012707,
+      "api_name": "Stade Géant",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/58012707.jpg"
+    },
+    "Jeu de Ballon Géant": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Trappe Cauchemar Traptrix": {
+      "status": "ok",
+      "card_id": 29616929,
+      "api_name": "Trappe Cauchemar Traptrix",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/29616929.jpg"
+    },
+    "Combine de Piège": {
+      "status": "ok",
+      "card_id": 80101899,
+      "api_name": "Combine de Piège",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/80101899.jpg"
+    },
+    "Longinephila Prédaplante": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Heavy Metal Raiders": {
+      "status": "ok",
+      "card_id": 3113667,
+      "api_name": "Heavy Metal Raiders",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/3113667.jpg"
+    },
+    "Les Dossiers Kaiju": {
+      "status": "ok",
+      "card_id": 11163040,
+      "api_name": "Les Dossiers Kaiju",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/11163040.jpg"
+    },
+    "Ombre de l'Héritage du Monde": {
+      "status": "ok",
+      "card_id": 67831115,
+      "api_name": "Ombre de l'Héritage du Monde",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/67831115.jpg"
+    },
+    "Pions de l'Héritage du Monde": {
+      "status": "ok",
+      "card_id": 89320376,
+      "api_name": "Pions de l'Héritage du Monde",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/89320376.jpg"
+    },
+    "Affrontement de l'Héritage du Monde": {
+      "status": "ok",
+      "card_id": 93236220,
+      "api_name": "Affrontement de l'Héritage du Monde",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/93236220.jpg"
+    },
+    "Monstruosité de l'Héritage du Monde": {
+      "status": "ok",
+      "card_id": 14604710,
+      "api_name": "Monstruosité de l'Héritage du Monde",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/14604710.jpg"
+    },
+    "Mélange d'Esprit de l'Héritage du Monde": {
+      "status": "ok",
+      "card_id": 27705190,
+      "api_name": "Mélange d'Esprit de l'Héritage du Monde",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/27705190.jpg"
+    },
+    "Pagaille Mayakashi": {
+      "status": "ok",
+      "card_id": 41867019,
+      "api_name": "Pagaille Mayakashi",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/41867019.jpg"
+    },
+    "Réflecteur Magique": {
+      "status": "ok",
+      "card_id": 61844784,
+      "api_name": "Réflecteur Magique",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/61844784.jpg"
+    },
+    "Code de Bobine": {
+      "status": "ok",
+      "card_id": 2625939,
+      "api_name": "Code de Bobine",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/2625939.jpg"
+    },
+    "Registaraigneau Insecte Numérique": {
+      "status": "ok",
+      "card_id": 19301729,
+      "api_name": "Registaraigneau Insecte Numérique",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/19301729.jpg"
+    },
+    "Reine Insecte": {
+      "status": "ok",
+      "card_id": 91512835,
+      "api_name": "Reine Insecte",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/91512835.jpg"
+    },
+    "Reine Insecte Métamorphosée": {
+      "status": "ok",
+      "card_id": 41456841,
+      "api_name": "Reine Insecte Métamorphosée",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/41456841.jpg"
+    },
+    "Insecte Arsenal": {
+      "status": "ok",
+      "card_id": 42364374,
+      "api_name": "Insecte Arsenal",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/42364374.jpg"
+    },
+    "Cerbère Aigu Tindangle": {
+      "status": "ok",
+      "card_id": 75119040,
+      "api_name": "Cerbère Aigu Tindangle",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/75119040.jpg"
+    },
+    "Ombre Spectrale": {
+      "status": "ok",
+      "card_id": 40575313,
+      "api_name": "Ombre Spectrale",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/40575313.jpg"
+    },
+    "Traptrix Rafflesia": {
+      "status": "ok",
+      "card_id": 6511113,
+      "api_name": "Traptrix Rafflesia",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/6511113.jpg"
+    },
+    "Chien de Chasse Tindangle": {
+      "status": "ok",
+      "card_id": 31759689,
+      "api_name": "Chien de Chasse Tindangle",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/31759689.jpg"
+    },
+    "Jhrelth Tindangle": {
+      "status": "ok",
+      "card_id": 24158464,
+      "api_name": "Jhrelth Tindangle",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/24158464.jpg"
+    },
+    "Protecteur du Désert": {
+      "status": "ok",
+      "card_id": 38981606,
+      "api_name": "Protecteur du Désert",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/38981606.jpg"
+    },
+    "Assassin Revendetterreur": {
+      "status": "ok",
+      "card_id": 4388680,
+      "api_name": "Assassin Revendetterreur",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/4388680.jpg"
+    },
+    "Kalidor, Allié de la Justice": {
+      "status": "ok",
+      "card_id": 26593852,
+      "api_name": "Kalidor, Allié de la Justice",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/26593852.jpg"
+    },
+    "Canon Virus Anti-Magie": {
+      "status": "ok",
+      "card_id": 54591086,
+      "api_name": "Canon Virus Anti-Magie",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/54591086.jpg"
+    },
+    "Dholes Tindangle": {
+      "status": "ok",
+      "card_id": 12678601,
+      "api_name": "Dholes Tindangle",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/12678601.jpg"
+    },
+    "Intrus Tindangle": {
+      "status": "ok",
+      "card_id": 94142993,
+      "api_name": "Intrus Tindangle",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/94142993.jpg"
+    },
+    "Trinité Tindangle": {
+      "status": "ok",
+      "card_id": 11375683,
+      "api_name": "Trinité Tindangle",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/11375683.jpg"
+    },
+    "Protecteur Tindangle": {
+      "status": "ok",
+      "card_id": 67744384,
+      "api_name": "Protecteur Tindangle",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/67744384.jpg"
+    },
+    "Delaunay Tindangle": {
+      "status": "ok",
+      "card_id": 99157310,
+      "api_name": "Delaunay Tindangle",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/99157310.jpg"
+    },
+    "Fin de Gergonne": {
+      "status": "ok",
+      "card_id": 59490397,
+      "api_name": "Fin de Gergonne",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/59490397.jpg"
+    },
+    "Circuit d'Euler": {
+      "status": "ok",
+      "card_id": 9547962,
+      "api_name": "Circuit d'Euler",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/9547962.jpg"
+    },
+    "Protection de Nagel": {
+      "status": "ok",
+      "card_id": 63053267,
+      "api_name": "Protection de Nagel",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/63053267.jpg"
+    },
+    "Scorpion aux 8 Pinces": {
+      "status": "ok",
+      "card_id": 14261867,
+      "api_name": "Scorpion aux 8 Pinces",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/14261867.jpg"
+    },
+    "Scorpion d'Acier": {
+      "status": "ok",
+      "card_id": 13599884,
+      "api_name": "Scorpion d'Acier",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/13599884.jpg"
+    },
+    "Scorpion Millénaire": {
+      "status": "ok",
+      "card_id": 82482194,
+      "api_name": "Scorpion Millénaire",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/82482194.jpg"
+    },
+    "Scorpion Démoniaque": {
+      "status": "ok",
+      "card_id": 26566878,
+      "api_name": "Scorpion Démoniaque",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/26566878.jpg"
+    },
+    "Bête Mystique de Serket": {
+      "status": "ok",
+      "card_id": 89194033,
+      "api_name": "Bête Mystique de Serket",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/89194033.jpg"
+    },
+    "Scorpion Impitoyable de Serket": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Bête-Scorpion Divine de Serket": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Scorpion Gémeau": {
+      "status": "ok",
+      "card_id": 91798373,
+      "api_name": "Scorpion Gémeau",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/91798373.jpg"
+    },
+    "Kaléidoscorp Potartiste": {
+      "status": "ok",
+      "card_id": 78835747,
+      "api_name": "Kaléidoscorp Potartiste",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/78835747.jpg"
+    },
+    "Ophrys Scorpio Prédaplante": {
+      "status": "ok",
+      "card_id": 35272499,
+      "api_name": "Ophrys Scorpio Prédaplante",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/35272499.jpg"
+    },
+    "P.U.N.K. JAM Session Extrême": {
+      "status": "ok",
+      "card_id": 49370016,
+      "api_name": "P.U.N.K. JAM Session Extrême",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/49370016.jpg"
+    },
+    "Joruri-P.U.N.K. Surprise Nashiwari": {
+      "status": "ok",
+      "card_id": 70070211,
+      "api_name": "Joruri-P.U.N.K. Surprise Nashiwari",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/70070211.jpg"
+    },
+    "Joruri-P.U.N.K. Dangereuse Gabu": {
+      "status": "ok",
+      "card_id": 43685562,
+      "api_name": "Joruri-P.U.N.K. Dangereuse Gabu",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/43685562.jpg"
+    },
+    "Ver - Queen": {
+      "status": "ok",
+      "card_id": 81254059,
+      "api_name": "Ver - Queen",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/81254059.jpg"
+    },
+    "Ticki Parasitaire": {
+      "status": "ok",
+      "card_id": 87978805,
+      "api_name": "Ticki Parasitaire",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/87978805.jpg"
+    },
+    "Mite Articulée": {
+      "status": "ok",
+      "card_id": 87514539,
+      "api_name": "Mite Articulée",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/87514539.jpg"
+    },
+    "Traptrix Trappelutea": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Survivant de l'Héritage du Monde": {
+      "status": "ok",
+      "card_id": 31706048,
+      "api_name": "Survivant de l'Héritage du Monde",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/31706048.jpg"
+    },
+    "Exécuteur Revendetterreur": {
+      "status": "ok",
+      "card_id": 34093683,
+      "api_name": "Exécuteur Revendetterreur",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/34093683.jpg"
+    },
+    "Sauveur Avendetterreur": {
+      "status": "ok",
+      "card_id": 91420202,
+      "api_name": "Sauveur Avendetterreur",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/91420202.jpg"
+    },
+    "Cauchemar Vendetterreur": {
+      "status": "ok",
+      "card_id": 33971095,
+      "api_name": "Cauchemar Vendetterreur",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/33971095.jpg"
+    },
+    "Origine Revendetterreur": {
+      "status": "ok",
+      "card_id": 94666032,
+      "api_name": "Origine Revendetterreur",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/94666032.jpg"
+    },
+    "Évolution Revendetterreur": {
+      "status": "ok",
+      "card_id": 7986397,
+      "api_name": "Évolution Revendetterreur",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/7986397.jpg"
+    },
+    "Nuits Vendetterreur": {
+      "status": "ok",
+      "card_id": 76871889,
+      "api_name": "Nuits Vendetterreur",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/76871889.jpg"
+    },
+    "Réunion Vendetterreur": {
+      "status": "ok",
+      "card_id": 2266498,
+      "api_name": "Réunion Vendetterreur",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/2266498.jpg"
+    },
+    "Révolution Vendetterreur": {
+      "status": "ok",
+      "card_id": 2287848,
+      "api_name": "Révolution Vendetterreur",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/2287848.jpg"
+    },
+    "Aube Vendetterreur": {
+      "status": "ok",
+      "card_id": 60375194,
+      "api_name": "Aube Vendetterreur",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/60375194.jpg"
+    },
+    "Prédaplante Drosophyllum": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Prédaplante Moray Nepenthes": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Super Polymérisation": {
+      "status": "ok",
+      "card_id": 48130397,
+      "api_name": "Super Polymérisation",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/48130397.jpg"
+    },
+    "Araignée Sombre": {
+      "status": "missing",
+      "local_path": null
+    },
+    "Araneoïde, Allié de la Justice": {
+      "status": "ok",
+      "card_id": 8233522,
+      "api_name": "Araneoïde, Allié de la Justice",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/8233522.jpg"
+    },
+    "Araignée Explosion BM-4": {
+      "status": "ok",
+      "card_id": 40634253,
+      "api_name": "Araignée Explosion BM-4",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/40634253.jpg"
+    },
+    "Araignée Lien": {
+      "status": "ok",
+      "card_id": 98978921,
+      "api_name": "Araignée Lien",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/98978921.jpg"
+    },
+    "Poupée Truquée Antenne Obscure": {
+      "status": "ok",
+      "card_id": 34620088,
+      "api_name": "Poupée Truquée Antenne Obscure",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/34620088.jpg"
+    },
+    "Ver - Millidith": {
+      "status": "ok",
+      "card_id": 71315423,
+      "api_name": "Ver - Millidith",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/71315423.jpg"
+    },
+    "Griffe d’Arsenal": {
+      "status": "ok",
+      "card_id": 29071332,
+      "api_name": "Griffe d'Arsenal",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/29071332.jpg"
+    },
+    "Voile Xyz": {
+      "status": "ok",
+      "card_id": 96457619,
+      "api_name": "Voile Xyz",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/96457619.jpg"
+    },
+    "Annihilateur, Allié de la Justice": {
+      "status": "ok",
+      "card_id": 76650663,
+      "api_name": "Annihilateur, Allié de la Justice",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/76650663.jpg"
+    },
+    "Cyber Esper": {
+      "status": "ok",
+      "card_id": 91663373,
+      "api_name": "Cyber Esper",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/91663373.jpg"
+    },
+    "Répression": {
+      "status": "ok",
+      "card_id": 36975314,
+      "api_name": "Répression",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/36975314.jpg"
+    },
+    "Overdrive Méchabot": {
+      "status": "ok",
+      "card_id": 59741415,
+      "api_name": "Overdrive Méchabot",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/59741415.jpg"
+    },
+    "Gardna, Cyber Ombre": {
+      "status": "ok",
+      "card_id": 90440725,
+      "api_name": "Gardna, Cyber Ombre",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/90440725.jpg"
+    }
+  }
+}
