@@ -641,7 +641,13 @@
             const loaded = Number(discovery.source_pages_loaded || 0);
             const links = Number(discovery.deck_links_found || 0);
             const parsed = Number(discovery.deck_pages_parsed || 0);
-            const ignored = Number(discovery.explicit_non_tcg_ignored || 0) + Number(discovery.tcg_incompatible_ignored || 0);
+            const explicitIgnored = Number(discovery.explicit_non_tcg_ignored || 0);
+            const incompatibleIgnored = Number(discovery.tcg_incompatible_ignored || 0);
+            const formatCounts = discovery.parsed_format_counts || {};
+            const formatNoteParts = Object.entries(formatCounts)
+                .filter(([, count]) => Number(count || 0) > 0)
+                .map(([format, count]) => `${format}: ${Number(count)}`);
+            const formatNote = formatNoteParts.length ? ` · formats détectés [${formatNoteParts.join(', ')}]` : '';
             const stored = Number(discovery.stored_tcg_decks_reused || 0);
             const signatureCards = Array.isArray(discovery.signature_cards) ? discovery.signature_cards : [];
             const signatureLinks = Number(discovery.signature_deck_links_added || 0);
@@ -656,7 +662,7 @@
                 ? ` · résolution universelle: ${universalLinks} lien(s)${universalArchetypes.length ? ` · archétype(s) ${universalArchetypes.slice(0, 3).join(', ')}` : ''}${universalCards.length ? ` · cartes ${universalCards.slice(0, 3).join(', ')}` : ''}`
                 : '';
             els.discoveryDebug.textContent = state.analysis?.degraded
-                ? `Diagnostic TCG : ${loaded}/${requested} page(s) chargée(s) · ${links} lien(s) · ${parsed} deck(s) parsé(s) · ${ignored} non-TCG ignoré(s) · ${stored} liste(s) Hamtaro réutilisée(s)${signatureNote}${universalNote}.`
+                ? `Diagnostic TCG : ${loaded}/${requested} page(s) chargée(s) · ${links} lien(s) · ${parsed} deck(s) parsé(s) · ${explicitIgnored} explicitement non-TCG ignoré(s) · ${incompatibleIgnored} incompatible(s) avec le pool TCG · ${stored} liste(s) Hamtaro réutilisée(s)${formatNote}${signatureNote}${universalNote}.`
                 : (discovery.universal_fallback_used
                     ? `Hamtaro a dû élargir automatiquement la recherche${universalComponents.length ? ` (${universalComponents.slice(0, 3).join(' / ')})` : ''} pour retrouver cette base. ${stored ? `${stored} liste(s) TCG déjà apprises ont aussi été réutilisées.` : ''}`
                     : (discovery.signature_fallback_used
