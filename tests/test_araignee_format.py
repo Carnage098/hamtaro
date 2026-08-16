@@ -18,10 +18,10 @@ def _ten_spiders():
     ]
 
 
-def test_pool_contains_130_unique_cards():
+def test_pool_contains_122_unique_cards():
     service = AraigneeFormatService()
-    assert len(service.pool()) == 130
-    assert len(service.normalized_pool()) == 130
+    assert len(service.pool()) == 122
+    assert len(service.normalized_pool()) == 122
 
 
 def test_normalization_accepts_typography():
@@ -140,7 +140,7 @@ def test_typo_can_suggest_pool_card():
 def test_each_card_has_official_search_link():
     service = AraigneeFormatService()
     entries = service.card_entries()
-    assert len(entries) == 130
+    assert len(entries) == 122
     assert all(entry["url"].startswith("https://www.db.yugioh-card.com/") for entry in entries)
     assert "keyword=Jirai+Gumo" in service.official_card_search_url("Jirai Gumo")
 
@@ -155,7 +155,7 @@ def test_card_entries_do_not_hotlink_images_without_manifest(tmp_path):
     service = AraigneeFormatService()
     service.image_manifest_path = tmp_path / "missing.json"
     entries = service.card_entries()
-    assert len(entries) == 130
+    assert len(entries) == 122
     assert all(entry["image_url"] is None for entry in entries)
 
 
@@ -178,3 +178,20 @@ def test_card_entries_use_only_local_static_images(tmp_path):
     entry = next(item for item in service.card_entries() if item["name"] == "Jirai Gumo")
     assert entry["image_url"] == "/static/araignee/cards/94773007.jpg"
     assert "ygoprodeck" not in entry["image_url"].lower()
+
+
+def test_black_scorpions_removed_from_pool():
+    service = AraigneeFormatService()
+    removed = [
+        "Scorpion Noir – Meute de la Vallée",
+        "Scorpion Noir – Cimeterre",
+        "Scorpion Noir – Gorgone",
+        "Scorpion Noir – Pilleur",
+        "Scorpion Noir – Maître des Ténèbres",
+        "Scorpion Noir – Grand Maître",
+        "Scorpion Noir – Sorcier",
+        "Scorpion Noir – Aigle de la Vallée",
+    ]
+    names = set(service.pool())
+    for card in removed:
+        assert card not in names
