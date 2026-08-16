@@ -61,6 +61,40 @@
       "badge_description": "Une distinction unique réservée au vainqueur du tournoi Full Blue Eyes TCG-6360.",
       "source_master": "Trophy_BlueEyes_Champion_Final_v2.glb",
       "web_build": "original-glb"
+    },
+    {
+      "id": "HT-003",
+      "number": 3,
+      "name": "Spiderman Champion",
+      "title": "Le trophée du tournoi Spiderman",
+      "tagline": "Le masque de l'araignée couronne son champion.",
+      "description": "Trophée officiel réservé au vainqueur du tournoi Spiderman. Il rejoint la collection permanente Hamtaro et sera attribué automatiquement lorsque ce tournoi sera terminé.",
+      "legacy": "HT-003 conservera le nom du champion, son deck, le format et l'identifiant réel du tournoi Spiderman dans l'histoire compétitive Hamtaro.",
+      "rarity": "LÉGENDAIRE — SPIDERMAN",
+      "classification": "Tournoi spécial",
+      "edition": "1/1",
+      "distinction": "Champion Spiderman",
+      "status": "Trophée officiel — à venir",
+      "model_path": "/static/models/trophies/ht-003-spiderman-champion.glb?v=20260816-spiderman-1",
+      "model_size_mb": null,
+      "poster_path": null,
+      "holder_discord_id": null,
+      "holder_name": null,
+      "deck": null,
+      "format": null,
+      "tournament_name": "Spiderman",
+      "tournament_id": null,
+      "tournament_code": null,
+      "awarded_at": null,
+      "badge": "Champion Spiderman",
+      "badge_description": "Une distinction unique réservée au vainqueur du tournoi Spiderman.",
+      "source_master": "Meshy_AI_trophy_spiderman_mask_0816010747_image-to-3d-texture.glb",
+      "web_build": "original-glb",
+      "award_match": [
+        "Spiderman",
+        "Spider-Man",
+        "Spider Man"
+      ]
     }
   ]
 }

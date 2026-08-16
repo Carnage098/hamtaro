@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from services.trophy_award_service import TrophyAwardService
+from services.spiderman_trophy_award_service import SpidermanTrophyAwardService
 
 
 class TrophyService:
@@ -17,6 +18,7 @@ class TrophyService:
         project_root = Path(__file__).resolve().parent.parent
         self.catalog_path = catalog_path or project_root / "web" / "data" / "trophies.json"
         self.awards = TrophyAwardService(bot)
+        self.spiderman_awards = SpidermanTrophyAwardService()
 
     @staticmethod
     def normalize_id(value: str) -> str:
@@ -88,6 +90,7 @@ class TrophyService:
             item["format"] = award.get("format")
             item["tournament_name"] = award.get("tournament_name")
             item["tournament_id"] = award.get("tournament_id")
+            item["tournament_code"] = award.get("tournament_code") or item.get("tournament_code")
             item["awarded_at"] = award.get("awarded_at")
             item["award_guild_id"] = award.get("guild_id")
 
@@ -116,6 +119,7 @@ class TrophyService:
     async def all_trophies(self) -> list[dict[str, Any]]:
         payload = self._load_catalog()
         awards = await self.awards.all_awards()
+        awards.update(await self.spiderman_awards.all_awards())
         trophies = [
             self._enrich(
                 item,

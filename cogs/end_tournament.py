@@ -17,6 +17,7 @@ from discord.ext import commands
 from discord import app_commands
 
 from utils.permissions import staff_only
+from services.spiderman_trophy_award_service import SpidermanTrophyAwardService
 
 try:
     from config import DATABASE
@@ -27,6 +28,7 @@ except ImportError:
 class EndTournamentCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.spiderman_trophy_awards = SpidermanTrophyAwardService()
 
     # ==========================================================
     # OUTILS
@@ -1123,6 +1125,11 @@ class EndTournamentCog(commands.Cog):
             winner_id=winner_id,
             winner_name=winner_name,
         )
+        spiderman_trophy_award = await self.spiderman_trophy_awards.award_if_matching_tournament(
+            tournament,
+            winner_id,
+            winner_name,
+        )
         cleanup = await self._cleanup_tournament_runtime(tournament_id)
         profiles = await self._refresh_tournament_profiles(guild_id, tournament_id)
         swiss_top = await self._swiss_final_top(tournament_id)
@@ -1142,6 +1149,12 @@ class EndTournamentCog(commands.Cog):
         else:
             embed.add_field(name="Vainqueur", value="Non détecté automatiquement.", inline=False)
 
+        if spiderman_trophy_award is not None:
+            embed.add_field(
+                name="🕷️ Trophée HT-003",
+                value="Le trophée **Spiderman Champion** a été attribué automatiquement au vainqueur.",
+                inline=False,
+            )
         if distribution:
             deck_lines = [
                 f"• **{item['deck']}** : {item['count']} joueur(s) — {item['percent']:.1f}%"
