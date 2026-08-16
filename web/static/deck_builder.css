@@ -729,3 +729,38 @@
 .db-freespot-card small{font-size:.62rem;color:var(--db-muted)}
 .db-freespot-pill{border-color:rgba(167,139,250,.32)!important;background:rgba(167,139,250,.08)!important;color:#ddd6fe!important}
 @media(max-width:700px){.db-freespot-stats{grid-template-columns:1fr}.db-freespot-categories{grid-template-columns:1fr}.db-freespot-card span{max-width:260px}}
+
+
+/* V8.2 — sélecteur de rareté / édition */
+.db-printings-panel { margin-top:1rem; padding:1rem; border:1px solid var(--db-border, rgba(148,163,184,.18)); border-radius:16px; background:rgba(15,23,42,.42); }
+.db-rarity-filter { display:flex; gap:.45rem; flex-wrap:wrap; margin:.75rem 0 1rem; }
+.db-rarity-filter button { border:1px solid rgba(148,163,184,.25); border-radius:999px; padding:.45rem .75rem; background:rgba(15,23,42,.62); color:inherit; cursor:pointer; }
+.db-rarity-filter button.is-active { border-color:rgba(96,165,250,.75); background:rgba(59,130,246,.16); }
+.db-printings-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:.75rem; }
+.db-printing-card { display:flex; flex-direction:column; gap:.42rem; padding:.85rem; border-radius:14px; border:1px solid rgba(148,163,184,.18); background:rgba(2,6,23,.42); }
+.db-printing-card.is-selected { border-color:rgba(52,211,153,.75); box-shadow:inset 0 0 0 1px rgba(52,211,153,.2); }
+.db-printing-head { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.db-printing-price { display:flex; align-items:baseline; justify-content:space-between; gap:.7rem; padding:.5rem .6rem; border-radius:10px; background:rgba(15,23,42,.7); }
+.db-printing-price.is-cardmarket b { font-size:1.12rem; }
+.db-printing-price.is-fallback { opacity:.82; }
+.db-printing-price.is-unknown { opacity:.65; }
+.db-printing-actions { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-top:.25rem; }
+.db-printing-actions button, .db-printing-actions a { border:1px solid rgba(148,163,184,.25); border-radius:9px; padding:.42rem .6rem; background:rgba(30,41,59,.7); color:inherit; text-decoration:none; cursor:pointer; }
+.db-selected-printing { display:block; margin-top:.15rem; opacity:.75; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.db-printing-best {
+    display: inline-flex;
+    align-items: center;
+    padding: .18rem .45rem;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 800;
+    border: 1px solid currentColor;
+    opacity: .9;
+}
+.db-generated-printing {
+    display: block;
+    margin-top: .12rem;
+    opacity: .72;
+    font-size: .72rem;
+}

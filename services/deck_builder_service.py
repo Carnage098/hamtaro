@@ -11,6 +11,7 @@ import re
 import sqlite3
 import struct
 import time
+import unicodedata
 from collections import Counter, defaultdict
 from contextlib import closing
 from dataclasses import dataclass
@@ -25,6 +26,7 @@ import aiohttp
 YGOPRODECK_API = "https://db.ygoprodeck.com/api/v7"
 YGOPRODECK_SITE = "https://ygoprodeck.com"
 CARDMARKET_SEARCH = "https://www.cardmarket.com/en/YuGiOh/Products/Search?searchString="
+CARDMARKET_CARD_BASE = "https://www.cardmarket.com/en/YuGiOh/Cards/"
 NEURON_SEARCH = (
     "https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=1&sess=1&rp=20&stype=1&othercon=2&request_locale=fr&keyword="
 )
@@ -110,9 +112,11 @@ class DeckBuilderService:
         self.image_cache_path = Path(os.getenv("DECK_BUILDER_IMAGE_CACHE_PATH", str(default_images)))
         self.image_cache_path.mkdir(parents=True, exist_ok=True)
         self._last_card_fetch_dates: list[str] = []
+        self.cache_namespace = "v82"
+        self._last_discovery_debug: dict[str, Any] = {}
         self.user_agent = os.getenv(
             "DECK_BUILDER_USER_AGENT",
-            "HamtaroDeckBuilder/8.0 (+public Yu-Gi-Oh deck assistant)",
+            "HamtaroDeckBuilder/8.2 (+public Yu-Gi-Oh deck assistant)",
         )
         self._init_db()
 
@@ -281,7 +285,7 @@ class DeckBuilderService:
     # ------------------------------------------------------------------
     async def _fetch_text(self, url: str, *, ttl_hours: int | None = None) -> str:
         ttl = int((ttl_hours or self.cache_hours) * 3600)
-        key = f"text:{url}"
+        key = f"text:{self.cache_namespace}:{url}"
         cached = await self._cache_get(key)
         if cached:
             return cached[0]
@@ -411,7 +415,7 @@ class DeckBuilderService:
 
     @staticmethod
     def _extract_deck_links(body: str) -> list[str]:
-        decoded = html_lib.unescape(body)
+        decoded = html_lib.unescape(body).replace("\\/", "/")
         patterns = [
             r'href=["\'](?:https://ygoprodeck\.com)?(/deck/[a-zA-Z0-9%_./?&=+~-]+-\d+)["\']',
             r'https://ygoprodeck\.com(/deck/[a-zA-Z0-9%_./?&=+~-]+-\d+)',
@@ -426,6 +430,219 @@ class DeckBuilderService:
                     seen.add(url)
                     found.append(url)
         return found
+
+    @staticmethod
+    def _slugify_archetype(value: str) -> str:
+        normalized = unicodedata.normalize("NFKD", str(value or ""))
+        ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
+        return re.sub(r"[^a-z0-9]+", "-", ascii_value.casefold()).strip("-")
+
+    async def _category_urls_for_query(self, query: str) -> list[str]:
+        """Retourne jusqu'à 3 pages d'archétypes YGOPRODeck pertinentes.
+
+        Les pages /category/type/... sont rendues côté serveur et constituent un
+        chemin de découverte plus robuste que la page de recherche dynamique.
+        """
+        clean = re.sub(r"\s+", " ", str(query or "")).strip()
+        if not clean:
+            return []
+        try:
+            payload = await self._fetch_json(f"{YGOPRODECK_API}/archetypes.php", ttl_hours=72)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            return []
+        qkey = clean.casefold()
+        scored: list[tuple[int, int, str]] = []
+        for item in payload if isinstance(payload, list) else []:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("archetype_name") or "").strip()
+            if not name:
+                continue
+            nkey = name.casefold()
+            score = None
+            if nkey == qkey:
+                score = 100
+            elif nkey in qkey:
+                score = 80
+            elif qkey in nkey:
+                score = 60
+            if score is not None:
+                scored.append((score, len(name), name))
+        scored.sort(reverse=True)
+        urls: list[str] = []
+        for _score, _length, name in scored[:3]:
+            slug = self._slugify_archetype(name)
+            if slug:
+                urls.append(f"{YGOPRODECK_SITE}/category/type/{slug}")
+        return urls
+
+    @staticmethod
+    def _extract_passcodes_from_section(section: str) -> list[int]:
+        """Extrait les passcodes d'images de cartes dans une section de deck.
+
+        YGOPRODeck utilise les passcodes dans les URLs images/cards*. On ne prend
+        qu'un identifiant par balise <img> afin d'éviter les doublons src/srcset.
+        """
+        result: list[int] = []
+        for tag_match in re.finditer(r"<img\b[^>]*>", section, flags=re.I | re.S):
+            tag = html_lib.unescape(tag_match.group(0))
+            match = re.search(
+                r"/cards(?:_small|_cropped)?/(\d{4,10})\.(?:jpg|jpeg|png|webp)",
+                tag,
+                flags=re.I,
+            )
+            if not match:
+                match = re.search(
+                    r"(?:data-passcode|data-card-passcode)=[\"'](\\d{4,10})[\"']",
+                    tag,
+                    flags=re.I,
+                )
+            if match:
+                try:
+                    result.append(int(match.group(1)))
+                except ValueError:
+                    pass
+        return result
+
+    @staticmethod
+    def _quantity_from_card_context(context: str) -> int:
+        """Déduit prudemment la quantité d'une carte dans son bloc HTML."""
+        patterns = (
+            r'(?:data-(?:qty|quantity|count|copies|card-count)|(?:qty|quantity|count|copies))=["\']([1-3])["\']',
+            r'class=["\'][^"\']*(?:qty|quantity|count|copies)[^"\']*["\'][^>]*>\s*[x×]?\s*([1-3])\b',
+            r'\b[x×]\s*([1-3])\b',
+            r'\b([1-3])\s*[x×]\b',
+        )
+        for pattern in patterns:
+            matches = list(re.finditer(pattern, context, flags=re.I | re.S))
+            if matches:
+                try:
+                    return max(1, min(3, int(matches[-1].group(1))))
+                except (TypeError, ValueError):
+                    continue
+        return 1
+
+    @classmethod
+    def _extract_zone_cards_from_blocks(cls, body: str) -> tuple[list[int], list[int], list[int]] | None:
+        """Essaie de lire les blocs de cartes qui portent eux-mêmes leur zone.
+
+        Les pages YGOPRODeck récentes peuvent rendre les trois titres de zones
+        avant les cartes. Dans ce cas, un simple découpage entre les titres ne
+        suffit plus. Ce parseur regarde le conteneur proche de chaque image et
+        cherche les classes/attributs Main, Extra ou Side.
+        """
+        decoded = unquote(html_lib.unescape(body)).replace("\\/", "/")
+        hits: list[tuple[int, int, str, int]] = []
+        image_re = re.compile(
+            r'<img\b[^>]*(?:/cards(?:_small|_cropped)?/|data-(?:passcode|card-passcode)=)[^>]*>',
+            flags=re.I | re.S,
+        )
+        for image in image_re.finditer(decoded):
+            tag = image.group(0)
+            card_match = re.search(
+                r'/cards(?:_small|_cropped)?/(\d{4,10})\.(?:jpg|jpeg|png|webp)',
+                tag,
+                flags=re.I,
+            ) or re.search(
+                r'(?:data-passcode|data-card-passcode)=["\'](\d{4,10})["\']',
+                tag,
+                flags=re.I,
+            )
+            if not card_match:
+                continue
+            card_id = int(card_match.group(1))
+            start = max(0, image.start() - 1400)
+            before = decoded[start:image.start()]
+            context = before + tag
+            zone = None
+            # On privilégie les marqueurs explicites proches du bloc de carte.
+            zone_patterns = (
+                ("side", r'(?:side[-_ ]?deck|deck[-_ ]?side|data-(?:zone|location)=["\']side["\'])'),
+                ("extra", r'(?:extra[-_ ]?deck|deck[-_ ]?extra|data-(?:zone|location)=["\']extra["\'])'),
+                ("main", r'(?:main[-_ ]?deck|deck[-_ ]?main|data-(?:zone|location)=["\']main["\'])'),
+            )
+            best: tuple[int, str] | None = None
+            for candidate, pattern in zone_patterns:
+                matches = list(re.finditer(pattern, context, flags=re.I))
+                if matches:
+                    distance = len(before) - matches[-1].end()
+                    if best is None or distance < best[0]:
+                        best = (distance, candidate)
+            if best:
+                zone = best[1]
+            if not zone:
+                continue
+            qty = cls._quantity_from_card_context(context[-700:])
+            hits.append((image.start(), card_id, zone, qty))
+
+        if not hits:
+            return None
+        by_zone: dict[str, list[int]] = {"main": [], "extra": [], "side": []}
+        # Plusieurs src/srcset peuvent parfois pointer vers le même passcode dans
+        # le même bloc. On déduplique seulement les occurrences quasi-identiques.
+        previous_key: tuple[int, str] | None = None
+        previous_pos = -10_000
+        for pos, card_id, zone, qty in hits:
+            key = (card_id, zone)
+            if key == previous_key and pos - previous_pos < 350:
+                continue
+            by_zone[zone].extend([card_id] * qty)
+            previous_key = key
+            previous_pos = pos
+        if cls._valid_deck(by_zone["main"], by_zone["extra"], by_zone["side"]):
+            return by_zone["main"], by_zone["extra"], by_zone["side"]
+        return None
+
+    @classmethod
+    def _extract_deck_ids_from_html(cls, body: str) -> tuple[list[int], list[int], list[int]] | None:
+        """Fallback pour les pages où le lien YDKE n'est plus inline.
+
+        On découpe le HTML rendu côté serveur par les titres Main/Extra/Side puis
+        on lit les passcodes contenus dans les URLs d'images de cartes.
+        """
+        decoded = unquote(html_lib.unescape(body))
+        markers: dict[str, re.Match[str] | None] = {
+            "main": re.search(r"Main\s*Deck(?:\s*\([^<]{0,80}\))?", decoded, flags=re.I),
+            "extra": re.search(r"Extra\s*Deck(?:\s*\([^<]{0,80}\))?", decoded, flags=re.I),
+            "side": re.search(r"Side\s*Deck(?:\s*\([^<]{0,80}\))?", decoded, flags=re.I),
+            "breakdown": re.search(r"Deck\s*Breakdown|View\s*Deck\s*History|Other\s*Decks", decoded, flags=re.I),
+        }
+        if not markers["main"]:
+            return None
+        main_start = markers["main"].end()
+        extra_start = markers["extra"].start() if markers["extra"] else None
+        side_start = markers["side"].start() if markers["side"] else None
+        end_candidates = [
+            match.start() for key, match in markers.items()
+            if key == "breakdown" and match is not None
+        ]
+        doc_end = min(end_candidates) if end_candidates else len(decoded)
+
+        if extra_start is not None:
+            main_end = extra_start
+        elif side_start is not None:
+            main_end = side_start
+        else:
+            main_end = doc_end
+
+        if markers["extra"]:
+            extra_content_start = markers["extra"].end()
+            extra_end = side_start if side_start is not None else doc_end
+        else:
+            extra_content_start = extra_end = 0
+
+        if markers["side"]:
+            side_content_start = markers["side"].end()
+            side_end = doc_end
+        else:
+            side_content_start = side_end = 0
+
+        main = cls._extract_passcodes_from_section(decoded[main_start:main_end])
+        extra = cls._extract_passcodes_from_section(decoded[extra_content_start:extra_end]) if extra_content_start else []
+        side = cls._extract_passcodes_from_section(decoded[side_content_start:side_end]) if side_content_start else []
+        if cls._valid_deck(main, extra, side):
+            return main, extra, side
+        return None
 
     @staticmethod
     def _extract_meta(body: str, property_name: str) -> str | None:
@@ -525,6 +742,13 @@ class DeckBuilderService:
         match = re.search(r"ydke:\\/\\/[A-Za-z0-9+/=_!%\\-]+", body, flags=re.IGNORECASE)
         if match:
             return match.group(0).replace("\\/", "/")
+        # Le deck-tool YGOPRODeck accepte également la partie data d'un YDKE
+        # dans le paramètre ?y=. Certains liens n'exposent donc pas "ydke://".
+        for raw in re.findall(r"[?&]y=([^&\"'<>\\s]+)", decoded, flags=re.IGNORECASE):
+            candidate = unquote(raw)
+            parts = candidate.split("!")
+            if len(parts) >= 3 and all(parts[:3]):
+                return "ydke://{}!{}!{}!".format(parts[0], parts[1], parts[2])
         return None
 
     @staticmethod
@@ -545,14 +769,25 @@ class DeckBuilderService:
         except (aiohttp.ClientError, asyncio.TimeoutError):
             return None
         ydke = self._find_ydke(body)
-        if not ydke:
-            return None
-        try:
-            main, extra, side = self.decode_ydke(ydke)
-        except (ValueError, TypeError, base64.binascii.Error):
-            return None
+        parsed_from = "ydke"
+        if ydke:
+            try:
+                main, extra, side = self.decode_ydke(ydke)
+            except (ValueError, TypeError, base64.binascii.Error):
+                main, extra, side = [], [], []
+        else:
+            main, extra, side = [], [], []
         if not self._valid_deck(main, extra, side):
-            return None
+            fallback_ids = self._extract_zone_cards_from_blocks(body)
+            if fallback_ids:
+                main, extra, side = fallback_ids
+                parsed_from = "html-zone-blocks"
+            else:
+                fallback_ids = self._extract_deck_ids_from_html(body)
+                if not fallback_ids:
+                    return None
+                main, extra, side = fallback_ids
+                parsed_from = "html-card-images"
         fallback = url.rstrip("/").rsplit("/", 1)[-1].rsplit("-", 1)[0].replace("-", " ").title()
         title = self._extract_title(body, fallback)
         published = self._extract_published(body)
@@ -593,15 +828,19 @@ class DeckBuilderService:
             f"{YGOPRODECK_SITE}/deck-search/?name={encoded}&offset=0&tournament=tier-2",
             f"{YGOPRODECK_SITE}/deck-search/?name={encoded}&offset=0",
         ]
+        category_urls = await self._category_urls_for_query(clean)
+        source_urls = search_urls + category_urls
         pages = await asyncio.gather(
-            *(self._fetch_text(url, ttl_hours=self.search_cache_hours) for url in search_urls),
+            *(self._fetch_text(url, ttl_hours=self.search_cache_hours) for url in source_urls),
             return_exceptions=True,
         )
         links: list[str] = []
         seen_urls: set[str] = set()
+        pages_ok = 0
         for page in pages:
             if isinstance(page, Exception):
                 continue
+            pages_ok += 1
             for link in self._extract_deck_links(page):
                 if link not in seen_urls:
                     seen_urls.add(link)
@@ -610,6 +849,13 @@ class DeckBuilderService:
         # On charge un peu plus de pages que le plafond final pour absorber les doublons.
         links = links[: min(len(links), max(limit * 2, limit))]
         if not links:
+            self._last_discovery_debug = {
+                "source_pages_requested": len(source_urls),
+                "source_pages_loaded": pages_ok,
+                "category_pages": category_urls,
+                "deck_links_found": 0,
+                "deck_pages_parsed": 0,
+            }
             return []
         semaphore = asyncio.Semaphore(5)
 
@@ -619,14 +865,24 @@ class DeckBuilderService:
 
         loaded = await asyncio.gather(*(load(url) for url in links))
         deduped: dict[str, DeckSample] = {}
+        parsed_count = 0
         for sample in loaded:
             if sample is None:
                 continue
+            parsed_count += 1
             previous = deduped.get(sample.fingerprint)
             if previous is None or sample.weight > previous.weight:
                 deduped[sample.fingerprint] = sample
         valid = list(deduped.values())
         valid.sort(key=lambda item: (item.weight, item.is_tournament, item.published or ""), reverse=True)
+        self._last_discovery_debug = {
+            "source_pages_requested": len(source_urls),
+            "source_pages_loaded": pages_ok,
+            "category_pages": category_urls,
+            "deck_links_found": len(links),
+            "deck_pages_parsed": parsed_count,
+            "unique_decks": len(valid),
+        }
         return valid[:limit]
 
     @staticmethod
@@ -739,6 +995,242 @@ class DeckBuilderService:
             )
             return [localized.get(int(card.get("id") or 0), card) for card in cards]
         return cards
+
+    @staticmethod
+    def _market_slug(value: str) -> str:
+        """Slug prudent pour tenter la page publique Cardmarket /Cards/<slug>/Versions."""
+        text = unicodedata.normalize("NFKD", str(value or ""))
+        text = "".join(ch for ch in text if not unicodedata.combining(ch))
+        text = text.replace("&", " ").replace("'", "").replace("’", "")
+        text = re.sub(r"[^A-Za-z0-9]+", "-", text).strip("-")
+        return re.sub(r"-+", "-", text)
+
+    @staticmethod
+    def _plain_html(fragment: str) -> str:
+        text = re.sub(r"<script\b[^>]*>.*?</script>", " ", fragment, flags=re.I | re.S)
+        text = re.sub(r"<style\b[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = html_lib.unescape(text).replace("\xa0", " ")
+        return re.sub(r"\s+", " ", text).strip()
+
+    @staticmethod
+    def _parse_eur(value: str | None) -> float | None:
+        raw = re.sub(r"[^0-9,.' ]", "", str(value or "")).strip().replace("'", "")
+        raw = raw.replace(" ", "")
+        if not raw:
+            return None
+        if "," in raw and "." in raw:
+            if raw.rfind(",") > raw.rfind("."):
+                raw = raw.replace(".", "").replace(",", ".")
+            else:
+                raw = raw.replace(",", "")
+        elif "," in raw:
+            head, tail = raw.rsplit(",", 1)
+            raw = head.replace(",", "") + ("." + tail if len(tail) <= 2 else tail)
+        try:
+            value_f = float(raw)
+        except ValueError:
+            return None
+        return round(value_f, 2) if value_f >= 0 else None
+
+    @classmethod
+    def _known_rarity_from_slug(cls, product_slug: str, rarities: Iterable[str]) -> str | None:
+        slug = cls._market_slug(unquote(product_slug)).casefold()
+        values = sorted({str(r or "").strip() for r in rarities if str(r or "").strip()}, key=len, reverse=True)
+        extras = [
+            "Quarter Century Secret Rare", "Prismatic Secret Rare", "Platinum Secret Rare",
+            "Collector's Rare", "Collectors Rare", "Starlight Rare", "Ghost Rare",
+            "Ultimate Rare", "Secret Rare", "Ultra Rare", "Super Rare", "Premium Gold Rare",
+            "Gold Rare", "Rare", "Common", "Starfoil Rare", "Shatterfoil Rare",
+        ]
+        for rarity in values + extras:
+            if cls._market_slug(rarity).casefold() in slug:
+                return rarity
+        return None
+
+    @staticmethod
+    def _set_similarity(left: str, right: str) -> float:
+        stop = {"the", "of", "and", "a", "an", "edition", "set", "yu", "gi", "oh"}
+        def toks(value: str) -> set[str]:
+            value = unicodedata.normalize("NFKD", str(value or ""))
+            value = "".join(ch for ch in value if not unicodedata.combining(ch)).casefold()
+            return {tok for tok in re.findall(r"[a-z0-9]+", value) if tok not in stop and len(tok) > 1}
+        a, b = toks(left), toks(right)
+        if not a or not b:
+            return 0.0
+        return len(a & b) / max(len(a), len(b))
+
+    async def _cardmarket_version_floors(
+        self, card_name: str, known_rarities: Iterable[str]
+    ) -> tuple[list[dict[str, Any]], str | None]:
+        """Lit seulement les tuiles publiques /Versions, sans login ni contournement.
+
+        Si Cardmarket refuse la requête, on retombe proprement sur card_sets et aucun
+        prix EUR par impression n'est inventé.
+        """
+        slug = self._market_slug(card_name)
+        if not slug:
+            return [], None
+        candidates = [f"{CARDMARKET_CARD_BASE}{slug}/Versions", f"{CARDMARKET_CARD_BASE}{slug}"]
+        body = ""
+        source_url = None
+        for url in candidates:
+            try:
+                body = await self._fetch_text(url, ttl_hours=24)
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+                continue
+            lowered = body.casefold()
+            if any(marker in lowered for marker in ("captcha", "access denied", "please verify you are a human")):
+                body = ""
+                continue
+            if "/Products/Singles/" in body:
+                source_url = url
+                break
+        if not body:
+            return [], source_url
+
+        host = "https://www.cardmarket.com"
+        rows: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        href_re = re.compile(r"href=[\"'](?P<href>/en/YuGiOh/Products/Singles/[^\"'#?]+)[\"']", re.I)
+        for match in href_re.finditer(body):
+            href = html_lib.unescape(match.group("href"))
+            if href in seen:
+                continue
+            seen.add(href)
+            before = max(0, match.start() - 1100)
+            after = min(len(body), match.end() + 1700)
+            fragment = body[before:after]
+            plain = self._plain_html(fragment)
+            prices: list[float] = []
+            for price_match in re.finditer(r"(?:From|À partir de|A partir de)?\s*([0-9][0-9 .,'’]*[,.][0-9]{1,2}|[0-9]+)\s*€", plain, re.I):
+                price = self._parse_eur(price_match.group(1))
+                if price is not None:
+                    prices.append(price)
+            price_eur = min(prices) if prices else None
+            parts = [unquote(part) for part in href.split("/") if part]
+            try:
+                singles_idx = parts.index("Singles")
+            except ValueError:
+                continue
+            if len(parts) <= singles_idx + 2:
+                continue
+            expansion_slug = parts[singles_idx + 1]
+            product_slug = parts[singles_idx + 2]
+            rarity = self._known_rarity_from_slug(product_slug, known_rarities)
+            set_label = re.sub(r"-+", " ", expansion_slug).strip()
+            product_label = re.sub(r"-+", " ", product_slug).strip()
+            available_match = re.search(r"([0-9][0-9 .,]*)\s+Available", plain, re.I)
+            available = None
+            if available_match:
+                try:
+                    available = int(re.sub(r"\D", "", available_match.group(1)))
+                except ValueError:
+                    pass
+            rows.append({
+                "market_url": host + href,
+                "expansion_slug": expansion_slug,
+                "set_label": set_label,
+                "product_label": product_label,
+                "rarity": rarity,
+                "price_eur": price_eur,
+                "available": available,
+            })
+        return rows, source_url
+
+    async def card_printings(self, card_id: int) -> dict[str, Any]:
+        try:
+            card_id = int(card_id)
+        except (TypeError, ValueError):
+            raise ValueError("Carte invalide.")
+        if card_id <= 0:
+            raise ValueError("Carte invalide.")
+        cards = await self.card_data_by_ids([card_id])
+        card = cards.get(card_id)
+        if not card:
+            raise ValueError("Carte introuvable.")
+        card_name = str(card.get("_source_name") or card.get("name") or f"Card {card_id}")
+        localized_name = str(card.get("_localized_name") or card.get("name") or card_name)
+        card_sets = list(card.get("card_sets") or [])
+        known_rarities = [str(row.get("set_rarity") or "") for row in card_sets]
+        market_versions, market_source = await self._cardmarket_version_floors(card_name, known_rarities)
+
+        unmatched = set(range(len(market_versions)))
+        printings: list[dict[str, Any]] = []
+        for index, set_row in enumerate(card_sets):
+            set_name = str(set_row.get("set_name") or "").strip()
+            set_code = str(set_row.get("set_code") or "").strip()
+            rarity = str(set_row.get("set_rarity") or "Inconnue").strip() or "Inconnue"
+            rarity_code = str(set_row.get("set_rarity_code") or "").strip() or None
+            best_idx = None
+            best_score = 0.0
+            for candidate_idx in list(unmatched):
+                candidate = market_versions[candidate_idx]
+                candidate_rarity = str(candidate.get("rarity") or "").casefold()
+                if candidate_rarity and candidate_rarity != rarity.casefold():
+                    continue
+                score = self._set_similarity(set_name, str(candidate.get("set_label") or ""))
+                if score > best_score:
+                    best_idx, best_score = candidate_idx, score
+            market = None
+            if best_idx is not None and best_score >= 0.45:
+                market = market_versions[best_idx]
+                unmatched.discard(best_idx)
+            try:
+                set_price_usd = float(set_row.get("set_price")) if set_row.get("set_price") not in (None, "") else None
+            except (TypeError, ValueError):
+                set_price_usd = None
+            printings.append({
+                "printing_id": f"ygp:{card_id}:{index}:{set_code or index}",
+                "set_name": set_name or (market.get("set_label") if market else "Édition inconnue"),
+                "set_code": set_code or None,
+                "rarity": rarity,
+                "rarity_code": rarity_code,
+                "price_eur": market.get("price_eur") if market else None,
+                "price_usd_fallback": round(set_price_usd, 2) if set_price_usd is not None else None,
+                "market_url": market.get("market_url") if market else CARDMARKET_SEARCH + quote_plus(card_name),
+                "market_confirmed": bool(market and market.get("price_eur") is not None),
+                "price_source": "Cardmarket · plancher de cette version" if market and market.get("price_eur") is not None else "Prix d'impression YGOPRODeck (USD, secours)",
+                "available": market.get("available") if market else None,
+            })
+
+        for candidate_idx in sorted(unmatched):
+            market = market_versions[candidate_idx]
+            printings.append({
+                "printing_id": f"cm:{card_id}:{candidate_idx}",
+                "set_name": str(market.get("set_label") or "Version Cardmarket"),
+                "set_code": None,
+                "rarity": str(market.get("rarity") or "Rareté non précisée"),
+                "rarity_code": None,
+                "price_eur": market.get("price_eur"),
+                "price_usd_fallback": None,
+                "market_url": market.get("market_url") or CARDMARKET_SEARCH + quote_plus(card_name),
+                "market_confirmed": market.get("price_eur") is not None,
+                "price_source": "Cardmarket · plancher de cette version",
+                "available": market.get("available"),
+            })
+
+        deduped: list[dict[str, Any]] = []
+        seen_keys: set[tuple[str, str, str, float | None]] = set()
+        for row in printings:
+            key = (str(row.get("set_name") or "").casefold(), str(row.get("set_code") or "").casefold(), str(row.get("rarity") or "").casefold(), row.get("price_eur"))
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            deduped.append(row)
+        deduped.sort(key=lambda row: (0 if row.get("price_eur") is not None else 1, float(row.get("price_eur") or 10**9), str(row.get("rarity") or ""), str(row.get("set_name") or "")))
+        rarities = sorted({str(row.get("rarity") or "Inconnue") for row in deduped})
+        return {
+            "card_id": card_id,
+            "name": localized_name,
+            "source_name": card_name,
+            "default_cardmarket_price": self._price(card),
+            "printings": deduped,
+            "rarities": rarities,
+            "cardmarket_versions_available": any(row.get("price_eur") is not None for row in deduped),
+            "cardmarket_versions_source": market_source,
+            "note": "Le prix EUR correspond au plancher public de la version Cardmarket quand Hamtaro peut l'identifier. Sinon le prix d'impression YGOPRODeck en USD reste affiché séparément ; aucun prix EUR n'est inventé.",
+        }
 
     @staticmethod
     def _price(card: dict[str, Any]) -> float | None:
@@ -2156,6 +2648,7 @@ class DeckBuilderService:
             "samples_analyzed": len(samples),
             "tournament_samples": sum(1 for sample in samples if sample.is_tournament),
             "side_samples": sum(1 for sample in samples if sample.side),
+            "discovery": dict(self._last_discovery_debug),
             "filters": {
                 "tournament_only": tournament_only,
                 "days": days,
@@ -2711,6 +3204,7 @@ class DeckBuilderService:
         locked_cards: dict[str, dict[int, int]] | None = None,
         excluded_cards: dict[str, Iterable[int]] | None = None,
         freespot_profile: str = "auto",
+        printing_selections: dict[int, dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         mode = mode if mode in {"budget", "standard", "optimal"} else "standard"
         freespot_profile = freespot_profile if freespot_profile in FREESPOT_PROFILES else "auto"
@@ -2729,6 +3223,25 @@ class DeckBuilderService:
             days=days,
             variant=variant,
         )
+        printing_selections = {
+            int(card_id): dict(item)
+            for card_id, item in (printing_selections or {}).items()
+            if str(card_id).isdigit() and isinstance(item, dict) and item.get("price_eur") is not None
+        }
+        if printing_selections:
+            # Les prix d'impression sont résolus côté serveur à partir du printing_id :
+            # le navigateur ne peut donc pas injecter arbitrairement un prix dans le budget.
+            for zone in ("main", "extra", "side"):
+                patched_rows: list[dict[str, Any]] = []
+                for source_row in analysis.get("zones", {}).get(zone, []) or []:
+                    row = dict(source_row)
+                    selected = printing_selections.get(int(row.get("id") or 0))
+                    if selected:
+                        row["generic_cardmarket_price"] = row.get("cardmarket_price")
+                        row["cardmarket_price"] = round(float(selected["price_eur"]), 2)
+                        row["selected_printing"] = dict(selected)
+                    patched_rows.append(row)
+                analysis["zones"][zone] = patched_rows
         if analysis["degraded"]:
             return {
                 **analysis,
@@ -2851,6 +3364,7 @@ class DeckBuilderService:
             "purchase_plan": purchase_plan,
             "opening_hand": opening_hand,
             "diagnostics": diagnostics,
+            "selected_printings": {str(card_id): item for card_id, item in printing_selections.items()},
             "constraints": {
                 "locked": {zone: locked_cards[zone] for zone in ("main", "extra", "side")},
                 "excluded": {zone: sorted(excluded_cards[zone]) for zone in ("main", "extra", "side")},

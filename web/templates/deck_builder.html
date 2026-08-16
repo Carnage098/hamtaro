@@ -6,7 +6,7 @@
 <section class="deck-builder-page" data-deck-builder-root>
     <header class="db-hero">
         <div class="db-hero-copy">
-            <p class="db-eyebrow">HAMTARO DECK INTELLIGENCE · V8</p>
+            <p class="db-eyebrow">HAMTARO DECK INTELLIGENCE · V8.2</p>
             <h1>Construis, comprends et chiffre ton deck.</h1>
             <p>
                 Recherche un archétype ou une variante. Hamtaro analyse des decklists publiques,
@@ -359,6 +359,19 @@
                 <div class="db-alternatives-grid" data-db-alternatives-grid></div>
             </section>
 
+            <section class="db-printings-panel" data-db-printings-panel hidden>
+                <div class="db-section-heading compact">
+                    <div>
+                        <span class="db-kicker">Raretés & éditions</span>
+                        <h3 data-db-printings-title>Choisir une impression</h3>
+                        <p data-db-printings-note>Chaque impression peut avoir un prix différent. Hamtaro ne confond pas deux éditions simplement parce qu'elles ont la même rareté.</p>
+                    </div>
+                    <button type="button" class="db-link-button" data-db-close-printings>Fermer</button>
+                </div>
+                <div class="db-rarity-filter" data-db-rarity-filter></div>
+                <div class="db-printings-grid" data-db-printings-grid></div>
+            </section>
+
             <section class="db-synergy-panel" data-db-synergy-panel hidden>
                 <div class="db-section-heading compact">
                     <div>
@@ -459,6 +472,7 @@ ou
                     <span class="db-kicker">Mode dégradé</span>
                     <h3>Cartes d'archétype retrouvées</h3>
                     <p>Aucun pourcentage d'utilisation n'est affiché sans decklists exploitables.</p>
+                    <p class="db-muted" data-db-discovery-debug></p>
                 </div>
             </div>
             <div class="db-fallback-grid" data-db-fallback-grid></div>

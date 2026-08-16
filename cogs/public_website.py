@@ -276,7 +276,6 @@ class PublicWebsiteCog(commands.Cog):
             self,
         )
         register_deck_builder_routes(application, self)
-
         application.router.add_get("/favicon.ico", self.favicon)
         # HAMTARO FORMAT ARAIGNEE: routes publiques et API.
         register_format_routes(application, self)
