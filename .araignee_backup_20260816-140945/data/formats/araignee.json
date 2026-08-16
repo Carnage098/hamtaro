@@ -2,47 +2,44 @@
   "id": "araignee",
   "name": "Araignée",
   "emoji": "🕷️",
-  "format_version": "3.0",
+  "format_version": "2.0",
   "pool_version": 1,
   "description": "Format communautaire Hamtaro centré sur un noyau de cartes Araignée et un unique archétype secondaire.",
   "main_deck": {
+    "exact_cards": 40,
     "spider_min": 10,
     "spider_max": 15,
     "secondary_archetype_min": 5,
     "secondary_archetype_max": 15,
     "max_archetypes": 2,
-    "generic_whitelist": true,
-    "min_cards": 40,
-    "max_cards": 60
+    "generic_whitelist": true
   },
   "extra_deck": {
     "max_cards": 15,
-    "free": true,
-    "banlist_note": "Suit les banlists annoncées pour le Format Araignée ou le tournoi, pas nécessairement la banlist TCG du moment."
+    "free": true
   },
   "side_deck": {
-    "free": true,
-    "secondary_archetype_cards_allowed": 3,
-    "note": "Side Deck libre. Jusqu'à 3 cartes de l'archétype secondaire déclaré peuvent y être ajoutées."
+    "exact_cards": 3,
+    "only_secondary_archetype": true
   },
   "copies": {
     "default_max": 3
   },
   "secondary_archetype_locked_for_tournament": true,
   "banlists": [
-    "Banlists annoncées pour le Format Araignée ou le tournoi"
+    "Banlist TCG en vigueur",
+    "Banlist spéciale du Format Araignée"
   ],
   "automatic_validation": {
     "main_deck_size": true,
     "spider_quota": true,
     "extra_deck_size_when_supplied": true,
+    "side_deck_size_when_supplied": true,
     "default_copy_limit": true,
     "secondary_archetype_quota": false,
     "secondary_archetype_identity": false,
     "generic_whitelist": false,
-    "banlist_specific_limits": false,
-    "side_deck_size": false,
-    "secondary_archetype_side_allowance": false
+    "banlist_specific_limits": false
   },
   "spider_card_pool": [
     "Bébé Araignée",

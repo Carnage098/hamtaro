@@ -14,10 +14,10 @@
         </div>
     </div>
     <div class="format-pills">
-        <span>40 cartes Main</span>
+        <span>40–60 cartes Main</span>
         <span>10–15 Araignée</span>
         <span>Extra ≤ 15</span>
-        <span>Side = 3</span>
+        <span>Side libre</span>
         <span>{{ format_data.pool_count }} cartes reconnues</span>
     </div>
 </section>
@@ -32,7 +32,7 @@
     <article class="format-panel">
         <h2>Main Deck</h2>
         <ul>
-            <li>Exactement <strong>40 cartes</strong>.</li>
+            <li>Entre <strong>40 et 60 cartes</strong>.</li>
             <li><strong>10 à 15 cartes Araignée</strong> du pool officiel.</li>
             <li>Un seul archétype secondaire : <strong>5 à 15 cartes</strong>.</li>
             <li>Maximum <strong>2 archétypes</strong> : Araignée + secondaire.</li>
@@ -44,15 +44,16 @@
         <h2>Extra Deck</h2>
         <ul>
             <li>De <strong>0 à 15 cartes</strong>.</li>
-            <li>Extra Deck <strong>libre</strong> dans les limites des banlists.</li>
+            <li>Extra Deck <strong>libre</strong>.</li>
+            <li>Les restrictions suivent les <strong>banlists annoncées pour le Format Araignée ou le tournoi</strong>, pas nécessairement la banlist TCG du moment.</li>
         </ul>
     </article>
 
     <article class="format-panel">
         <h2>Side Deck</h2>
         <ul>
-            <li>Exactement <strong>3 cartes</strong>.</li>
-            <li>Uniquement de <strong>l'archétype secondaire déclaré</strong>.</li>
+            <li>Le <strong>Side Deck est libre</strong>.</li>
+            <li>Il est possible d'y ajouter jusqu'à <strong>3 cartes de l'archétype secondaire déclaré</strong>.</li>
         </ul>
     </article>
 
@@ -60,8 +61,8 @@
         <h2>Tournoi & banlists</h2>
         <ul>
             <li>L'archétype secondaire est <strong>verrouillé</strong> pour tout le tournoi.</li>
-            <li><strong>Banlist TCG</strong> en vigueur.</li>
-            <li><strong>Banlist spéciale du Format Araignée</strong>.</li>
+            <li>Les <strong>banlists applicables</strong> sont celles annoncées pour le Format Araignée ou le tournoi.</li>
+            <li>Elles ne correspondent pas forcément à la banlist TCG du moment.</li>
         </ul>
     </article>
 </section>
@@ -127,8 +128,16 @@
     </p>
 
     <ol class="spider-pool" id="spider-pool">
-        {% for card in format_data.spider_card_pool %}
-        <li>{{ card }}</li>
+        {% for card in format_data.spider_card_entries %}
+        <li>
+            <a
+                class="spider-card-link"
+                href="{{ card.url }}"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Ouvrir {{ card.name }} dans la base officielle Yu-Gi-Oh! Neuron"
+            >{{ card.name }}</a>
+        </li>
         {% endfor %}
     </ol>
 </section>
@@ -209,10 +218,10 @@
                     <small>Pool ${escapeHtml(payload.pool_revision)}</small>
                 </div>
                 <div class="format-score-grid">
-                    <span>${checkLabel(r.checks.main_deck_size)} Main <strong>${r.main_count}/40</strong></span>
+                    <span>${checkLabel(r.checks.main_deck_size)} Main <strong>${r.main_count}/40–60</strong></span>
                     <span>${checkLabel(r.checks.spider_quota)} Araignée <strong>${r.spider_count}/10–15</strong></span>
                     <span>${checkLabel(r.checks.extra_deck_size)} Extra <strong>${r.extra_count}/15</strong></span>
-                    <span>${checkLabel(r.checks.side_deck_size)} Side <strong>${r.side_count}/3</strong></span>
+                    <span>🆓 Side <strong>libre (${r.side_count})</strong></span>
                     <span>${checkLabel(r.checks.default_copy_limit)} Copies ≤ 3</span>
                 </div>
                 ${errors ? `<h3>À corriger</h3><ul>${errors}</ul>` : ""}

@@ -9,7 +9,6 @@ from dataclasses import asdict, dataclass
 from difflib import get_close_matches
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote_plus
 
 
 @dataclass(slots=True)
@@ -83,10 +82,8 @@ class AraigneeFormatService:
             )
 
         main = data.get("main_deck") or {}
-        main_min = int(main.get("min_cards", 0))
-        main_max = int(main.get("max_cards", 0))
-        if main_min <= 0 or main_max < main_min:
-            raise ValueError("La plage de taille du Main Deck est invalide.")
+        if int(main.get("exact_cards", 0)) <= 0:
+            raise ValueError("La taille du Main Deck est invalide.")
         if int(main.get("spider_min", 0)) > int(main.get("spider_max", 0)):
             raise ValueError("spider_min ne peut pas dépasser spider_max.")
 
@@ -277,9 +274,7 @@ class AraigneeFormatService:
         errors: list[str] = []
         warnings: list[str] = []
 
-        main_min = int(main_rules["min_cards"])
-        main_max = int(main_rules["max_cards"])
-        main_ok = main_min <= len(parsed.main) <= main_max
+        main_ok = len(parsed.main) == int(main_rules["exact_cards"])
         spider_ok = (
             int(main_rules["spider_min"])
             <= spider_count
@@ -290,14 +285,16 @@ class AraigneeFormatService:
             if parsed.saw_extra
             else None
         )
-        # Le Side Deck est libre dans le Format Araignée.
-        # Sa taille n'est donc pas un critère d'invalidité.
-        side_ok = None
+        side_ok = (
+            len(parsed.side) == int(side_rules["exact_cards"])
+            if parsed.saw_side
+            else None
+        )
 
         if not main_ok:
             errors.append(
-                f"Le Main Deck doit contenir entre "
-                f"{main_rules['min_cards']} et {main_rules['max_cards']} cartes "
+                f"Le Main Deck doit contenir exactement "
+                f"{main_rules['exact_cards']} cartes "
                 f"(détecté : {len(parsed.main)})."
             )
 
@@ -317,6 +314,13 @@ class AraigneeFormatService:
                 f"L'Extra Deck ne peut pas dépasser "
                 f"{extra_rules['max_cards']} cartes "
                 f"(détecté : {len(parsed.extra)})."
+            )
+
+        if side_ok is False:
+            errors.append(
+                f"Le Side Deck du Format Araignée doit contenir exactement "
+                f"{side_rules['exact_cards']} cartes "
+                f"(détecté : {len(parsed.side)})."
             )
 
         all_cards = parsed.main + parsed.extra + parsed.side
@@ -349,16 +353,14 @@ class AraigneeFormatService:
             warnings.append(
                 "Aucune section Extra Deck fournie : sa taille n'a pas été contrôlée."
             )
-        if parsed.saw_side:
+        if not parsed.saw_side:
             warnings.append(
-                "Side Deck libre : sa composition générale n'est pas bloquante. "
-                "Jusqu'à 3 cartes de l'archétype secondaire déclaré peuvent y être ajoutées ; "
-                "ce point nécessite encore les métadonnées d'archétype pour être contrôlé automatiquement."
+                "Aucune section Side Deck fournie : la règle des 3 cartes n'a pas été contrôlée."
             )
 
         warnings.append(
             "Le validateur ne peut pas encore confirmer l'identité de l'archétype "
-            "secondaire, la whitelist générique ni les restrictions propres aux banlists annoncées."
+            "secondaire, la whitelist générique ni les restrictions propres aux banlists."
         )
 
         suggestions = self._spider_suggestions(parsed.main)
@@ -384,27 +386,8 @@ class AraigneeFormatService:
             checks=checks,
         )
 
-    @staticmethod
-    def official_card_search_url(card_name: str) -> str:
-        keyword = quote_plus(str(card_name or "").strip())
-        return (
-            "https://www.db.yugioh-card.com/yugiohdb/card_search.action"
-            f"?ope=1&sess=1&rp=20&keyword={keyword}"
-            "&stype=1&othercon=2&request_locale=fr"
-        )
-
-    def card_entries(self) -> list[dict[str, str]]:
-        return [
-            {
-                "name": card,
-                "url": self.official_card_search_url(card),
-            }
-            for card in self.pool()
-        ]
-
     def public_data(self) -> dict[str, Any]:
         data = dict(self.data())
         data["pool_count"] = len(self.pool())
         data["pool_revision"] = self.pool_revision()
-        data["spider_card_entries"] = self.card_entries()
         return data

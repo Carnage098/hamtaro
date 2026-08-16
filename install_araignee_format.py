@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-PACK_VERSION = "2.0"
+PACK_VERSION = "3.0"
 HERE = Path(__file__).resolve().parent
 ROOT = Path.cwd()
 
