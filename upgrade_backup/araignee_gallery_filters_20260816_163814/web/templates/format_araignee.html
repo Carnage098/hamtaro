@@ -1,9 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Format Araignée · Hamtaro{% endblock %}
 {% block content %}
-<!-- HAMTARO_ARAIGNEE_FILTER_ASSETS:START -->
-<link rel="stylesheet" href="/static/araignee_filters.css?v=araignee-gallery-filters-2026-08-16-1">
-<!-- HAMTARO_ARAIGNEE_FILTER_ASSETS:END -->
 <section class="format-hero format-hero-spider">
     <div class="format-title-row">
         <div>
@@ -140,99 +137,6 @@
         </div>
     </div>
 
-<!-- HAMTARO_ARAIGNEE_FILTERS:START -->
-    <div class="spider-catalog-controls" id="spider-catalog-controls">
-        <div class="spider-catalog-top">
-            <div class="spider-catalog-title">
-                <strong>🕷️ Catalogue Araignée</strong>
-                <small id="spider-catalog-status">Chargement du classement des cartes…</small>
-            </div>
-            <button class="spider-filter-reset" id="spider-reset-filters" type="button">Réinitialiser les filtres</button>
-        </div>
-
-        <div class="spider-type-filter" role="group" aria-label="Filtrer par type de carte">
-            <button class="spider-type-chip is-active" type="button" data-spider-type="all">Toutes <span>0</span></button>
-            <button class="spider-type-chip" type="button" data-spider-type="normal">Normal <span>0</span></button>
-            <button class="spider-type-chip" type="button" data-spider-type="effect">Effet <span>0</span></button>
-            <button class="spider-type-chip" type="button" data-spider-type="ritual">Rituel <span>0</span></button>
-            <button class="spider-type-chip" type="button" data-spider-type="fusion">Fusion <span>0</span></button>
-            <button class="spider-type-chip" type="button" data-spider-type="synchro">Synchro <span>0</span></button>
-            <button class="spider-type-chip" type="button" data-spider-type="xyz">Xyz <span>0</span></button>
-            <button class="spider-type-chip" type="button" data-spider-type="link">Lien <span>0</span></button>
-            <button class="spider-type-chip" type="button" data-spider-type="pendulum">Pendule <span>0</span></button>
-            <button class="spider-type-chip" type="button" data-spider-type="spell">Magie <span>0</span></button>
-            <button class="spider-type-chip" type="button" data-spider-type="trap">Piège <span>0</span></button>
-        </div>
-
-        <div class="spider-filter-grid">
-            <label class="spider-filter-field">
-                <span>Deck</span>
-                <select id="spider-filter-zone">
-                    <option value="">Main + Extra</option>
-                    <option value="main">Main Deck</option>
-                    <option value="extra">Extra Deck</option>
-                </select>
-            </label>
-            <label class="spider-filter-field">
-                <span>Sous-type Magie / Piège</span>
-                <select id="spider-filter-subtype"><option value="">Tous les sous-types</option></select>
-            </label>
-            <label class="spider-filter-field">
-                <span>Attribut</span>
-                <select id="spider-filter-attribute"><option value="">Tous les attributs</option></select>
-            </label>
-            <label class="spider-filter-field">
-                <span>Type de monstre</span>
-                <select id="spider-filter-race"><option value="">Tous les types</option></select>
-            </label>
-            <label class="spider-filter-field">
-                <span>Niveau / Rang / Lien</span>
-                <select id="spider-filter-metric"><option value="">Toutes les valeurs</option></select>
-            </label>
-            <label class="spider-filter-field">
-                <span>Archétype</span>
-                <select id="spider-filter-archetype"><option value="">Tous les archétypes</option></select>
-            </label>
-            <label class="spider-filter-field">
-                <span>Famille visuelle</span>
-                <select id="spider-filter-visual"><option value="">Toutes les familles</option></select>
-            </label>
-            <label class="spider-filter-field">
-                <span>Deck compatible</span>
-                <select id="spider-filter-deck"><option value="">Tous les decks</option></select>
-            </label>
-            <label class="spider-filter-field">
-                <span>Illustration</span>
-                <select id="spider-filter-image">
-                    <option value="">Toutes</option>
-                    <option value="yes">Avec image</option>
-                    <option value="no">Sans image</option>
-                </select>
-            </label>
-        </div>
-
-        <div id="spider-active-filters" class="spider-active-filters" aria-live="polite"></div>
-
-        <div class="spider-catalog-bottom">
-            <span class="spider-catalog-status">Les filtres se combinent entre eux.</span>
-            <label class="spider-sort-wrap">
-                Trier par
-                <select id="spider-sort">
-                    <option value="name-asc">Nom A → Z</option>
-                    <option value="name-desc">Nom Z → A</option>
-                    <option value="type">Type de carte</option>
-                    <option value="metric-asc">Niveau / Rang / Lien ↑</option>
-                    <option value="metric-desc">Niveau / Rang / Lien ↓</option>
-                    <option value="attribute">Attribut</option>
-                    <option value="archetype">Archétype</option>
-                </select>
-            </label>
-        </div>
-    </div>
-    <div id="spider-filter-empty" class="spider-filter-empty" hidden>
-        Aucune carte ne correspond à cette combinaison de filtres.
-    </div>
-<!-- HAMTARO_ARAIGNEE_FILTERS:END -->
     <p class="format-muted spider-image-status">
         <strong>{{ format_data.image_count }}/{{ format_data.pool_count }}</strong> image(s) locale(s) disponible(s).
         {% if format_data.missing_image_count %}
@@ -437,7 +341,4 @@
     } catch (_) {}
 })();
 </script>
-<!-- HAMTARO_ARAIGNEE_FILTER_SCRIPT:START -->
-<script src="/static/araignee_filters.js?v=araignee-gallery-filters-2026-08-16-1"></script>
-<!-- HAMTARO_ARAIGNEE_FILTER_SCRIPT:END -->
 {% endblock %}

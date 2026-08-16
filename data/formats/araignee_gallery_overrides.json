@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "note": "Corrections manuelles facultatives appliquées après les métadonnées YGOPRODeck. Les règles automatiques couvrent le reste du pool.",
+  "cards": {
+    "Esprit de la Terre Immortel Uru": {
+      "visual_family": "true_spider",
+      "visual_family_label": "Araignée directe",
+      "deck_tags": ["Uru / Spider Temple"]
+    },
+    "Kumongous, Kaiju des Fils Gluants": {
+      "visual_family": "true_spider",
+      "visual_family_label": "Araignée directe",
+      "deck_tags": ["Araignée Kaiju"]
+    },
+    "Araignée Karakuri": {
+      "visual_family": "mechanical",
+      "visual_family_label": "Araignée mécanique / cyber",
+      "deck_tags": ["Cyber-Araignée / Karakuri"]
+    },
+    "Araignée Lien": {
+      "visual_family": "mechanical",
+      "visual_family_label": "Araignée mécanique / cyber",
+      "deck_tags": ["Cyber-Araignée"]
+    },
+    "Traptrix Atrax": {
+      "visual_family": "humanoid",
+      "visual_family_label": "Humanoïde arachnéen",
+      "deck_tags": ["SpiderWeb Traptrix"]
+    },
+    "Traptrix Atypus": {
+      "visual_family": "humanoid",
+      "visual_family_label": "Humanoïde arachnéen",
+      "deck_tags": ["SpiderWeb Traptrix"]
+    },
+    "Traptrix Arachnocampa": {
+      "visual_family": "humanoid",
+      "visual_family_label": "Humanoïde arachnéen",
+      "deck_tags": ["SpiderWeb Traptrix"]
+    },
+    "Traptrix Rafflesia": {
+      "visual_family": "humanoid",
+      "visual_family_label": "Humanoïde arachnéen",
+      "deck_tags": ["SpiderWeb Traptrix"]
+    },
+    "Tsuchigumo, Mayakashi du Poison": {
+      "visual_family": "humanoid",
+      "visual_family_label": "Humanoïde arachnéen",
+      "deck_tags": ["Araignée Mayakashi"]
+    },
+    "Joruri-P.U.N.K. Madame Araignée": {
+      "visual_family": "humanoid",
+      "visual_family_label": "Humanoïde arachnéen",
+      "deck_tags": ["Araignée P.U.N.K."]
+    },
+    "Toile d'Araignée": {
+      "visual_family": "web_support",
+      "visual_family_label": "Toile / support arachnéen"
+    },
+    "Antre des Araignées": {
+      "visual_family": "web_support",
+      "visual_family_label": "Toile / support arachnéen"
+    },
+    "Proie du Jirai Gumo": {
+      "visual_family": "web_support",
+      "visual_family_label": "Toile / support arachnéen"
+    }
+  }
+}
