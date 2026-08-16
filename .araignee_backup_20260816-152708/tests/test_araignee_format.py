@@ -19,10 +19,10 @@ def _ten_spiders():
     ]
 
 
-def test_pool_contains_120_unique_cards():
+def test_pool_contains_122_unique_cards():
     service = AraigneeFormatService()
-    assert len(service.pool()) == 119
-    assert len(service.normalized_pool()) == 119
+    assert len(service.pool()) == 122
+    assert len(service.normalized_pool()) == 122
 
 
 def test_normalization_accepts_typography():
@@ -141,7 +141,7 @@ def test_typo_can_suggest_pool_card():
 def test_each_card_has_official_search_link():
     service = AraigneeFormatService()
     entries = service.card_entries()
-    assert len(entries) == 119
+    assert len(entries) == 122
     assert all(entry["url"].startswith("https://www.db.yugioh-card.com/") for entry in entries)
     assert "keyword=Jirai+Gumo" in service.official_card_search_url("Jirai Gumo")
 
@@ -156,7 +156,7 @@ def test_card_entries_do_not_hotlink_images_without_manifest(tmp_path):
     service = AraigneeFormatService()
     service.image_manifest_path = tmp_path / "missing.json"
     entries = service.card_entries()
-    assert len(entries) == 119
+    assert len(entries) == 122
     assert all(entry["image_url"] is None for entry in entries)
 
 
@@ -222,15 +222,3 @@ def test_resolve_card_uses_alias_when_exact_name_fails():
     assert found["name"] == "Baby Spider"
     assert alias_used == "Baby Spider"
     assert resolution == "alias"
-
-
-def test_ombre_spectrale_and_dragon_de_lave_removed():
-    service = AraigneeFormatService()
-    names = set(service.pool())
-    assert "Ombre Spectrale" not in names
-    assert "Dragon de Lave" not in names
-
-
-def test_glass_spider_removed_from_pool():
-    service = AraigneeFormatService()
-    assert "Araignée de Verre" not in set(service.pool())
