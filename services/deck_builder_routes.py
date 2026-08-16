@@ -77,6 +77,8 @@ class DeckBuilderRoutes:
                 "Maliss",
                 "Traptrix",
                 "Fire King",
+                "D/D/D",
+                "P.U.N.K.",
             ],
         )
 
@@ -372,14 +374,22 @@ class DeckBuilderRoutes:
             headers={"Cache-Control": "public, max-age=2592000, immutable"},
         )
 
+    async def catalog(self, request: web.Request) -> web.Response:
+        self._rate_limit(request, scope="catalog", max_calls=60)
+        return web.json_response(
+            await self.service.catalog_stats(),
+            headers={"Cache-Control": "public, max-age=120"},
+        )
+
     async def health(self, request: web.Request) -> web.Response:
         return web.json_response(
             {
                 "status": "ok",
                 "service": "hamtaro-deck-builder",
-                "version": "8.2",
+                "version": "8.3",
                 "page": "/deck-builder",
-                "price_source": "Cardmarket data via YGOPRODeck",
+                "price_source": "Cardmarket data via YGOPRODeck · TCG only",
+                "catalog": await self.service.catalog_stats(),
                 "card_language": self.service.card_language,
                 "features": [
                     "main-extra-side-usage",
@@ -418,6 +428,10 @@ class DeckBuilderRoutes:
                     "rarity-and-printing-selector",
                     "per-printing-price-display",
                     "cardmarket-version-floor-fallback",
+                    "tcg-only-card-filtering",
+                    "self-enriching-deck-catalog",
+                    "persistent-learned-decklists",
+                    "punctuation-tolerant-archetype-aliases",
                 ],
             },
             headers={"Cache-Control": "no-store"},
@@ -429,6 +443,7 @@ def register_deck_builder_routes(application: web.Application, website_cog: Any)
     application.router.add_get("/deck-builder", routes.page)
     application.router.add_get("/generateur-deck", routes.page)
     application.router.add_get("/api/deck-builder/suggestions", routes.suggestions)
+    application.router.add_get("/api/deck-builder/catalog", routes.catalog)
     application.router.add_get("/api/deck-builder/analyze", routes.analyze)
     application.router.add_get("/api/deck-builder/generate", routes.generate)
     application.router.add_post("/api/deck-builder/generate", routes.generate_post)
