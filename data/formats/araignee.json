@@ -2,7 +2,7 @@
   "id": "araignee",
   "name": "Araignée",
   "emoji": "🕷️",
-  "format_version": "3.0",
+  "format_version": "4.0",
   "pool_version": 1,
   "description": "Format communautaire Hamtaro centré sur un noyau de cartes Araignée et un unique archétype secondaire.",
   "main_deck": {
@@ -18,7 +18,7 @@
   "extra_deck": {
     "max_cards": 15,
     "free": true,
-    "banlist_note": "Suit les banlists annoncées pour le Format Araignée ou le tournoi, pas nécessairement la banlist TCG du moment."
+    "banlist_note": "L'Extra Deck est libre jusqu'à 15 cartes et respecte la banlist TCG actuelle."
   },
   "side_deck": {
     "free": true,
@@ -30,7 +30,7 @@
   },
   "secondary_archetype_locked_for_tournament": true,
   "banlists": [
-    "Banlists annoncées pour le Format Araignée ou le tournoi"
+    "Banlist TCG actuelle"
   ],
   "automatic_validation": {
     "main_deck_size": true,
@@ -175,5 +175,12 @@
     "Répression",
     "Overdrive Méchabot",
     "Gardna, Cyber Ombre"
-  ]
+  ],
+  "image_gallery": {
+    "enabled": true,
+    "storage": "local",
+    "source": "YGOPRODeck API v7",
+    "source_language": "fr",
+    "image_variant": "small"
+  }
 }

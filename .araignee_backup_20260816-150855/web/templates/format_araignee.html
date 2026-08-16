@@ -26,7 +26,6 @@
     <a href="#regles">Règles</a>
     <a href="#verificateur">Vérificateur</a>
     <a href="#pool">Pool officiel</a>
-    <a href="#pool">Galerie</a>
 </nav>
 
 <section id="regles" class="format-rules-grid">
@@ -46,7 +45,7 @@
         <ul>
             <li>De <strong>0 à 15 cartes</strong>.</li>
             <li>Extra Deck <strong>libre</strong>.</li>
-            <li>L'Extra Deck respecte la <strong>banlist TCG actuelle</strong>.</li>
+            <li>Les restrictions suivent les <strong>banlists annoncées pour le Format Araignée ou le tournoi</strong>, pas nécessairement la banlist TCG du moment.</li>
         </ul>
     </article>
 
@@ -62,7 +61,8 @@
         <h2>Tournoi & banlists</h2>
         <ul>
             <li>L'archétype secondaire est <strong>verrouillé</strong> pour tout le tournoi.</li>
-            <li>La <strong>banlist TCG actuelle</strong> s'applique au Format Araignée.</li>
+            <li>Les <strong>banlists applicables</strong> sont celles annoncées pour le Format Araignée ou le tournoi.</li>
+            <li>Elles ne correspondent pas forcément à la banlist TCG du moment.</li>
         </ul>
     </article>
 </section>
@@ -123,66 +123,13 @@
         </div>
     </div>
 
-    <div class="spider-gallery-head">
-        <p id="spider-search-count" class="format-muted">
-            {{ format_data.pool_count }} cartes affichées
-        </p>
-        <div class="spider-view-toggle" role="group" aria-label="Affichage du pool">
-            <button class="format-button spider-view-button is-active" type="button" data-spider-view="gallery">
-                🖼️ Galerie
-            </button>
-            <button class="format-button format-button-secondary spider-view-button" type="button" data-spider-view="list">
-                ☰ Liste
-            </button>
-        </div>
-    </div>
-
-    <p class="format-muted spider-image-status">
-        <strong>{{ format_data.image_count }}/{{ format_data.pool_count }}</strong> image(s) locale(s) disponible(s).
-        {% if format_data.missing_image_count %}
-        Les cartes non résolues restent accessibles en version texte.
-        {% endif %}
+    <p id="spider-search-count" class="format-muted">
+        {{ format_data.pool_count }} cartes affichées
     </p>
 
-    <div class="spider-card-gallery" id="spider-card-gallery">
+    <ol class="spider-pool" id="spider-pool">
         {% for card in format_data.spider_card_entries %}
-        <article class="spider-gallery-card" data-card-name="{{ card.name }}">
-            <a
-                class="spider-gallery-image-link"
-                href="{{ card.url }}"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Ouvrir {{ card.name }} dans la base officielle Yu-Gi-Oh! Neuron"
-            >
-                {% if card.image_url %}
-                <img
-                    src="{{ card.image_url }}"
-                    alt="Carte Yu-Gi-Oh! {{ card.name }}"
-                    loading="lazy"
-                    decoding="async"
-                    width="177"
-                    height="254"
-                >
-                {% else %}
-                <span class="spider-image-placeholder" aria-label="Image indisponible">
-                    <span>🕷️</span>
-                    <small>Image indisponible</small>
-                </span>
-                {% endif %}
-            </a>
-            <a
-                class="spider-gallery-name"
-                href="{{ card.url }}"
-                target="_blank"
-                rel="noopener noreferrer"
-            >{{ card.name }}</a>
-        </article>
-        {% endfor %}
-    </div>
-
-    <ol class="spider-pool" id="spider-pool" hidden>
-        {% for card in format_data.spider_card_entries %}
-        <li data-card-name="{{ card.name }}">
+        <li>
             <a
                 class="spider-card-link"
                 href="{{ card.url }}"
@@ -297,48 +244,19 @@
     });
 
     const search = document.getElementById("spider-search");
-    const list = document.getElementById("spider-pool");
-    const gallery = document.getElementById("spider-card-gallery");
-    const listEntries = [...document.querySelectorAll("#spider-pool li")];
-    const galleryEntries = [...document.querySelectorAll("#spider-card-gallery .spider-gallery-card")];
+    const entries = [...document.querySelectorAll("#spider-pool li")];
     const count = document.getElementById("spider-search-count");
-    const viewButtons = [...document.querySelectorAll("[data-spider-view]")];
 
-    const applySearch = () => {
-        const query = normalize(search?.value || "");
+    search?.addEventListener("input", () => {
+        const query = normalize(search.value);
         let visible = 0;
-        for (const entry of galleryEntries) {
-            const name = entry.dataset.cardName || entry.textContent;
-            const match = !query || normalize(name).includes(query);
+        for (const entry of entries) {
+            const match = !query || normalize(entry.textContent).includes(query);
             entry.hidden = !match;
             if (match) visible += 1;
         }
-        for (const entry of listEntries) {
-            const name = entry.dataset.cardName || entry.textContent;
-            entry.hidden = !!query && !normalize(name).includes(query);
-        }
         count.textContent = `${visible} carte${visible > 1 ? "s" : ""} affichée${visible > 1 ? "s" : ""}`;
-    };
-
-    search?.addEventListener("input", applySearch);
-
-    viewButtons.forEach((button) => {
-        button.addEventListener("click", () => {
-            const view = button.dataset.spiderView;
-            const galleryMode = view === "gallery";
-            gallery.hidden = !galleryMode;
-            list.hidden = galleryMode;
-            viewButtons.forEach((item) => item.classList.toggle("is-active", item === button));
-            try { localStorage.setItem("hamtaroAraigneeView", view); } catch (_) {}
-        });
     });
-
-    try {
-        const savedView = localStorage.getItem("hamtaroAraigneeView");
-        if (savedView === "list") {
-            document.querySelector('[data-spider-view="list"]')?.click();
-        }
-    } catch (_) {}
 })();
 </script>
 {% endblock %}

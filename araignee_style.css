@@ -203,4 +203,93 @@
     font-size:.82em;
 }
 
+
+.spider-gallery-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: .75rem;
+}
+.spider-view-toggle {
+    display: flex;
+    gap: .45rem;
+    flex-wrap: wrap;
+}
+.spider-view-button {
+    padding: .6rem .8rem;
+    opacity: .72;
+}
+.spider-view-button.is-active {
+    opacity: 1;
+    outline: 2px solid rgba(170,120,255,.48);
+    outline-offset: 1px;
+}
+.spider-image-status {
+    margin: .75rem 0 1rem;
+}
+.spider-card-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+    gap: 1rem;
+}
+.spider-gallery-card {
+    min-width: 0;
+    border-radius: 16px;
+    padding: .7rem;
+    background: rgba(255,255,255,.035);
+    border: 1px solid rgba(255,255,255,.09);
+    transition: transform .15s ease, border-color .15s ease, background .15s ease;
+}
+.spider-gallery-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(170,120,255,.38);
+    background: rgba(255,255,255,.055);
+}
+.spider-gallery-image-link {
+    display: block;
+    aspect-ratio: 177 / 254;
+    overflow: hidden;
+    border-radius: 10px;
+    background: rgba(0,0,0,.18);
+}
+.spider-gallery-image-link img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.spider-image-placeholder {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-content: center;
+    gap: .5rem;
+    text-align: center;
+    padding: .6rem;
+    box-sizing: border-box;
+    background: radial-gradient(circle at 50% 35%, rgba(150,100,210,.16), transparent 42%);
+}
+.spider-image-placeholder span { font-size: 2rem; }
+.spider-image-placeholder small { opacity: .65; }
+.spider-gallery-name {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    font-weight: 750;
+    line-height: 1.25;
+    font-size: .88rem;
+    margin-top: .65rem;
+    overflow-wrap: anywhere;
+}
+.spider-gallery-name:hover { text-decoration: underline; }
+@media (max-width: 680px) {
+    .spider-card-gallery {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .75rem;
+    }
+    .spider-gallery-card { padding: .55rem; }
+}
+
 /* ===== HAMTARO FORMAT ARAIGNEE END ===== */

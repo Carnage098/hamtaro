@@ -55,7 +55,7 @@ class AraigneeFormatCog(commands.Cog):
             name="Extra & Side",
             value=(
                 f"• Extra Deck libre jusqu'à **{extra['max_cards']} cartes**\n"
-                "• respecte la **banlist TCG actuelle**\n"
+                "• les banlists sont celles annoncées pour le format/tournoi\n"
                 "• Side Deck **libre**\n"
                 f"• jusqu'à **{side['secondary_archetype_cards_allowed']} cartes** "
                 "de l'archétype secondaire déclaré peuvent être ajoutées au Side"
@@ -66,7 +66,7 @@ class AraigneeFormatCog(commands.Cog):
             name="Tournoi & banlists",
             value=(
                 "• archétype secondaire verrouillé pendant tout le tournoi\n"
-                "• **banlist TCG actuelle** applicable au Format Araignée"
+                "• les banlists applicables sont celles annoncées pour le Format Araignée ou le tournoi"
             ),
             inline=False,
         )

@@ -1,3 +1,5 @@
+import json
+
 from services.araignee_format_service import AraigneeFormatService
 
 
@@ -141,3 +143,38 @@ def test_each_card_has_official_search_link():
     assert len(entries) == 130
     assert all(entry["url"].startswith("https://www.db.yugioh-card.com/") for entry in entries)
     assert "keyword=Jirai+Gumo" in service.official_card_search_url("Jirai Gumo")
+
+
+
+def test_banlist_is_current_tcg():
+    service = AraigneeFormatService()
+    assert service.data()["banlists"] == ["Banlist TCG actuelle"]
+
+
+def test_card_entries_do_not_hotlink_images_without_manifest(tmp_path):
+    service = AraigneeFormatService()
+    service.image_manifest_path = tmp_path / "missing.json"
+    entries = service.card_entries()
+    assert len(entries) == 130
+    assert all(entry["image_url"] is None for entry in entries)
+
+
+def test_card_entries_use_only_local_static_images(tmp_path):
+    service = AraigneeFormatService()
+    manifest = {
+        "version": 1,
+        "cards": {
+            "Jirai Gumo": {
+                "status": "ok",
+                "card_id": 94773007,
+                "api_name": "Jirai Gumo",
+                "local_path": "web/static/araignee/cards/94773007.jpg",
+            }
+        },
+    }
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    service.image_manifest_path = path
+    entry = next(item for item in service.card_entries() if item["name"] == "Jirai Gumo")
+    assert entry["image_url"] == "/static/araignee/cards/94773007.jpg"
+    assert "ygoprodeck" not in entry["image_url"].lower()
