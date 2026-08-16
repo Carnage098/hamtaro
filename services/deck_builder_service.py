@@ -113,11 +113,12 @@ class DeckBuilderService:
         self.image_cache_path = Path(os.getenv("DECK_BUILDER_IMAGE_CACHE_PATH", str(default_images)))
         self.image_cache_path.mkdir(parents=True, exist_ok=True)
         self._last_card_fetch_dates: list[str] = []
-        self.cache_namespace = "v87"
+        self.cache_namespace = "v88"
         self._last_discovery_debug: dict[str, Any] = {}
+        self._last_card_lookup_debug: dict[str, Any] = {}
         self.user_agent = os.getenv(
             "DECK_BUILDER_USER_AGENT",
-            "HamtaroDeckBuilder/8.7 (+public Yu-Gi-Oh TCG deck assistant)",
+            "HamtaroDeckBuilder/8.8 (+public Yu-Gi-Oh TCG deck assistant)",
         )
         self._init_db()
 
@@ -785,8 +786,10 @@ class DeckBuilderService:
     async def _card_name_resolution(self, query: str, *, limit_cards: int = 10) -> dict[str, Any]:
         """Résout un nom libre vers des cartes/archétypes TCG.
 
-        C'est le dernier maillon qui permet à un boss monster, un nom de moteur
-        ou un nom communautaire de redevenir une recherche de deck structurée.
+        V8.8 tente également la langue d'affichage (français par défaut). Cela
+        permet à un nom localisé ou communautaire d'aboutir à ses passcodes, puis
+        Hamtaro remonte vers les noms source anglais utilisés par les recherches
+        YGOPRODeck de decklists.
         """
         phrases: list[str] = []
         seen_phrases: set[str] = set()
@@ -796,18 +799,30 @@ class DeckBuilderService:
                 seen_phrases.add(key)
                 phrases.append(value)
         phrases = phrases[:6]
-        payloads = await asyncio.gather(
-            *(self._fetch_json(
-                f"{YGOPRODECK_API}/cardinfo.php?fname={quote_plus(value)}&misc=yes&format=tcg",
-                ttl_hours=self.cache_hours,
-            ) for value in phrases),
-            return_exceptions=True,
-        )
+
+        requests: list[tuple[str, str | None]] = []
+        for value in phrases:
+            requests.append((value, None))
+            if self.card_language != "en":
+                requests.append((value, self.card_language))
+
+        async def fetch_phrase(value: str, language: str | None) -> tuple[str | None, Any]:
+            lang = f"&language={quote_plus(language)}" if language else ""
+            url = (
+                f"{YGOPRODECK_API}/cardinfo.php?fname={quote_plus(value)}"
+                f"&misc=yes&format=tcg{lang}"
+            )
+            try:
+                payload = await self._fetch_json(url, ttl_hours=self.cache_hours)
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+                payload = {}
+            return language, payload
+
+        payloads = await asyncio.gather(*(fetch_phrase(value, language) for value, language in requests))
         cards_by_id: dict[int, dict[str, Any]] = {}
-        archetypes: list[str] = []
-        seen_arch: set[str] = set()
-        for payload in payloads:
-            if isinstance(payload, Exception) or not isinstance(payload, dict):
+        localized_ids: set[int] = set()
+        for language, payload in payloads:
+            if not isinstance(payload, dict):
                 continue
             for card in payload.get("data") or []:
                 if not isinstance(card, dict):
@@ -816,13 +831,29 @@ class DeckBuilderService:
                     cid = int(card.get("id") or 0)
                 except (TypeError, ValueError):
                     cid = 0
-                if cid > 0:
-                    cards_by_id.setdefault(cid, card)
-                arch = str(card.get("archetype") or "").strip()
-                akey = self._deck_identity(arch)
-                if arch and akey and akey not in seen_arch:
-                    seen_arch.add(akey)
-                    archetypes.append(arch)
+                if cid <= 0:
+                    continue
+                cards_by_id.setdefault(cid, dict(card))
+                if language:
+                    localized_ids.add(cid)
+
+        # Une recherche française peut retrouver le bon passcode mais retourner le
+        # nom localisé. On reconvertit ces résultats vers la donnée source anglaise
+        # avant de construire les URLs ``cardcode=`` du moteur de découverte.
+        if localized_ids:
+            canonical, _times, _debug = await self._card_rows_by_ids_exact(localized_ids)
+            for cid, card in canonical.items():
+                cards_by_id[cid] = card
+
+        archetypes: list[str] = []
+        seen_arch: set[str] = set()
+        for card in cards_by_id.values():
+            arch = str(card.get("archetype") or "").strip()
+            akey = self._deck_identity(arch)
+            if arch and akey and akey not in seen_arch:
+                seen_arch.add(akey)
+                archetypes.append(arch)
+
         cards = list(cards_by_id.values())
         qid = self._deck_identity(query)
         cards.sort(
@@ -835,6 +866,7 @@ class DeckBuilderService:
             "phrases": phrases,
             "cards": cards[:max(1, limit_cards)],
             "archetypes": archetypes[:8],
+            "localized_resolution_used": bool(localized_ids),
         }
 
     async def _universal_discovery_urls(
@@ -886,6 +918,7 @@ class DeckBuilderService:
             "candidate_archetypes": candidate_arch,
             "resolved_card_names": card_names[:card_limit],
             "resolution_phrases": resolution.get("phrases") or [],
+            "localized_resolution_used": bool(resolution.get("localized_resolution_used")),
         }
         return debug, urls[:40]
 
@@ -1719,63 +1752,133 @@ class DeckBuilderService:
     # ------------------------------------------------------------------
     # Card data + prices
     # ------------------------------------------------------------------
-    async def card_data_by_ids(self, card_ids: Iterable[int]) -> dict[int, dict[str, Any]]:
+    async def _card_rows_by_ids_exact(
+        self,
+        card_ids: Iterable[int],
+        *,
+        language: str | None = None,
+    ) -> tuple[dict[int, dict[str, Any]], dict[int, int], dict[str, int]]:
+        """Récupère exactement tous les passcodes disponibles dans le pool TCG.
+
+        YGOPRODeck documente ``id`` comme un ID/passcode unique. Les requêtes
+        ``id=1,2,3`` fonctionnent parfois, mais peuvent retourner seulement une
+        partie des cartes. V8.8 conserve une tentative groupée comme optimisation,
+        puis refait *individuellement* chaque passcode manquant. Une decklist n'est
+        donc plus rejetée parce qu'une réponse groupée était incomplète.
+        """
         ids = sorted({int(card_id) for card_id in card_ids if int(card_id) > 0})
         if not ids:
-            return {}
-        chunks = [ids[index:index + 50] for index in range(0, len(ids), 50)]
+            return {}, {}, {"requested": 0, "bulk_found": 0, "single_recovered": 0, "missing": 0}
 
-        async def fetch(chunk: list[int]) -> tuple[list[dict[str, Any]], int]:
-            url = f"{YGOPRODECK_API}/cardinfo.php?id={','.join(map(str, chunk))}&misc=yes&format=tcg"
+        rows_by_id: dict[int, dict[str, Any]] = {}
+        fetched_at_by_id: dict[int, int] = {}
+        # Des groupes modestes limitent la taille d'URL. Le résultat groupé est
+        # uniquement une optimisation : il n'est jamais considéré comme exhaustif.
+        chunks = [ids[index:index + 20] for index in range(0, len(ids), 20)]
+
+        async def bulk(chunk: list[int]) -> tuple[list[dict[str, Any]], int]:
+            suffix = f"&language={quote_plus(language)}" if language else ""
+            url = (
+                f"{YGOPRODECK_API}/cardinfo.php?id={','.join(map(str, chunk))}"
+                f"&misc=yes&format=tcg{suffix}"
+            )
             try:
                 payload, fetched_at = await self._fetch_json_with_meta(url, ttl_hours=self.cache_hours)
             except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
                 return [], int(time.time())
-            rows = list(payload.get("data") or []) if isinstance(payload, dict) else []
-            return rows, fetched_at
+            return list(payload.get("data") or []) if isinstance(payload, dict) else [], fetched_at
 
-        results = await asyncio.gather(*(fetch(chunk) for chunk in chunks))
-        cards: dict[int, dict[str, Any]] = {}
-        fetch_dates: list[str] = []
-        for group, fetched_at in results:
-            fetch_date = datetime.fromtimestamp(fetched_at).date().isoformat()
-            fetch_dates.append(fetch_date)
-            for card in group:
-                try:
-                    card_id = int(card["id"])
-                except (KeyError, TypeError, ValueError):
+        bulk_results = await asyncio.gather(*(bulk(chunk) for chunk in chunks))
+        wanted = set(ids)
+        for group, fetched_at in bulk_results:
+            for row in group:
+                if not isinstance(row, dict):
                     continue
-                card = dict(card)
-                card["_source_name"] = str(card.get("name") or "")
-                cards[card_id] = card
+                try:
+                    cid = int(row.get("id") or 0)
+                except (TypeError, ValueError):
+                    continue
+                if cid in wanted:
+                    rows_by_id[cid] = dict(row)
+                    fetched_at_by_id[cid] = fetched_at
+
+        bulk_found = len(rows_by_id)
+        missing = [cid for cid in ids if cid not in rows_by_id]
+        semaphore = asyncio.Semaphore(3)
+
+        async def single(cid: int) -> tuple[int, dict[str, Any] | None, int]:
+            suffix = f"&language={quote_plus(language)}" if language else ""
+            url = f"{YGOPRODECK_API}/cardinfo.php?id={cid}&misc=yes&format=tcg{suffix}"
+            async with semaphore:
+                try:
+                    payload, fetched_at = await self._fetch_json_with_meta(url, ttl_hours=self.cache_hours)
+                except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+                    return cid, None, int(time.time())
+            rows = list(payload.get("data") or []) if isinstance(payload, dict) else []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                try:
+                    returned_id = int(row.get("id") or 0)
+                except (TypeError, ValueError):
+                    continue
+                if returned_id == cid:
+                    return cid, dict(row), fetched_at
+            return cid, None, fetched_at
+
+        if missing:
+            recovered = await asyncio.gather(*(single(cid) for cid in missing))
+            for cid, row, fetched_at in recovered:
+                if row is not None:
+                    rows_by_id[cid] = row
+                    fetched_at_by_id[cid] = fetched_at
+
+        debug = {
+            "requested": len(ids),
+            "bulk_found": bulk_found,
+            "single_recovered": max(0, len(rows_by_id) - bulk_found),
+            "missing": max(0, len(ids) - len(rows_by_id)),
+        }
+        return rows_by_id, fetched_at_by_id, debug
+
+    async def card_data_by_ids(self, card_ids: Iterable[int]) -> dict[int, dict[str, Any]]:
+        ids = sorted({int(card_id) for card_id in card_ids if int(card_id) > 0})
+        if not ids:
+            self._last_card_lookup_debug = {"requested": 0, "bulk_found": 0, "single_recovered": 0, "missing": 0}
+            return {}
+
+        rows_by_id, fetched_at_by_id, debug = await self._card_rows_by_ids_exact(ids)
+        self._last_card_lookup_debug = dict(debug)
+        cards: dict[int, dict[str, Any]] = {}
+        snapshots_by_date: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        fetch_dates: list[str] = []
+        for card_id, row in rows_by_id.items():
+            card = dict(row)
+            card["_source_name"] = str(card.get("name") or "")
+            cards[card_id] = card
+            fetched_at = fetched_at_by_id.get(card_id, int(time.time()))
+            fetch_date = datetime.fromtimestamp(fetched_at).date().isoformat()
+            snapshots_by_date[fetch_date].append(card)
+            fetch_dates.append(fetch_date)
+        for fetch_date, group in snapshots_by_date.items():
             await asyncio.to_thread(self._store_price_snapshots_sync, group, fetch_date)
 
-        # Les decklists utilisent les passcodes anglais, mais l'interface Hamtaro peut
-        # afficher les noms officiels localisés sans perdre le nom source utilisé pour
-        # les recherches Cardmarket.
+        # Les decklists utilisent les passcodes anglais, mais l'interface Hamtaro
+        # affiche les noms officiels localisés. La localisation utilise le même
+        # rattrapage exact afin qu'une réponse groupée incomplète ne fasse pas
+        # disparaître aléatoirement certains noms français.
         if self.card_language != "en" and cards:
-            async def fetch_localized(chunk: list[int]) -> list[dict[str, Any]]:
-                url = (
-                    f"{YGOPRODECK_API}/cardinfo.php?id={','.join(map(str, chunk))}"
-                    f"&misc=yes&format=tcg&language={quote_plus(self.card_language)}"
-                )
-                try:
-                    payload = await self._fetch_json(url, ttl_hours=self.cache_hours)
-                except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
-                    return []
-                return list(payload.get("data") or []) if isinstance(payload, dict) else []
-
-            localized_groups = await asyncio.gather(*(fetch_localized(chunk) for chunk in chunks))
-            for group in localized_groups:
-                for localized in group:
-                    try:
-                        card_id = int(localized["id"])
-                    except (KeyError, TypeError, ValueError):
-                        continue
-                    if card_id not in cards:
-                        continue
-                    cards[card_id]["_localized_name"] = str(localized.get("name") or "").strip() or None
-                    cards[card_id]["_localized_desc"] = str(localized.get("desc") or "").strip() or None
+            localized_by_id, _localized_times, localized_debug = await self._card_rows_by_ids_exact(
+                cards.keys(), language=self.card_language
+            )
+            self._last_card_lookup_debug["localized_requested"] = len(cards)
+            self._last_card_lookup_debug["localized_found"] = len(localized_by_id)
+            self._last_card_lookup_debug["localized_missing"] = localized_debug.get("missing", 0)
+            for card_id, localized in localized_by_id.items():
+                if card_id not in cards:
+                    continue
+                cards[card_id]["_localized_name"] = str(localized.get("name") or "").strip() or None
+                cards[card_id]["_localized_desc"] = str(localized.get("desc") or "").strip() or None
 
         self._last_card_fetch_dates.extend(fetch_dates)
         self._last_card_fetch_dates = self._last_card_fetch_dates[-40:]
@@ -3527,6 +3630,7 @@ class DeckBuilderService:
             "tournament_samples": sum(1 for sample in samples if sample.is_tournament),
             "side_samples": sum(1 for sample in samples if sample.side),
             "discovery": dict(self._last_discovery_debug),
+            "card_lookup": dict(self._last_card_lookup_debug),
             "discovery_mode": discovery_mode,
             "filters": {
                 "tournament_only": tournament_only,
