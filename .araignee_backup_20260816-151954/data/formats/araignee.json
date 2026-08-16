@@ -2,7 +2,7 @@
   "id": "araignee",
   "name": "Araignée",
   "emoji": "🕷️",
-  "format_version": "4.1",
+  "format_version": "4.0",
   "pool_version": 1,
   "description": "Format communautaire Hamtaro centré sur un noyau de cartes Araignée et un unique archétype secondaire.",
   "main_deck": {
@@ -84,6 +84,14 @@
     "Âme de l'Ombre",
     "Mayakashi Mayhem",
     "Araignée de Verre",
+    "Scorpion Noir – Meute de la Vallée",
+    "Scorpion Noir – Cimeterre",
+    "Scorpion Noir – Gorgone",
+    "Scorpion Noir – Pilleur",
+    "Scorpion Noir – Maître des Ténèbres",
+    "Scorpion Noir – Grand Maître",
+    "Scorpion Noir – Sorcier",
+    "Scorpion Noir – Aigle de la Vallée",
     "Numéro S37 : Araignée Requin",
     "Tsuchigumo, Mayakashi du Poison",
     "Matrice Insecte",
@@ -174,6 +182,5 @@
     "source": "YGOPRODeck API v7",
     "source_language": "fr",
     "image_variant": "small"
-  },
-  "pool_note": "Les 8 cartes Scorpion Noir ont été retirées du pool officiel."
+  }
 }
