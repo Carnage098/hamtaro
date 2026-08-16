@@ -1,5 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Formats · Hamtaro{% endblock %}
+{% block title %}Formats · Hamtaro
+<dialog class="spiderman-trophy-dialog" data-spiderman-trophy-dialog><div class="spiderman-trophy-dialog-head"><strong>HT-003 · Champion Spiderman</strong><button class="spiderman-trophy-dialog-close" type="button" data-close-spiderman-trophy aria-label="Fermer">×</button></div><model-viewer src="/static/models/trophies/ht-003-spiderman-champion.glb?v=20260816-spiderman-1" alt="Trophée Spiderman agrandi" auto-rotate auto-rotate-delay="0" rotation-per-second="12deg" camera-controls shadow-intensity="1.15" environment-image="neutral" interaction-prompt="auto"></model-viewer></dialog>
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+<script>(()=>{const d=document.querySelector('[data-spiderman-trophy-dialog]'),o=document.querySelector('[data-open-spiderman-trophy]'),c=document.querySelector('[data-close-spiderman-trophy]');o?.addEventListener('click',()=>d?.showModal());c?.addEventListener('click',()=>d?.close());d?.addEventListener('click',e=>{if(e.target===d)d.close()})})();</script>
+
+{% endblock %}
 {% block content %}
 <section class="format-hero">
     <p class="format-kicker">RÈGLES DE JEU HAMTARO</p>
@@ -24,5 +29,13 @@
         </div>
     </a>
     {% endfor %}
+    <!-- HAMTARO SPIDERMAN TROPHY PREVIEW START -->
+    <article class="format-trophy-preview" aria-label="Trophée du tournoi Spiderman">
+        <div class="format-trophy-preview-viewer">
+            <model-viewer src="/static/models/trophies/ht-003-spiderman-champion.glb?v=20260816-spiderman-1" alt="Trophée 3D du tournoi Spiderman" auto-rotate auto-rotate-delay="0" rotation-per-second="12deg" camera-controls shadow-intensity="1" environment-image="neutral" interaction-prompt="none" loading="eager" reveal="auto"></model-viewer>
+        </div>
+        <div class="format-trophy-preview-copy"><div><span class="format-kicker">TROPHÉE À VENIR · HT-003</span><h2>Champion Spiderman</h2><p>Attribué au vainqueur du futur tournoi Spiderman.</p></div><div class="format-trophy-preview-actions"><button class="format-trophy-preview-button" type="button" data-open-spiderman-trophy>Agrandir</button><a class="format-trophy-preview-button" href="/trophies/ht-003">Fiche trophée</a></div></div>
+    </article>
+    <!-- HAMTARO SPIDERMAN TROPHY PREVIEW END -->
 </section>
 {% endblock %}
