@@ -113,11 +113,11 @@ class DeckBuilderService:
         self.image_cache_path = Path(os.getenv("DECK_BUILDER_IMAGE_CACHE_PATH", str(default_images)))
         self.image_cache_path.mkdir(parents=True, exist_ok=True)
         self._last_card_fetch_dates: list[str] = []
-        self.cache_namespace = "v86"
+        self.cache_namespace = "v87"
         self._last_discovery_debug: dict[str, Any] = {}
         self.user_agent = os.getenv(
             "DECK_BUILDER_USER_AGENT",
-            "HamtaroDeckBuilder/8.6 (+public Yu-Gi-Oh TCG deck assistant)",
+            "HamtaroDeckBuilder/8.7 (+public Yu-Gi-Oh TCG deck assistant)",
         )
         self._init_db()
 
@@ -1302,29 +1302,104 @@ class DeckBuilderService:
         return 40 <= len(main) <= 60 and len(extra) <= 15 and len(side) <= 15
 
     @staticmethod
+    def _deck_primer_context(body: str) -> dict[str, str]:
+        """Extrait uniquement le contexte propre AU deck.
+
+        Les pages YGOPRODeck contiennent dans leur navigation globale des liens vers
+        TCG, OCG, Genesys et Master Duel en même temps. Scanner tout le HTML faisait
+        donc classer à tort des listes TCG comme OCG/Genesys. On limite ici
+        l'analyse au Deck Primer et, en priorité, aux champs Category/Tournament.
+        """
+        text = html_lib.unescape(body)
+        text = re.sub(r"<script\b[^>]*>.*?</script>", " ", text, flags=re.I | re.S)
+        text = re.sub(r"<style\b[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        lower = text.casefold()
+        primer_pos = lower.find("deck primer")
+        if primer_pos >= 0:
+            local = text[primer_pos:primer_pos + 2200]
+        else:
+            # Pour les anciennes pages / fixtures de tests qui n'ont pas de bloc
+            # Deck Primer, on conserve un petit contexte local sans scanner toute
+            # une grosse page et sa navigation.
+            local = text[:2200]
+
+        def field(label: str, stops: tuple[str, ...]) -> str:
+            escaped = "|".join(re.escape(stop) for stop in stops)
+            match = re.search(
+                rf"\b{re.escape(label)}:\s*(.+?)(?=\s+(?:{escaped})(?:\s|$)|$)",
+                local,
+                flags=re.I,
+            )
+            return re.sub(r"\s+", " ", match.group(1)).strip() if match else ""
+
+        category = field(
+            "Category",
+            ("Creator:", "Tournament:", "Placement:", "Read More", "Toggle Master Duel View", "Main Deck"),
+        )
+        tournament = field(
+            "Tournament",
+            ("Placement:", "Read More", "Toggle Master Duel View", "Main Deck"),
+        )
+        placement = field(
+            "Placement",
+            ("Read More", "Toggle Master Duel View", "Main Deck"),
+        )
+        return {
+            "local": local,
+            "category": category,
+            "tournament": tournament,
+            "placement": placement,
+        }
+
+    @staticmethod
     def _detect_sample_format(body: str, title: str = "") -> str:
-        text = f"{title} {body}".casefold()
-        explicit_non_tcg = (
-            ("master duel", "master_duel"),
+        ctx = DeckBuilderService._deck_primer_context(body)
+        category = ctx.get("category", "").casefold()
+        tournament = ctx.get("tournament", "").casefold()
+        # Si les champs structurés existent, eux seuls font foi. Cela évite les
+        # faux positifs venant du menu global YGOPRODeck.
+        scoped = " ".join(part for part in (category, tournament) if part).strip()
+        # Fallback pour les anciennes pages très simples et les tests unitaires.
+        if not scoped:
+            scoped = f"{title} {ctx.get('local', '')}".casefold()
+
+        # Les formats non-TCG doivent être explicitement identifiés dans le
+        # contexte du deck, jamais simplement présents quelque part dans le menu.
+        rules = (
+            ("genesys ocg", "genesys_ocg"),
+            ("tournament meta decks (genesys ocg)", "genesys_ocg"),
+            ("tournament meta decks (genesys)", "genesys"),
+            ("genesys", "genesys"),
+            ("asian-english ocg", "ocg_ae"),
+            ("ocg-ae", "ocg_ae"),
+            ("tournament meta decks (china)", "ocg_china"),
+            ("china championship", "ocg_china"),
+            ("tournament meta decks (ocg)", "ocg"),
             ("tournament meta decks ocg", "ocg"),
             ("ocg tournament", "ocg"),
             ("japan championship", "ocg"),
             ("asia championship", "ocg"),
-            ("china championship", "ocg"),
-            ("ocg-ae", "ocg_ae"),
-            ("genesys ocg", "genesys_ocg"),
-            ("genesys", "genesys"),
+            ("master duel", "master_duel"),
             ("rush duel", "rush"),
             ("speed duel", "speed"),
         )
-        for marker, value in explicit_non_tcg:
-            if marker in text:
+        for marker, value in rules:
+            if marker in scoped:
                 return value
+
         tcg_markers = (
-            "tournament meta decks", "tcg", "wcq regional", "regional qualifier",
-            "national championship", "ycs ", "world championship qualifier",
+            "tournament meta decks (tcg)",
+            "tournament meta decks",
+            "wcq regional",
+            "regional qualifier",
+            "national championship",
+            "world championship qualifier",
+            "ycs ",
         )
-        if any(marker in text for marker in tcg_markers):
+        if any(marker in scoped for marker in tcg_markers):
             return "tcg"
         return "unknown"
 
@@ -1357,12 +1432,20 @@ class DeckBuilderService:
         title = self._extract_title(body, fallback)
         published = self._extract_published(body)
         placement = self._extract_placement(body)
-        lowered = body.casefold()
+        primer_ctx = self._deck_primer_context(body)
+        tournament_context = " ".join(
+            value for value in (
+                primer_ctx.get("category", ""),
+                primer_ctx.get("tournament", ""),
+                primer_ctx.get("placement", ""),
+            ) if value
+        ).casefold()
         is_tournament = any(
-            marker in lowered
+            marker in tournament_context
             for marker in (
-                "tournament meta decks", "tournament:", "placement:", "wcq regional",
-                "national championship", "world championship", "regional qualifier",
+                "tournament meta decks", "wcq regional", "national championship",
+                "world championship", "regional qualifier", "ycs ", "top 8",
+                "top 16", "top 32", "winner", "runner-up",
             )
         )
         weight = self._sample_weight(
@@ -1533,6 +1616,9 @@ class DeckBuilderService:
 
         live: list[DeckSample] = []
         explicit_non_tcg = 0
+        parsed_format_counts = Counter(
+            sample.format_name for sample in loaded if sample is not None
+        )
         for sample in loaded:
             if sample is None:
                 continue
@@ -1591,6 +1677,7 @@ class DeckBuilderService:
             "universal_components": universal_debug.get("components") or [],
             "universal_candidate_archetypes": universal_debug.get("candidate_archetypes") or [],
             "universal_resolved_cards": universal_debug.get("resolved_card_names") or [],
+            "parsed_format_counts": dict(parsed_format_counts),
             "explicit_non_tcg_ignored": explicit_non_tcg,
             "tcg_incompatible_ignored": card_incompatible,
             "live_tcg_decks": len(tcg_compatible),
