@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+
+{% block title %}Générateur de decks · Hamtaro{% endblock %}
+
+{% block content %}
+<section class="deck-builder-page" data-deck-builder-root>
+    <header class="db-hero">
+        <div class="db-hero-copy">
+            <p class="db-eyebrow">HAMTARO DECK INTELLIGENCE · V8</p>
+            <h1>Construis, comprends et chiffre ton deck.</h1>
+            <p>
+                Recherche un archétype ou une variante. Hamtaro analyse des decklists publiques,
+                sépare Main / Extra / Side, détecte les moteurs récurrents, estime les quantités
+                habituelles et calcule le coût des cartes avec les données Cardmarket disponibles.
+            </p>
+        </div>
+        <div class="db-hero-badges" aria-label="Fonctions du générateur">
+            <span>Main / Extra / Side</span>
+            <span>Budget réellement optimisé</span>
+            <span>Prix Cardmarket</span>
+            <span>Noms de cartes en français</span>
+            <span>Moteurs détectés</span>
+            <span>Comparer ma liste</span>
+            <span>Légalité TCG globale</span>
+            <span>Parcours d'upgrade</span>
+            <span>Cartes verrouillées / exclues</span>
+            <span>Alternatives observées</span>
+            <span>Plan d'achat débutant</span>
+            <span>Score de préparation</span>
+            <span>Packages statistiques</span>
+            <span>Cartes souvent jouées ensemble</span>
+            <span>Comparaison avec/sans moteur</span>
+            <span>Probabilités de main de départ</span>
+            <span>Constructions observées</span>
+            <span>Slots flex concurrents</span>
+            <span>Diagnostic de cohérence</span>
+            <span>Freespots / staples dynamiques</span>
+            <span>Sources pondérées</span>
+        </div>
+    </header>
+
+    <section class="db-search-panel" aria-label="Recherche d'un deck">
+        <form class="db-search-form" data-db-search-form autocomplete="off">
+            <div class="db-search-field-wrap">
+                <label for="db-query">Quel deck veux-tu construire ?</label>
+                <div class="db-search-row">
+                    <input
+                        id="db-query"
+                        name="q"
+                        type="search"
+                        placeholder="Ex. Blue-Eyes, Yummy, Cyber Dragon, n’importe quel deck…"
+                        minlength="2"
+                        data-db-query
+                        aria-autocomplete="list"
+                        aria-controls="db-suggestions"
+                    >
+                    <button class="db-primary-button" type="submit">Analyser le deck</button>
+                </div>
+                <div id="db-suggestions" class="db-suggestions" data-db-suggestions hidden></div>
+            </div>
+        </form>
+
+        <div class="db-quick-decks" aria-label="Recherches rapides">
+            {% for deck in quick_decks %}
+            <button type="button" data-db-quick-query="{{ deck }}">{{ deck }}</button>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="db-controls" aria-label="Réglages du générateur">
+        <div class="db-control-group">
+            <span class="db-control-label">Mode de construction</span>
+            <div class="db-segmented" role="group" aria-label="Mode de construction">
+                <button type="button" data-db-mode="budget">Budget</button>
+                <button type="button" data-db-mode="standard" class="is-active">Standard</button>
+                <button type="button" data-db-mode="optimal">Optimal</button>
+            </div>
+        </div>
+
+        <label class="db-control-field db-budget-field" data-db-budget-wrap hidden>
+            <span>Budget qu'il me reste à dépenser</span>
+            <span class="db-input-suffix">
+                <input type="number" min="1" step="1" placeholder="70" data-db-budget>
+                <strong>€</strong>
+            </span>
+            <small>Les cartes marquées comme déjà possédées ne sont pas refacturées.</small>
+        </label>
+
+        <label class="db-control-field">
+            <span>Profil des freespots</span>
+            <select data-db-freespot-profile>
+                <option value="auto" selected>Automatique</option>
+                <option value="handtraps">Handtraps</option>
+                <option value="going_second">Going second / board breakers</option>
+                <option value="traps_control">Pièges / contrôle</option>
+                <option value="spells">Magies génériques</option>
+                <option value="budget_staples">Staples budget</option>
+            </select>
+            <small>Le profil ne remplace pas le core : il départage surtout les cartes génériques observées dans les slots libres.</small>
+        </label>
+
+        <label class="db-control-field">
+            <span>Période des listes</span>
+            <select data-db-days>
+                <option value="">Toutes</option>
+                <option value="30">30 jours</option>
+                <option value="90" selected>90 jours</option>
+                <option value="180">6 mois</option>
+                <option value="365">1 an</option>
+            </select>
+        </label>
+
+        <label class="db-control-field">
+            <span>Échantillon max.</span>
+            <select data-db-limit>
+                <option value="16">16 listes</option>
+                <option value="24">24 listes</option>
+                <option value="32" selected>32 listes</option>
+                <option value="48">48 listes</option>
+                <option value="60">60 listes</option>
+            </select>
+        </label>
+
+        <label class="db-switch-row">
+            <input type="checkbox" data-db-tournament-only>
+            <span>
+                <strong>Tournois uniquement</strong>
+                <small>Ignore les listes communautaires non compétitives.</small>
+            </span>
+        </label>
+    </section>
+
+    <div class="db-state-card" data-db-empty-state>
+        <strong>Commence par rechercher un deck.</strong>
+        <span>Tu verras les cartes réellement observées, leur emplacement habituel, leur prix et les variantes trouvées.</span>
+    </div>
+
+    <div class="db-state-card db-loading" data-db-loading hidden>
+        <span class="db-spinner" aria-hidden="true"></span>
+        <strong>Hamtaro rassemble les données…</strong>
+        <span>Analyse des listes, des quantités, des moteurs et des prix disponibles.</span>
+    </div>
+
+    <div class="db-state-card db-error" data-db-error hidden></div>
+
+    <section class="db-results" data-db-results hidden>
+        <div class="db-result-heading">
+            <div>
+                <p class="db-eyebrow">ANALYSE</p>
+                <h2 data-db-title>Deck</h2>
+                <p class="db-result-subtitle" data-db-subtitle></p>
+            </div>
+            <div class="db-result-actions">
+                <button type="button" class="db-secondary-button" data-db-share>Partager cette recherche</button>
+                <button type="button" class="db-primary-button" data-db-generate>Générer la liste</button>
+            </div>
+        </div>
+
+        <div class="db-warning-list" data-db-warnings hidden></div>
+
+        <div class="db-summary-grid db-summary-grid-v3">
+            <article class="db-summary-card">
+                <span>Listes analysées</span>
+                <strong data-db-samples>—</strong>
+                <small data-db-tournaments>—</small>
+            </article>
+            <article class="db-summary-card">
+                <span>Fiabilité de l'analyse</span>
+                <strong data-db-confidence>—</strong>
+                <small data-db-confidence-label>—</small>
+            </article>
+            <article class="db-summary-card">
+                <span>Prix de la base</span>
+                <strong data-db-base-price>—</strong>
+                <small>Core + moteurs fréquents, en écartant les génériques autant que possible</small>
+            </article>
+            <article class="db-summary-card">
+                <span>Core observé</span>
+                <strong data-db-core-price>—</strong>
+                <small>Cartes Core / fréquentes avec prix connus</small>
+            </article>
+            <article class="db-summary-card">
+                <span>Données de prix</span>
+                <strong>Cardmarket</strong>
+                <small data-db-price-date>—</small>
+            </article>
+            <article class="db-summary-card">
+                <span>Moteurs secondaires</span>
+                <strong data-db-engine-count>0</strong>
+                <small>Packages récurrents détectés dans les listes</small>
+            </article>
+            <article class="db-summary-card">
+                <span>Liste la plus récente</span>
+                <strong data-db-newest-source>—</strong>
+                <small data-db-source-window>—</small>
+            </article>
+            <article class="db-summary-card">
+                <span>Banlist TCG</span>
+                <strong data-db-banlist-status>—</strong>
+                <small data-db-banlist-date>Vérification officielle Konami</small>
+            </article>
+        </div>
+
+        <section class="db-variants-panel" data-db-variants-panel hidden>
+            <div class="db-section-heading compact">
+                <div>
+                    <span class="db-kicker">Variantes trouvées</span>
+                    <h3>Affiner l'analyse</h3>
+                    <p>Choisis une variante pour recalculer toutes les fréquences uniquement sur celle-ci.</p>
+                </div>
+                <button type="button" class="db-link-button" data-db-clear-variant hidden>Voir toutes les variantes</button>
+            </div>
+            <div class="db-variant-chips" data-db-variants></div>
+        </section>
+
+        <section class="db-engine-panel" data-db-engine-panel hidden>
+            <div class="db-section-heading compact">
+                <div>
+                    <span class="db-kicker">Moteurs détectés</span>
+                    <h3>Packages souvent associés au deck</h3>
+                    <p>Hamtaro regroupe les cartes d'un autre archétype lorsqu'elles reviennent régulièrement ensemble.</p>
+                </div>
+            </div>
+            <div class="db-engine-grid" data-db-engines></div>
+        </section>
+
+        <section class="db-package-panel" data-db-package-panel hidden>
+            <div class="db-section-heading compact">
+                <div>
+                    <span class="db-kicker">Packages statistiques</span>
+                    <h3>Cartes qui apparaissent ensemble</h3>
+                    <p>Hamtaro détecte les groupes dont la présence varie ensemble entre les decklists. Ce signal complète les simples pourcentages individuels.</p>
+                </div>
+            </div>
+            <div class="db-package-grid" data-db-packages></div>
+        </section>
+
+        <section class="db-engine-compare-panel" data-db-engine-compare-panel hidden>
+            <div class="db-section-heading compact">
+                <div>
+                    <span class="db-kicker">Variantes par moteur</span>
+                    <h3>Avec moteur / sans moteur</h3>
+                    <p>Compare les cartes qui changent le plus lorsque l'un des moteurs secondaires détectés est présent.</p>
+                </div>
+            </div>
+            <div class="db-engine-compare-grid" data-db-engine-comparisons></div>
+        </section>
+
+        <section class="db-configurations-panel" data-db-configurations-panel hidden>
+            <div class="db-section-heading compact">
+                <div>
+                    <span class="db-kicker">Constructions réellement observées</span>
+                    <h3>Quelles versions du deck reviennent vraiment ?</h3>
+                    <p>Hamtaro regroupe les listes par moteurs présents, indépendamment du titre donné par leur auteur.</p>
+                </div>
+            </div>
+            <div class="db-configuration-grid" data-db-configurations></div>
+        </section>
+
+        <section class="db-flex-panel" data-db-flex-panel hidden>
+            <div class="db-section-heading compact">
+                <div>
+                    <span class="db-kicker">Slots flex concurrents</span>
+                    <h3>Des cartes qui occupent souvent le même type de place</h3>
+                    <p>Ce sont des choix de rôle proche qui apparaissent rarement ensemble. Hamtaro ne prétend pas qu'ils sont parfaitement interchangeables.</p>
+                </div>
+            </div>
+            <div class="db-flex-grid" data-db-flex-grid></div>
+        </section>
+
+        <section class="db-freespot-panel" data-db-freespot-panel hidden>
+            <div class="db-section-heading compact">
+                <div>
+                    <span class="db-kicker">Freespots & staples</span>
+                    <h3>Qu’est-ce que les joueurs mettent dans les slots libres ?</h3>
+                    <p>Analyse dynamique pour le deck recherché : handtraps, board breakers, Magies, Pièges et autres cartes génériques réellement observées.</p>
+                </div>
+            </div>
+            <div class="db-freespot-stats" data-db-freespot-stats></div>
+            <div class="db-freespot-categories" data-db-freespot-categories></div>
+        </section>
+
+        <section class="db-profile-panel" data-db-profile-panel hidden>
+            <div class="db-section-heading compact">
+                <div>
+                    <span class="db-kicker">Structure observée</span>
+                    <h3>Core et places flexibles</h3>
+                    <p>Une estimation des places très stables et des slots qui changent le plus entre les listes.</p>
+                </div>
+            </div>
+            <div class="db-profile-grid" data-db-profile-grid></div>
+        </section>
+
+        <section class="db-composition-panel" data-db-composition-panel hidden>
+            <div class="db-section-heading compact">
+                <div>
+                    <span class="db-kicker">Lecture du deck</span>
+                    <h3>À quoi servent généralement les cartes ?</h3>
+                    <p>Répartition indicative des rôles observés : starters, extenders, interactions, consistance, board breakers…</p>
+                </div>
+            </div>
+            <div class="db-composition-grid" data-db-composition-grid></div>
+        </section>
+
+        <section class="db-constraints-panel" data-db-constraints-panel hidden>
+            <div class="db-section-heading compact">
+                <div>
+                    <span class="db-kicker">Personnaliser la génération</span>
+                    <h3>Mes choix imposés</h3>
+                    <p>Verrouille une carte pour la conserver dans la prochaine liste, ou écarte-la pour que Hamtaro ne la sélectionne pas.</p>
+                </div>
+                <button type="button" class="db-link-button" data-db-reset-constraints>Réinitialiser mes choix</button>
+            </div>
+            <div class="db-constraints-summary" data-db-constraints-summary></div>
+        </section>
+
+        <section class="db-library-panel">
+            <div class="db-section-heading">
+                <div>
+                    <span class="db-kicker">Bibliothèque du deck</span>
+                    <h3>Cartes généralement jouées</h3>
+                    <p>Les pourcentages sont calculés séparément pour Main, Extra et Side.</p>
+                </div>
+                <div class="db-library-tools">
+                    <label>
+                        <span>Afficher</span>
+                        <select data-db-importance-filter>
+                            <option value="all">Toutes les cartes</option>
+                            <option value="core">Core uniquement</option>
+                            <option value="frequent">Core + fréquentes</option>
+                            <option value="option">Jusqu'aux options</option>
+                        </select>
+                    </label>
+                    <label class="db-switch-inline">
+                        <input type="checkbox" data-db-owned-filter>
+                        <span>Masquer mes cartes possédées</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="db-zone-tabs" role="tablist" aria-label="Zones du deck">
+                <button type="button" class="is-active" role="tab" data-db-zone="main">Main Deck <span data-db-main-total>0</span></button>
+                <button type="button" role="tab" data-db-zone="extra">Extra Deck <span data-db-extra-total>0</span></button>
+                <button type="button" role="tab" data-db-zone="side">Side Deck <span data-db-side-total>0</span></button>
+            </div>
+
+            <div class="db-card-list" data-db-card-list></div>
+            <button type="button" class="db-load-more" data-db-load-more hidden>Afficher plus de cartes</button>
+
+            <section class="db-alternatives-panel" data-db-alternatives-panel hidden>
+                <div class="db-section-heading compact">
+                    <div>
+                        <span class="db-kicker">Alternatives observées</span>
+                        <h3 data-db-alternatives-title>Remplacer une carte</h3>
+                        <p data-db-alternatives-note></p>
+                    </div>
+                    <button type="button" class="db-link-button" data-db-close-alternatives>Fermer</button>
+                </div>
+                <div class="db-alternatives-grid" data-db-alternatives-grid></div>
+            </section>
+
+            <section class="db-synergy-panel" data-db-synergy-panel hidden>
+                <div class="db-section-heading compact">
+                    <div>
+                        <span class="db-kicker">Association carte-à-carte</span>
+                        <h3 data-db-synergy-title>Cartes souvent jouées ensemble</h3>
+                        <p data-db-synergy-note></p>
+                    </div>
+                    <button type="button" class="db-link-button" data-db-close-synergy>Fermer</button>
+                </div>
+                <div class="db-synergy-grid" data-db-synergy-grid></div>
+            </section>
+        </section>
+
+        <section class="db-owned-summary" data-db-owned-summary hidden>
+            <div>
+                <span class="db-kicker">Ma collection locale</span>
+                <h3>Ce qu'il te reste à acheter</h3>
+                <p>Les quantités restent uniquement dans ce navigateur et ne sont pas enregistrées sur ton profil.</p>
+            </div>
+            <div class="db-owned-numbers">
+                <div><span>Exemplaires déjà possédés</span><strong data-db-owned-count>0</strong></div>
+                <div><span>Core/fréquent restant</span><strong data-db-remaining-cost>—</strong></div>
+            </div>
+        </section>
+
+        <section class="db-compare-panel">
+            <div class="db-section-heading">
+                <div>
+                    <span class="db-kicker">Comparer ma liste</span>
+                    <h3>Est-ce que mon deck ressemble aux listes généralement jouées ?</h3>
+                    <p>Colle un code <strong>YDKE</strong> ou le contenu d'un fichier <strong>.ydk</strong>. Hamtaro vérifie les Core manquants, les choix atypiques, la zone habituelle et la légalité globale.</p>
+                </div>
+            </div>
+            <div class="db-compare-form">
+                <textarea data-db-compare-input rows="6" placeholder="ydke://...
+
+ou
+
+#main
+89631139
+...
+#extra
+...
+!side
+..."></textarea>
+                <div class="db-compare-actions">
+                    <label class="db-file-button">
+                        <input type="file" accept=".ydk,text/plain" data-db-compare-file>
+                        Charger un fichier .ydk
+                    </label>
+                    <button type="button" class="db-secondary-button" data-db-compare-button>Comparer à l'analyse actuelle</button>
+                </div>
+            </div>
+            <div class="db-compare-results" data-db-compare-results hidden></div>
+        </section>
+
+        <section class="db-generated-panel" data-db-generated-panel hidden>
+            <div class="db-section-heading">
+                <div>
+                    <span class="db-kicker">Deck généré par Hamtaro</span>
+                    <h3 data-db-generated-title>Liste recommandée</h3>
+                    <p data-db-generated-note></p>
+                </div>
+                <div class="db-result-actions">
+                    <button type="button" class="db-secondary-button" data-db-copy-list>Copier la liste</button>
+                    <button type="button" class="db-secondary-button" data-db-copy-ydke>Copier YDKE</button>
+                    <button type="button" class="db-secondary-button" data-db-download-ydk>Télécharger .ydk</button>
+                </div>
+            </div>
+
+            <div class="db-generated-summary db-generated-summary-v3">
+                <div><span>Main</span><strong data-db-generated-main-count>0 / 40</strong></div>
+                <div><span>Extra</span><strong data-db-generated-extra-count>0 / 15</strong></div>
+                <div><span>Side</span><strong data-db-generated-side-count>0 / 15</strong></div>
+                <div><span>Valeur totale connue</span><strong data-db-generated-price>—</strong></div>
+                <div><span>À acheter</span><strong data-db-generated-purchase>—</strong></div>
+                <div><span>Économie grâce à mes cartes</span><strong data-db-generated-savings>—</strong></div>
+            </div>
+            <div class="db-readiness-panel" data-db-readiness-panel hidden></div>
+            <div class="db-opening-panel" data-db-opening-panel hidden></div>
+            <div class="db-diagnostics-panel" data-db-diagnostics-panel hidden></div>
+            <div class="db-purchase-plan" data-db-purchase-plan hidden></div>
+            <div class="db-warning-list" data-db-generation-warnings hidden></div>
+            <div class="db-budget-changes" data-db-budget-changes hidden></div>
+            <div class="db-legality-card" data-db-legality-card hidden></div>
+            <div class="db-upgrade-panel" data-db-upgrade-panel hidden></div>
+            <div class="db-generated-zones" data-db-generated-zones></div>
+        </section>
+
+        <details class="db-sources-panel">
+            <summary>Sources utilisées pour cette analyse <span data-db-source-count>0</span></summary>
+            <div class="db-source-list" data-db-sources></div>
+        </details>
+
+        <section class="db-degraded-panel" data-db-degraded hidden>
+            <div class="db-section-heading compact">
+                <div>
+                    <span class="db-kicker">Mode dégradé</span>
+                    <h3>Cartes d'archétype retrouvées</h3>
+                    <p>Aucun pourcentage d'utilisation n'est affiché sans decklists exploitables.</p>
+                </div>
+            </div>
+            <div class="db-fallback-grid" data-db-fallback-grid></div>
+        </section>
+    </section>
+</section>
+{% endblock %}
