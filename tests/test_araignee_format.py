@@ -1,6 +1,7 @@
 import json
 
 from services.araignee_format_service import AraigneeFormatService
+from tools.araignee_images import load_aliases, resolve_card, build_index
 
 
 def _ten_spiders():
@@ -195,3 +196,29 @@ def test_black_scorpions_removed_from_pool():
     names = set(service.pool())
     for card in removed:
         assert card not in names
+
+
+def test_image_alias_file_contains_known_aliases():
+    aliases = load_aliases()
+    assert aliases["Bébé Araignée"] == "Baby Spider"
+    assert aliases["Traptrix Trappelutea"] == "Traptrix Holeutea"
+
+
+def test_resolve_card_uses_alias_when_exact_name_fails():
+    fr_cards = []
+    en_cards = [
+        {
+            "id": 123456,
+            "name": "Baby Spider",
+            "card_images": [{"image_url_small": "https://example.com/baby.jpg"}],
+        }
+    ]
+    fr_index = build_index(fr_cards, "fr")
+    en_index = build_index(en_cards, "en")
+    aliases = {"Bébé Araignée": "Baby Spider"}
+
+    found, alias_used, resolution = resolve_card("Bébé Araignée", fr_index, en_index, aliases)
+    assert found is not None
+    assert found["name"] == "Baby Spider"
+    assert alias_used == "Baby Spider"
+    assert resolution == "alias"

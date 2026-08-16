@@ -14,7 +14,6 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 FORMAT_PATH = ROOT / "data" / "formats" / "araignee.json"
-ALIAS_PATH = ROOT / "data" / "formats" / "araignee_image_aliases.json"
 MANIFEST_PATH = ROOT / "data" / "formats" / "araignee_images.json"
 IMAGE_DIR = ROOT / "web" / "static" / "araignee" / "cards"
 API_FR = "https://db.ygoprodeck.com/api/v7/cardinfo.php?language=fr"
@@ -79,48 +78,6 @@ def load_format() -> dict[str, Any]:
     return json.loads(FORMAT_PATH.read_text(encoding="utf-8"))
 
 
-def load_aliases() -> dict[str, str]:
-    if not ALIAS_PATH.exists():
-        return {}
-    try:
-        loaded = json.loads(ALIAS_PATH.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
-    if not isinstance(loaded, dict):
-        return {}
-    aliases: dict[str, str] = {}
-    for source, target in loaded.items():
-        if not source or not target:
-            continue
-        aliases[str(source).strip()] = str(target).strip()
-    return aliases
-
-
-def resolve_card(
-    pool_name: str,
-    fr_index: dict[str, dict[str, Any]],
-    en_index: dict[str, dict[str, Any]],
-    aliases: dict[str, str],
-) -> tuple[dict[str, Any] | None, str | None, str]:
-    key = normalize(pool_name)
-
-    # 1) match exact sur le nom du pool
-    found = fr_index.get(key) or en_index.get(key)
-    if found:
-        return found, None, "exact"
-
-    # 2) alias manuel, utile quand le nom FR du pool diffère trop du nom API
-    alias = aliases.get(pool_name)
-    if alias:
-        alias_key = normalize(alias)
-        found = en_index.get(alias_key) or fr_index.get(alias_key)
-        if found:
-            return found, alias, "alias"
-
-    # 3) aucun résultat
-    return None, alias if alias else None, "missing"
-
-
 def load_manifest() -> dict[str, Any]:
     if not MANIFEST_PATH.exists():
         return {"version": 1, "cards": {}}
@@ -147,9 +104,7 @@ def status() -> int:
         if relative and (ROOT / relative).exists():
             local += 1
     print(f"🕷️ Galerie Araignée : {local}/{len(pool)} image(s) locale(s)")
-    aliases = load_aliases()
     unresolved = [name for name in pool if not (cards.get(name) or {}).get("local_path")]
-    print(f"🔁 Alias manuels disponibles : {len(aliases)}")
     if unresolved:
         print(f"⚠️ Sans image : {len(unresolved)}")
         for name in unresolved[:20]:
@@ -178,8 +133,6 @@ def sync(force: bool = False) -> int:
     fr_index = build_index(fr_payload.get("data") or [], "fr")
     en_index = build_index(en_payload.get("data") or [], "en")
 
-    aliases = load_aliases()
-
     IMAGE_DIR.mkdir(parents=True, exist_ok=True)
     manifest = {
         "version": 1,
@@ -189,30 +142,22 @@ def sync(force: bool = False) -> int:
     }
 
     matched = 0
-    alias_hits = 0
     downloaded = 0
     unresolved: list[str] = []
 
     for index, pool_name in enumerate(pool, start=1):
-        found, alias_used, resolution = resolve_card(pool_name, fr_index, en_index, aliases)
+        key = normalize(pool_name)
+        found = fr_index.get(key) or en_index.get(key)
         if not found or not found.get("image") or not found.get("id"):
-            item = {
+            manifest["cards"][pool_name] = {
                 "status": "missing",
                 "local_path": None,
             }
-            if alias_used:
-                item["alias_used"] = alias_used
-            manifest["cards"][pool_name] = item
             unresolved.append(pool_name)
-            if alias_used:
-                print(f"[{index:03}/{len(pool):03}] ⚠️ {pool_name} — alias essayé : {alias_used} — image non résolue")
-            else:
-                print(f"[{index:03}/{len(pool):03}] ⚠️ {pool_name} — image non résolue")
+            print(f"[{index:03}/{len(pool):03}] ⚠️ {pool_name} — image non résolue")
             continue
 
         matched += 1
-        if resolution == "alias":
-            alias_hits += 1
         card_id = int(found["id"])
         relative = Path("web") / "static" / "araignee" / "cards" / f"{card_id}.jpg"
         destination = ROOT / relative
@@ -232,7 +177,7 @@ def sync(force: bool = False) -> int:
             }
             print(f"[{index:03}/{len(pool):03}] ✅ {pool_name} -> {found['name']}")
         except (urllib.error.URLError, TimeoutError, OSError) as error:
-            item = {
+            manifest["cards"][pool_name] = {
                 "status": "error",
                 "card_id": card_id,
                 "api_name": found["name"],
@@ -240,9 +185,6 @@ def sync(force: bool = False) -> int:
                 "local_path": None,
                 "error": str(error),
             }
-            if alias_used:
-                item["alias_used"] = alias_used
-            manifest["cards"][pool_name] = item
             unresolved.append(pool_name)
             print(f"[{index:03}/{len(pool):03}] ❌ {pool_name} — {error}")
 
@@ -254,7 +196,6 @@ def sync(force: bool = False) -> int:
 
     print()
     print(f"✅ Correspondances : {matched}/{len(pool)}")
-    print(f"🔁 Alias utilisés : {alias_hits}")
     print(f"✅ Images téléchargées/rafraîchies : {downloaded}")
     print(f"⚠️ Sans image : {len(unresolved)}")
     print(f"📄 Manifest : {MANIFEST_PATH.relative_to(ROOT)}")
