@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}{{ trophy.id }} · {{ trophy.tagline or trophy.title }} · Hamtaro{% endblock %}
+
+{% block content %}
+<nav class="trophy-breadcrumb" aria-label="Fil d'Ariane">
+  <a href="/trophies">← Retour à la collection</a>
+</nav>
+
+<header class="trophy-detail-header">
+  <div class="trophy-id-line">
+    <span class="trophy-serial">{{ trophy.id }}</span>
+    <span class="trophy-rarity-badge">{{ trophy.rarity }}</span>
+  </div>
+
+  <span class="trophy-kicker">{{ trophy.distinction }}</span>
+  <h1>{{ trophy.tagline or trophy.title }}</h1>
+
+  {% if trophy.tournament_code %}
+  <p>{{ trophy.tournament_name or "Tournoi Hamtaro" }} · {{ trophy.tournament_code }}</p>
+  {% else %}
+  <p>{{ trophy.classification }} · Édition {{ trophy.edition }}</p>
+  {% endif %}
+</header>
+
+<section class="trophy-detail-layout">
+  <div class="trophy-viewer-column">
+    <div class="trophy-viewer-shell" data-trophy-viewer-shell>
+      <div class="trophy-viewer-placeholder" data-trophy-placeholder>
+        <div class="trophy-viewer-emblem" aria-hidden="true">
+          <small>HT</small>
+          <strong>{{ "%03d"|format(trophy.number) }}</strong>
+        </div>
+
+        <div class="trophy-viewer-copy">
+          <strong>Modèle 3D interactif</strong>
+          {% if trophy.model_size_mb %}
+          <span>Environ {{ trophy.model_size_mb }} Mo</span>
+          {% endif %}
+        </div>
+
+        <button
+          class="trophy-primary-button"
+          type="button"
+          data-load-trophy-model
+          data-model-src="{{ trophy.model_path }}"
+          data-model-mobile-src="{{ trophy.mobile_model_path or trophy.model_path }}"
+          data-trophy-id="{{ trophy.id }}"
+      data-model-mobile-src="{{ trophy.mobile_model_path or trophy.model_path }}"
+        >
+          Charger le trophée en 3D
+        </button>
+
+        <small>Rotation · zoom · plein écran</small>
+      </div>
+
+      <model-viewer
+        class="trophy-model-viewer"
+        data-trophy-model-viewer
+        alt="Modèle 3D interactif du trophée {{ trophy.id }}"
+        camera-controls
+        auto-rotate
+        auto-rotate-delay="800"
+        rotation-per-second="14deg"
+        shadow-intensity="1.15"
+        shadow-softness="0.8"
+        environment-image="neutral"
+        interaction-prompt="auto"
+        touch-action="pan-y"
+        loading="eager"
+        reveal="auto"
+        hidden
+      ></model-viewer>
+
+      <div class="trophy-viewer-toolbar" data-trophy-toolbar hidden>
+        <button type="button" data-trophy-reset>↺ Recentrer</button>
+        <button type="button" data-trophy-toggle-rotate>⟳ Rotation</button>
+        <button type="button" data-trophy-fullscreen>⛶ Plein écran</button>
+      </div>
+
+      <div class="trophy-loading" data-trophy-loading hidden>
+        <span class="trophy-loading-dot" aria-hidden="true"></span>
+        <span data-trophy-loading-text>Chargement du modèle 3D…</span>
+      </div>
+    </div>
+  </div>
+
+  <aside class="trophy-summary-card">
+    <section class="trophy-holder">
+      <span class="trophy-kicker">DÉTENTEUR</span>
+      <h2>{{ trophy.display_holder }}</h2>
+
+      {% if trophy.holder_discord_id %}
+      <a href="/players/{{ trophy.holder_discord_id }}">Voir le profil du champion →</a>
+      {% elif trophy.tournament_code %}
+      <p>Attribué automatiquement lorsque le vainqueur de {{ trophy.tournament_code }} est enregistré.</p>
+      {% else %}
+      <p>Ce trophée n'a pas encore été attribué.</p>
+      {% endif %}
+    </section>
+
+    <dl class="trophy-summary-list">
+      <div>
+        <dt>Numéro</dt>
+        <dd>{{ trophy.id }}</dd>
+      </div>
+
+      {% if trophy.tournament_name %}
+      <div>
+        <dt>Tournoi</dt>
+        <dd>{{ trophy.tournament_name }}</dd>
+      </div>
+      {% endif %}
+
+      {% if trophy.tournament_code %}
+      <div>
+        <dt>Code</dt>
+        <dd>{{ trophy.tournament_code }}</dd>
+      </div>
+      {% endif %}
+
+      <div>
+        <dt>Deck</dt>
+        <dd>{{ trophy.deck or "À définir" }}</dd>
+      </div>
+
+      <div>
+        <dt>Format</dt>
+        <dd>{{ trophy.format or "À définir" }}</dd>
+      </div>
+
+      <div>
+        <dt>Date</dt>
+        <dd>{{ trophy.awarded_at or "À définir" }}</dd>
+      </div>
+    </dl>
+
+    <div class="trophy-summary-tags">
+      <span>{{ trophy.classification }}</span>
+      <span>{{ trophy.edition }}</span>
+    </div>
+  </aside>
+</section>
+
+<section class="trophy-information-grid">
+  <article class="trophy-panel">
+    <span class="trophy-kicker">HISTOIRE</span>
+    <h2>{{ trophy.title }}</h2>
+    <p>{{ trophy.description }}</p>
+    {% if trophy.legacy %}
+    <p class="trophy-legacy">{{ trophy.legacy }}</p>
+    {% endif %}
+  </article>
+
+  <article class="trophy-panel trophy-distinction-panel">
+    <span class="trophy-kicker">DISTINCTION</span>
+    <div class="trophy-distinction-row">
+      <div class="trophy-badge-number">{{ "%02d"|format(trophy.number) }}</div>
+      <div>
+        <h2>{{ trophy.badge }}</h2>
+        {% if trophy.id == "HT-001" %}
+        <p>Distinction liée au premier sacre officiel de l'histoire compétitive Hamtaro.</p>
+        {% elif trophy.tournament_code %}
+        <p>Distinction réservée au vainqueur du tournoi {{ trophy.tournament_name or trophy.tournament_code }}.</p>
+        {% else %}
+        <p>{{ trophy.distinction }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+</section>
+
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+{% endblock %}
