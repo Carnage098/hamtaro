@@ -57,7 +57,6 @@ LOGGER = logging.getLogger("hamtaro")
 REQUIRED_COGS = (
     "cogs.registration",
     "cogs.tournament",
-    "cogs.araignee_format",
     "cogs.bracket",
     "cogs.results",
     "cogs.profile",

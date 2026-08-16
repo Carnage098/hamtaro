@@ -25,8 +25,6 @@ FORMATS = [
     "TeleDAD",
     "Rush Duel",
     "Speed Duel",
-
-    "Araignée",
 ]
 
 
