@@ -6,11 +6,12 @@ import py_compile
 import re
 import shutil
 import sys
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
 
-PACK_VERSION = "3.0"
+PACK_VERSION = "4.0"
 HERE = Path(__file__).resolve().parent
 ROOT = Path.cwd()
 
@@ -23,6 +24,7 @@ NEW_FILES = {
     "format_araignee.html": Path("web/templates/format_araignee.html"),
     "test_araignee_format.py": Path("tests/test_araignee_format.py"),
     "araignee_pool_tool.py": Path("tools/araignee_pool.py"),
+    "araignee_image_sync.py": Path("tools/araignee_images.py"),
 }
 
 CSS_START = "/* ===== HAMTARO FORMAT ARAIGNEE START ===== */"
@@ -37,6 +39,11 @@ def parse_args() -> argparse.Namespace:
         "--check",
         action="store_true",
         help="Vérifier la compatibilité sans modifier le dépôt.",
+    )
+    parser.add_argument(
+        "--skip-images",
+        action="store_true",
+        help="Installer la v4 sans télécharger la galerie d'images.",
     )
     return parser.parse_args()
 
@@ -274,6 +281,7 @@ def main() -> int:
             ROOT / "services/araignee_format_service.py",
             ROOT / "services/format_routes.py",
             ROOT / "tools/araignee_pool.py",
+            ROOT / "tools/araignee_images.py",
             ROOT / "cogs/tournament.py",
             ROOT / "cogs/public_website.py",
             ROOT / "bot.py",
@@ -291,6 +299,20 @@ def main() -> int:
             raise RuntimeError(
                 f"Le pack attendu contient 130 cartes, détecté : {len(pool)}"
             )
+
+        if not args.skip_images:
+            print("\n🖼️ Synchronisation de la galerie d'images…")
+            image_process = subprocess.run(
+                [sys.executable, str(ROOT / "tools/araignee_images.py"), "sync"],
+                cwd=ROOT,
+                check=False,
+            )
+            if image_process.returncode != 0:
+                print(
+                    "⚠️ La synchronisation des images a échoué, mais le Format "
+                    "Araignée reste installé. Tu peux relancer plus tard : "
+                    "python3 tools/araignee_images.py sync"
+                )
 
     except Exception as error:
         print(f"\n❌ Installation interrompue : {error}")
@@ -322,6 +344,7 @@ def main() -> int:
     print("Validation API : POST /api/formats/araignee/validate")
     print("Pool texte : /api/formats/araignee/pool.txt")
     print("Gestion du pool : python3 tools/araignee_pool.py --help")
+    print("Galerie images : python3 tools/araignee_images.py status")
     print("Sauvegarde :", backup.name)
     return 0
 

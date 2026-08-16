@@ -49,6 +49,7 @@ class AraigneeFormatService:
         self.data_path = data_path or root / "data" / "formats" / "araignee.json"
         self._data: dict[str, Any] | None = None
         self._normalized_pool: dict[str, str] | None = None
+        self.image_manifest_path = root / "data" / "formats" / "araignee_images.json"
 
     @staticmethod
     def normalize_name(value: str) -> str:
@@ -358,7 +359,7 @@ class AraigneeFormatService:
 
         warnings.append(
             "Le validateur ne peut pas encore confirmer l'identité de l'archétype "
-            "secondaire, la whitelist générique ni les restrictions propres aux banlists annoncées."
+            "secondaire, la whitelist générique ni les restrictions propres à la banlist TCG actuelle."
         )
 
         suggestions = self._spider_suggestions(parsed.main)
@@ -393,18 +394,52 @@ class AraigneeFormatService:
             "&stype=1&othercon=2&request_locale=fr"
         )
 
-    def card_entries(self) -> list[dict[str, str]]:
-        return [
-            {
+    def image_manifest(self) -> dict[str, Any]:
+        if not self.image_manifest_path.exists():
+            return {"version": 1, "cards": {}}
+        try:
+            loaded = json.loads(self.image_manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {"version": 1, "cards": {}}
+        if not isinstance(loaded, dict):
+            return {"version": 1, "cards": {}}
+        cards = loaded.get("cards")
+        if not isinstance(cards, dict):
+            loaded["cards"] = {}
+        return loaded
+
+    @staticmethod
+    def _public_static_url(local_path: str | None) -> str | None:
+        if not local_path:
+            return None
+        normalized = str(local_path).replace("\\", "/").lstrip("/")
+        prefix = "web/static/"
+        if not normalized.startswith(prefix):
+            return None
+        return "/static/" + normalized[len(prefix):]
+
+    def card_entries(self) -> list[dict[str, Any]]:
+        manifest = self.image_manifest().get("cards") or {}
+        entries: list[dict[str, Any]] = []
+        for card in self.pool():
+            image = manifest.get(card) or {}
+            local_path = image.get("local_path")
+            entries.append({
                 "name": card,
                 "url": self.official_card_search_url(card),
-            }
-            for card in self.pool()
-        ]
+                "image_url": self._public_static_url(local_path),
+                "image_status": image.get("status") or "missing",
+                "image_card_id": image.get("card_id"),
+                "image_api_name": image.get("api_name"),
+            })
+        return entries
 
     def public_data(self) -> dict[str, Any]:
         data = dict(self.data())
+        entries = self.card_entries()
         data["pool_count"] = len(self.pool())
         data["pool_revision"] = self.pool_revision()
-        data["spider_card_entries"] = self.card_entries()
+        data["spider_card_entries"] = entries
+        data["image_count"] = sum(1 for item in entries if item.get("image_url"))
+        data["missing_image_count"] = sum(1 for item in entries if not item.get("image_url"))
         return data
