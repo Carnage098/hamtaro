@@ -4,12 +4,18 @@
   "note": "Images téléchargées localement conformément au guide API ; pas de hotlink continu.",
   "cards": {
     "Bébé Araignée": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 60023855,
+      "api_name": "Baby Spider",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/60023855.jpg"
     },
     "Araignée Matriarche Fendeuse": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 34034150,
+      "api_name": "Mother Spider Splitter",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/34034150.jpg"
     },
     "Araignée Matriarche": {
       "status": "ok",
@@ -68,8 +74,11 @@
       "local_path": "web/static/araignee/cards/94773007.jpg"
     },
     "Araignée Informateur": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 4941482,
+      "api_name": "Informer Spider",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/4941482.jpg"
     },
     "Araignée Bloc": {
       "status": "ok",
@@ -121,8 +130,11 @@
       "local_path": "web/static/araignee/cards/90980792.jpg"
     },
     "Ennéacrimaisseau - Atil.SPIA": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 71801447,
+      "api_name": "Enneacraft - Atil.SPIA",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/71801447.jpg"
     },
     "Arachnée Souterraine": {
       "status": "ok",
@@ -188,12 +200,18 @@
       "local_path": "web/static/araignee/cards/26640671.jpg"
     },
     "Roulette Araignée": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 36708764,
+      "api_name": "Roulette Spider",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/36708764.jpg"
     },
     "Proie du Jirai Gumo": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 33055499,
+      "api_name": "Prey of the Jirai Gumo",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/33055499.jpg"
     },
     "Soudetoile Insecte Numérique": {
       "status": "ok",
@@ -256,8 +274,11 @@
       "local_path": null
     },
     "Numéro S37 : Araignée Requin": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 79625003,
+      "api_name": "Number S37: Spider Shark",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/79625003.jpg"
     },
     "Tsuchigumo, Mayakashi du Poison": {
       "status": "ok",
@@ -288,8 +309,11 @@
       "local_path": "web/static/araignee/cards/58012707.jpg"
     },
     "Jeu de Ballon Géant": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 60619435,
+      "api_name": "Giant Ballgame",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/60619435.jpg"
     },
     "Trappe Cauchemar Traptrix": {
       "status": "ok",
@@ -306,8 +330,11 @@
       "local_path": "web/static/araignee/cards/80101899.jpg"
     },
     "Longinephila Prédaplante": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 44994712,
+      "api_name": "Predaplant Longinephila",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/44994712.jpg"
     },
     "Heavy Metal Raiders": {
       "status": "ok",
@@ -562,12 +589,18 @@
       "local_path": "web/static/araignee/cards/89194033.jpg"
     },
     "Scorpion Impitoyable de Serket": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 34926568,
+      "api_name": "Merciless Scorpion of Serket",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/34926568.jpg"
     },
     "Bête-Scorpion Divine de Serket": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 23804920,
+      "api_name": "Divine Scorpion Beast of Serket",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/23804920.jpg"
     },
     "Scorpion Gémeau": {
       "status": "ok",
@@ -633,8 +666,11 @@
       "local_path": "web/static/araignee/cards/87514539.jpg"
     },
     "Traptrix Trappelutea": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 74577599,
+      "api_name": "Traptrix Holeutea",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/74577599.jpg"
     },
     "Survivant de l'Héritage du Monde": {
       "status": "ok",
@@ -707,12 +743,18 @@
       "local_path": "web/static/araignee/cards/60375194.jpg"
     },
     "Prédaplante Drosophyllum": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 99913726,
+      "api_name": "Predaplant Drosophyllum Hydra",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/99913726.jpg"
     },
     "Prédaplante Moray Nepenthes": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 22011689,
+      "api_name": "Predaplant Moray Nepenthes",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/22011689.jpg"
     },
     "Super Polymérisation": {
       "status": "ok",
@@ -722,8 +764,11 @@
       "local_path": "web/static/araignee/cards/48130397.jpg"
     },
     "Araignée Sombre": {
-      "status": "missing",
-      "local_path": null
+      "status": "ok",
+      "card_id": 81759748,
+      "api_name": "Dark Spider",
+      "language": "en",
+      "local_path": "web/static/araignee/cards/81759748.jpg"
     },
     "Araneoïde, Allié de la Justice": {
       "status": "ok",

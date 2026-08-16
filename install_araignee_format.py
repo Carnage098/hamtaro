@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-PACK_VERSION = "4.1"
+PACK_VERSION = "4.2"
 HERE = Path(__file__).resolve().parent
 ROOT = Path.cwd()
 
@@ -25,6 +25,7 @@ NEW_FILES = {
     "test_araignee_format.py": Path("tests/test_araignee_format.py"),
     "araignee_pool_tool.py": Path("tools/araignee_pool.py"),
     "araignee_image_sync.py": Path("tools/araignee_images.py"),
+    "araignee_image_aliases.json": Path("data/formats/araignee_image_aliases.json"),
 }
 
 CSS_START = "/* ===== HAMTARO FORMAT ARAIGNEE START ===== */"
@@ -43,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-images",
         action="store_true",
-        help="Installer la v4.1 sans télécharger la galerie d'images.",
+        help="Installer la v4.2 sans télécharger la galerie d'images.",
     )
     return parser.parse_args()
 

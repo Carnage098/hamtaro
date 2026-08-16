@@ -2,7 +2,7 @@
   "id": "araignee",
   "name": "Araignée",
   "emoji": "🕷️",
-  "format_version": "4.2",
+  "format_version": "4.1",
   "pool_version": 1,
   "description": "Format communautaire Hamtaro centré sur un noyau de cartes Araignée et un unique archétype secondaire.",
   "main_deck": {
