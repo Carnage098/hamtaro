@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block title %}Format Araignée · Hamtaro{% endblock %}
+{% block content %}
+<section class="format-hero format-hero-spider">
+    <div class="format-title-row">
+        <div>
+            <p class="format-kicker">FORMAT COMMUNAUTAIRE</p>
+            <h1>🕷️ Format Araignée</h1>
+            <p>{{ format_data.description }}</p>
+        </div>
+        <div class="format-version-box">
+            <strong>v{{ format_data.format_version }}</strong>
+            <small>Pool {{ format_data.pool_revision }}</small>
+        </div>
+    </div>
+    <div class="format-pills">
+        <span>40–60 cartes Main</span>
+        <span>10–15 Araignée</span>
+        <span>Extra ≤ 15</span>
+        <span>Side libre</span>
+        <span>{{ format_data.pool_count }} cartes reconnues</span>
+    </div>
+</section>
+
+<nav class="format-jump-nav" aria-label="Sections du Format Araignée">
+    <a href="#regles">Règles</a>
+    <a href="#verificateur">Vérificateur</a>
+    <a href="#pool">Pool officiel</a>
+    <a href="#pool">Galerie</a>
+</nav>
+
+<section id="regles" class="format-rules-grid">
+    <article class="format-panel">
+        <h2>Main Deck</h2>
+        <ul>
+            <li>Entre <strong>40 et 60 cartes</strong>.</li>
+            <li><strong>10 à 15 cartes Araignée</strong> du pool officiel.</li>
+            <li>Un seul archétype secondaire : <strong>5 à 15 cartes</strong>.</li>
+            <li>Maximum <strong>2 archétypes</strong> : Araignée + secondaire.</li>
+            <li>Les génériques sont limités à la <strong>whitelist du format</strong>.</li>
+        </ul>
+    </article>
+
+    <article class="format-panel">
+        <h2>Extra Deck</h2>
+        <ul>
+            <li>De <strong>0 à 15 cartes</strong>.</li>
+            <li>Extra Deck <strong>libre</strong>.</li>
+            <li>L'Extra Deck respecte la <strong>banlist TCG actuelle</strong>.</li>
+        </ul>
+    </article>
+
+    <article class="format-panel">
+        <h2>Side Deck</h2>
+        <ul>
+            <li>Le <strong>Side Deck est libre</strong>.</li>
+            <li>Il est possible d'y ajouter jusqu'à <strong>3 cartes de l'archétype secondaire déclaré</strong>.</li>
+        </ul>
+    </article>
+
+    <article class="format-panel">
+        <h2>Tournoi & banlists</h2>
+        <ul>
+            <li>L'archétype secondaire est <strong>verrouillé</strong> pour tout le tournoi.</li>
+            <li>La <strong>banlist TCG actuelle</strong> s'applique au Format Araignée.</li>
+        </ul>
+    </article>
+</section>
+
+<section id="verificateur" class="format-panel format-checker">
+    <div class="format-section-heading">
+        <div>
+            <p class="format-kicker">VALIDATEUR SERVEUR</p>
+            <h2>Vérifie ta decklist</h2>
+        </div>
+        <span class="format-status-note">Même moteur que Discord</span>
+    </div>
+
+    <p class="format-muted">
+        Colle un export en noms de cartes. Les sections <code>Main</code>,
+        <code>Extra</code> et <code>Side</code> sont reconnues, ainsi que
+        <code>3x Nom</code>, <code>Nom x3</code> et <code>3 Nom</code>.
+    </p>
+
+    <textarea
+        id="spider-decklist"
+        class="format-textarea"
+        maxlength="20000"
+        spellcheck="false"
+        placeholder="Main Deck&#10;3x Bébé Araignée&#10;2x Jirai Gumo&#10;...&#10;&#10;Extra Deck&#10;...&#10;&#10;Side Deck&#10;..."
+    ></textarea>
+
+    <div class="format-actions">
+        <button class="format-button" id="spider-check-button" type="button">
+            Vérifier le deck
+        </button>
+        <button class="format-button format-button-secondary" id="spider-clear-button" type="button">
+            Effacer
+        </button>
+    </div>
+
+    <div id="spider-check-result" class="format-check-result" hidden aria-live="polite"></div>
+</section>
+
+<section id="pool" class="format-panel">
+    <div class="format-section-heading">
+        <div>
+            <p class="format-kicker">POOL OFFICIEL</p>
+            <h2>{{ format_data.pool_count }} cartes Araignée</h2>
+            <p class="format-muted">Révision {{ format_data.pool_revision }}</p>
+        </div>
+        <div class="format-pool-tools">
+            <input
+                id="spider-search"
+                class="format-search"
+                type="search"
+                placeholder="Rechercher une carte..."
+                autocomplete="off"
+            >
+            <a class="format-button format-button-link" href="/api/formats/araignee/pool.txt">
+                Télécharger .txt
+            </a>
+        </div>
+    </div>
+
+    <div class="spider-gallery-head">
+        <p id="spider-search-count" class="format-muted">
+            {{ format_data.pool_count }} cartes affichées
+        </p>
+        <div class="spider-view-toggle" role="group" aria-label="Affichage du pool">
+            <button class="format-button spider-view-button is-active" type="button" data-spider-view="gallery">
+                🖼️ Galerie
+            </button>
+            <button class="format-button format-button-secondary spider-view-button" type="button" data-spider-view="list">
+                ☰ Liste
+            </button>
+        </div>
+    </div>
+
+    <p class="format-muted spider-image-status">
+        <strong>{{ format_data.image_count }}/{{ format_data.pool_count }}</strong> image(s) locale(s) disponible(s).
+        {% if format_data.missing_image_count %}
+        Les cartes non résolues restent accessibles en version texte.
+        {% endif %}
+    </p>
+
+    <div class="spider-card-gallery" id="spider-card-gallery">
+        {% for card in format_data.spider_card_entries %}
+        <article class="spider-gallery-card" data-card-name="{{ card.name }}">
+            <a
+                class="spider-gallery-image-link"
+                href="{{ card.url }}"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Ouvrir {{ card.name }} dans la base officielle Yu-Gi-Oh! Neuron"
+            >
+                {% if card.image_url %}
+                <img
+                    src="{{ card.image_url }}"
+                    alt="Carte Yu-Gi-Oh! {{ card.name }}"
+                    loading="lazy"
+                    decoding="async"
+                    width="177"
+                    height="254"
+                >
+                {% else %}
+                <span class="spider-image-placeholder" aria-label="Image indisponible">
+                    <span>🕷️</span>
+                    <small>Image indisponible</small>
+                </span>
+                {% endif %}
+            </a>
+            <a
+                class="spider-gallery-name"
+                href="{{ card.url }}"
+                target="_blank"
+                rel="noopener noreferrer"
+            >{{ card.name }}</a>
+        </article>
+        {% endfor %}
+    </div>
+
+    <ol class="spider-pool" id="spider-pool" hidden>
+        {% for card in format_data.spider_card_entries %}
+        <li data-card-name="{{ card.name }}">
+            <a
+                class="spider-card-link"
+                href="{{ card.url }}"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Ouvrir {{ card.name }} dans la base officielle Yu-Gi-Oh! Neuron"
+            >{{ card.name }}</a>
+        </li>
+        {% endfor %}
+    </ol>
+</section>
+
+<script>
+(() => {
+    const normalize = (value) => String(value || "")
+        .toLocaleLowerCase("fr")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[’‘]/g, "'")
+        .replace(/[–—]/g, "-")
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim()
+        .replace(/\s+/g, " ");
+
+    const button = document.getElementById("spider-check-button");
+    const clearButton = document.getElementById("spider-clear-button");
+    const textarea = document.getElementById("spider-decklist");
+    const resultBox = document.getElementById("spider-check-result");
+
+    const escapeHtml = (value) => String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+
+    const checkLabel = (value) => {
+        if (value === true) return "✅";
+        if (value === false) return "❌";
+        return "➖";
+    };
+
+    button?.addEventListener("click", async () => {
+        const decklist = textarea.value.trim();
+        if (!decklist) {
+            resultBox.hidden = false;
+            resultBox.className = "format-check-result is-invalid";
+            resultBox.innerHTML = "<strong>❌ Colle d'abord une decklist.</strong>";
+            return;
+        }
+
+        button.disabled = true;
+        button.textContent = "Vérification…";
+        resultBox.hidden = false;
+        resultBox.className = "format-check-result";
+        resultBox.innerHTML = "<strong>Analyse de la decklist…</strong>";
+
+        try {
+            const response = await fetch("/api/formats/araignee/validate", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({decklist}),
+            });
+            const payload = await response.json();
+
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.error || "Validation impossible.");
+            }
+
+            const r = payload.result;
+            resultBox.className = `format-check-result ${r.valid ? "is-valid" : "is-invalid"}`;
+
+            const errors = (r.errors || []).map(
+                item => `<li>${escapeHtml(item)}</li>`
+            ).join("");
+            const warnings = (r.warnings || []).map(
+                item => `<li>${escapeHtml(item)}</li>`
+            ).join("");
+            const suggestions = (r.suggestions || []).map(
+                item => `<li><code>${escapeHtml(item.entered)}</code> → <strong>${escapeHtml(item.suggested)}</strong></li>`
+            ).join("");
+
+            resultBox.innerHTML = `
+                <div class="format-result-head">
+                    <strong>${r.valid ? "✅ Conforme aux contrôles automatiques" : "❌ Deck non conforme"}</strong>
+                    <small>Pool ${escapeHtml(payload.pool_revision)}</small>
+                </div>
+                <div class="format-score-grid">
+                    <span>${checkLabel(r.checks.main_deck_size)} Main <strong>${r.main_count}/40–60</strong></span>
+                    <span>${checkLabel(r.checks.spider_quota)} Araignée <strong>${r.spider_count}/10–15</strong></span>
+                    <span>${checkLabel(r.checks.extra_deck_size)} Extra <strong>${r.extra_count}/15</strong></span>
+                    <span>🆓 Side <strong>libre (${r.side_count})</strong></span>
+                    <span>${checkLabel(r.checks.default_copy_limit)} Copies ≤ 3</span>
+                </div>
+                ${errors ? `<h3>À corriger</h3><ul>${errors}</ul>` : ""}
+                ${suggestions ? `<h3>Noms proches du pool</h3><ul>${suggestions}</ul>` : ""}
+                ${warnings ? `<h3>À savoir</h3><ul class="format-warning-list">${warnings}</ul>` : ""}
+            `;
+        } catch (error) {
+            resultBox.className = "format-check-result is-invalid";
+            resultBox.innerHTML = `<strong>❌ ${escapeHtml(error.message || error)}</strong>`;
+        } finally {
+            button.disabled = false;
+            button.textContent = "Vérifier le deck";
+        }
+    });
+
+    clearButton?.addEventListener("click", () => {
+        textarea.value = "";
+        resultBox.hidden = true;
+        textarea.focus();
+    });
+
+    const search = document.getElementById("spider-search");
+    const list = document.getElementById("spider-pool");
+    const gallery = document.getElementById("spider-card-gallery");
+    const listEntries = [...document.querySelectorAll("#spider-pool li")];
+    const galleryEntries = [...document.querySelectorAll("#spider-card-gallery .spider-gallery-card")];
+    const count = document.getElementById("spider-search-count");
+    const viewButtons = [...document.querySelectorAll("[data-spider-view]")];
+
+    const applySearch = () => {
+        const query = normalize(search?.value || "");
+        let visible = 0;
+        for (const entry of galleryEntries) {
+            const name = entry.dataset.cardName || entry.textContent;
+            const match = !query || normalize(name).includes(query);
+            entry.hidden = !match;
+            if (match) visible += 1;
+        }
+        for (const entry of listEntries) {
+            const name = entry.dataset.cardName || entry.textContent;
+            entry.hidden = !!query && !normalize(name).includes(query);
+        }
+        count.textContent = `${visible} carte${visible > 1 ? "s" : ""} affichée${visible > 1 ? "s" : ""}`;
+    };
+
+    search?.addEventListener("input", applySearch);
+
+    viewButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            const view = button.dataset.spiderView;
+            const galleryMode = view === "gallery";
+            gallery.hidden = !galleryMode;
+            list.hidden = galleryMode;
+            viewButtons.forEach((item) => item.classList.toggle("is-active", item === button));
+            try { localStorage.setItem("hamtaroAraigneeView", view); } catch (_) {}
+        });
+    });
+
+    try {
+        const savedView = localStorage.getItem("hamtaroAraigneeView");
+        if (savedView === "list") {
+            document.querySelector('[data-spider-view="list"]')?.click();
+        }
+    } catch (_) {}
+})();
+</script>
+{% endblock %}
