@@ -835,6 +835,111 @@
       "api_name": "Gardna, Cyber Ombre",
       "language": "fr",
       "local_path": "web/static/araignee/cards/90440725.jpg"
+    },
+    "Toile d'Araignée": {
+      "status": "ok",
+      "card_id": 69408987,
+      "api_name": "Toile d'Araignée",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/69408987.jpg"
+    },
+    "Larves d'Araignées": {
+      "status": "ok",
+      "card_id": 56051648,
+      "api_name": "Larves d'Araignées",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/56051648.jpg"
+    },
+    "Insecte des Ténèbres": {
+      "status": "ok",
+      "card_id": 44341034,
+      "api_name": "Insecte des Ténèbres",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/44341034.jpg"
+    },
+    "Épine Krawler": {
+      "status": "ok",
+      "card_id": 88316955,
+      "api_name": "Épine Krawler",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/88316955.jpg"
+    },
+    "Qualiarche X-Krawler": {
+      "status": "ok",
+      "card_id": 92781606,
+      "api_name": "Qualiarche X-Krawler",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/92781606.jpg"
+    },
+    "Neurogos X-Krawler": {
+      "status": "ok",
+      "card_id": 66393507,
+      "api_name": "Neurogos X-Krawler",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/66393507.jpg"
+    },
+    "Krawler Croisédia": {
+      "status": "ok",
+      "card_id": 55838342,
+      "api_name": "Krawler Croisédia",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/55838342.jpg"
+    },
+    "Dendrite Krawler": {
+      "status": "ok",
+      "card_id": 46083111,
+      "api_name": "Dendrite Krawler",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/46083111.jpg"
+    },
+    "Deus X-Krawler": {
+      "status": "ok",
+      "card_id": 62587693,
+      "api_name": "Deus X-Krawler",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/62587693.jpg"
+    },
+    "Soma Krawler": {
+      "status": "ok",
+      "card_id": 63526052,
+      "api_name": "Soma Krawler",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/63526052.jpg"
+    },
+    "Récepteur Krawler": {
+      "status": "ok",
+      "card_id": 83293307,
+      "api_name": "Récepteur Krawler",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/83293307.jpg"
+    },
+    "Gliale Krawler": {
+      "status": "ok",
+      "card_id": 51205763,
+      "api_name": "Gliale Krawler",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/51205763.jpg"
+    },
+    "Axone Krawler": {
+      "status": "ok",
+      "card_id": 15710054,
+      "api_name": "Axone Krawler",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/15710054.jpg"
+    },
+    "Ranvier Krawler": {
+      "status": "ok",
+      "card_id": 10698416,
+      "api_name": "Ranvier Krawler",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/10698416.jpg"
+    },
+    "Tragoedia": {
+      "status": "ok",
+      "card_id": 98777036,
+      "api_name": "Tragoedia",
+      "language": "fr",
+      "local_path": "web/static/araignee/cards/98777036.jpg"
     }
   }
 }
