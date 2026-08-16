@@ -1,0 +1,250 @@
+/* Hamtaro — Catalogue filtrable du Format Araignée */
+.spider-catalog-controls {
+    margin: 1rem 0 1.15rem;
+    padding: 1rem;
+    border: 1px solid rgba(148, 163, 184, .2);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(15, 23, 42, .92), rgba(8, 15, 28, .9));
+    box-shadow: 0 16px 38px rgba(0, 0, 0, .18);
+}
+
+.spider-catalog-top,
+.spider-catalog-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem;
+    flex-wrap: wrap;
+}
+
+.spider-catalog-title {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+}
+
+.spider-catalog-title strong {
+    font-size: 1.02rem;
+}
+
+.spider-catalog-title small,
+.spider-catalog-status {
+    color: var(--muted, #aab4c7);
+}
+
+.spider-filter-reset {
+    appearance: none;
+    border: 1px solid rgba(148, 163, 184, .3);
+    background: rgba(255, 255, 255, .04);
+    color: inherit;
+    border-radius: 999px;
+    padding: .55rem .85rem;
+    cursor: pointer;
+    font: inherit;
+}
+
+.spider-filter-reset:hover,
+.spider-filter-reset:focus-visible {
+    border-color: rgba(250, 204, 21, .8);
+    outline: none;
+}
+
+.spider-type-filter {
+    display: flex;
+    gap: .45rem;
+    overflow-x: auto;
+    padding: .85rem 0 .7rem;
+    scrollbar-width: thin;
+}
+
+.spider-type-chip {
+    flex: 0 0 auto;
+    appearance: none;
+    border: 1px solid rgba(148, 163, 184, .24);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .035);
+    color: inherit;
+    padding: .48rem .72rem;
+    cursor: pointer;
+    font: inherit;
+    font-size: .9rem;
+    white-space: nowrap;
+}
+
+.spider-type-chip span {
+    display: inline-block;
+    min-width: 1.35rem;
+    margin-left: .25rem;
+    padding: .05rem .32rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .08);
+    font-size: .78rem;
+    color: var(--muted, #aab4c7);
+}
+
+.spider-type-chip.is-active {
+    border-color: rgba(250, 204, 21, .9);
+    background: rgba(250, 204, 21, .13);
+    box-shadow: inset 0 0 0 1px rgba(250, 204, 21, .12);
+}
+
+.spider-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
+    gap: .7rem;
+    margin-top: .25rem;
+}
+
+.spider-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: .32rem;
+}
+
+.spider-filter-field > span {
+    color: var(--muted, #aab4c7);
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.spider-filter-field select {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid rgba(148, 163, 184, .24);
+    border-radius: 11px;
+    background: rgba(2, 8, 23, .72);
+    color: inherit;
+    padding: .55rem .65rem;
+    font: inherit;
+}
+
+.spider-filter-field select:focus-visible {
+    outline: 2px solid rgba(250, 204, 21, .65);
+    outline-offset: 1px;
+}
+
+.spider-active-filters {
+    display: flex;
+    gap: .4rem;
+    flex-wrap: wrap;
+    min-height: 0;
+    margin-top: .7rem;
+}
+
+.spider-active-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .3rem .58rem;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, .11);
+    border: 1px solid rgba(96, 165, 250, .24);
+    color: #dbeafe;
+    font-size: .8rem;
+}
+
+.spider-catalog-bottom {
+    margin-top: .75rem;
+    padding-top: .7rem;
+    border-top: 1px solid rgba(148, 163, 184, .14);
+}
+
+.spider-sort-wrap {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    color: var(--muted, #aab4c7);
+    font-size: .86rem;
+}
+
+.spider-sort-wrap select {
+    border: 1px solid rgba(148, 163, 184, .24);
+    border-radius: 10px;
+    background: rgba(2, 8, 23, .72);
+    color: inherit;
+    padding: .4rem .55rem;
+}
+
+.spider-filter-empty {
+    margin: 1rem 0;
+    padding: 1.1rem;
+    border: 1px dashed rgba(148, 163, 184, .3);
+    border-radius: 14px;
+    text-align: center;
+    color: var(--muted, #aab4c7);
+}
+
+.spider-gallery-card .spider-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .28rem;
+    margin-top: .38rem;
+}
+
+.spider-gallery-card .spider-card-meta span {
+    padding: .18rem .38rem;
+    border-radius: 6px;
+    background: rgba(148, 163, 184, .09);
+    color: var(--muted, #aab4c7);
+    font-size: .68rem;
+    line-height: 1.2;
+}
+
+.spider-gallery-card[data-spider-primary="fusion"] { --spider-card-accent: #8b5cf6; }
+.spider-gallery-card[data-spider-primary="synchro"] { --spider-card-accent: #e2e8f0; }
+.spider-gallery-card[data-spider-primary="xyz"] { --spider-card-accent: #64748b; }
+.spider-gallery-card[data-spider-primary="link"] { --spider-card-accent: #2563eb; }
+.spider-gallery-card[data-spider-primary="ritual"] { --spider-card-accent: #38bdf8; }
+.spider-gallery-card[data-spider-primary="spell"] { --spider-card-accent: #10b981; }
+.spider-gallery-card[data-spider-primary="trap"] { --spider-card-accent: #d946ef; }
+.spider-gallery-card[data-spider-primary="normal"] { --spider-card-accent: #eab308; }
+.spider-gallery-card[data-spider-primary="effect"] { --spider-card-accent: #f97316; }
+.spider-gallery-card[data-spider-primary="pendulum"] { --spider-card-accent: #14b8a6; }
+
+.spider-gallery-card[data-spider-primary] {
+    position: relative;
+}
+
+.spider-gallery-card[data-spider-primary]::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    border-radius: 8px 0 0 8px;
+    background: var(--spider-card-accent, transparent);
+    opacity: .7;
+}
+
+@media (max-width: 980px) {
+    .spider-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 620px) {
+    .spider-catalog-controls {
+        margin-inline: -.15rem;
+        padding: .8rem;
+        border-radius: 14px;
+    }
+
+    .spider-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .spider-catalog-bottom {
+        align-items: stretch;
+    }
+
+    .spider-sort-wrap {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .spider-sort-wrap select {
+        flex: 1;
+        min-width: 0;
+    }
+}
