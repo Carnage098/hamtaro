@@ -79,6 +79,7 @@ class DeckBuilderRoutes:
                 "Fire King",
                 "D/D/D",
                 "P.U.N.K.",
+                "Rose Dragon",
             ],
         )
 

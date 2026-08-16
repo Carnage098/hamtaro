@@ -113,11 +113,11 @@ class DeckBuilderService:
         self.image_cache_path = Path(os.getenv("DECK_BUILDER_IMAGE_CACHE_PATH", str(default_images)))
         self.image_cache_path.mkdir(parents=True, exist_ok=True)
         self._last_card_fetch_dates: list[str] = []
-        self.cache_namespace = "v83"
+        self.cache_namespace = "v84"
         self._last_discovery_debug: dict[str, Any] = {}
         self.user_agent = os.getenv(
             "DECK_BUILDER_USER_AGENT",
-            "HamtaroDeckBuilder/8.3 (+public Yu-Gi-Oh TCG deck assistant)",
+            "HamtaroDeckBuilder/8.4 (+public Yu-Gi-Oh TCG deck assistant)",
         )
         self._init_db()
 
@@ -747,6 +747,68 @@ class DeckBuilderService:
                 urls.append(f"{YGOPRODECK_SITE}/category/type/{slug}")
         return urls
 
+
+    @staticmethod
+    def _signature_card_names(cards: Iterable[dict[str, Any]], query: str, *, limit: int = 4) -> list[str]:
+        """Choisit quelques cartes-signatures pour découvrir des decks mal indexés par nom.
+
+        Le but n'est pas d'inventer un core : ces noms servent uniquement à rechercher
+        des decklists contenant réellement des cartes de l'archétype demandé.
+        """
+        qid = DeckBuilderService._deck_identity(query)
+        scored: list[tuple[int, str]] = []
+        seen: set[str] = set()
+        for card in cards:
+            name = str(card.get("_source_name") or card.get("name") or "").strip()
+            if not name or name.casefold() in seen:
+                continue
+            seen.add(name.casefold())
+            archetype = str(card.get("archetype") or "").strip()
+            nid = DeckBuilderService._deck_identity(name)
+            aid = DeckBuilderService._deck_identity(archetype)
+            score = 0
+            if qid and aid == qid:
+                score += 120
+            elif qid and aid and (qid in aid or aid in qid):
+                score += 95
+            if qid and qid in nid:
+                score += 70
+            # Les monstres propres à l'archétype donnent généralement une recherche
+            # plus discriminante qu'une magie/piège générique portant un mot proche.
+            ctype = str(card.get("type") or "")
+            if "Monster" in ctype:
+                score += 15
+            if "Tuner" in ctype or "Synchro" in ctype or "Xyz" in ctype or "Link" in ctype or "Fusion" in ctype:
+                score += 5
+            if score > 0:
+                scored.append((score, name))
+        scored.sort(key=lambda item: (-item[0], len(item[1]), item[1].casefold()))
+        return [name for _score, name in scored[:max(1, limit)]]
+
+    async def _signature_discovery_urls(self, query: str, *, limit: int = 4) -> tuple[list[str], list[str]]:
+        """Construit des recherches YGOPRODeck par cartes-signatures.
+
+        Ce fallback couvre les familles dont le nom de deck est mal indexé (ex.
+        Rose Dragon) tout en restant universel : aucune decklist n'est codée en dur.
+        """
+        cards = await self.archetype_cards(query)
+        if not cards:
+            # Dernier secours : cartes TCG dont le nom contient la recherche.
+            url = f"{YGOPRODECK_API}/cardinfo.php?fname={quote_plus(query)}&misc=yes&format=tcg"
+            try:
+                payload = await self._fetch_json(url, ttl_hours=self.cache_hours)
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+                payload = {}
+            cards = list(payload.get("data") or []) if isinstance(payload, dict) else []
+        names = self._signature_card_names(cards, query, limit=limit)
+        urls: list[str] = []
+        for name in names:
+            encoded = quote_plus(name) + "%7C"
+            # deck-search.php reste utile même si /deck-search/ change de rendu.
+            urls.append(f"{YGOPRODECK_SITE}/deck-search.php?cardcode={encoded}&offset=0&tournament=tier-2")
+            urls.append(f"{YGOPRODECK_SITE}/deck-search.php?cardcode={encoded}&offset=0")
+        return names, urls
+
     @staticmethod
     def _extract_passcodes_from_section(section: str) -> list[int]:
         """Extrait les passcodes d'images de cartes dans une section de deck.
@@ -1190,6 +1252,38 @@ class DeckBuilderService:
                 return await self._deck_sample_from_url(url)
 
         loaded = await asyncio.gather(*(load(url) for url in links)) if links else []
+
+        # V8.4 : certains decks existent bien mais sont mal indexés par leur nom.
+        # Si le premier passage donne peu de pages exploitables, on repart de cartes
+        # propres à l'archétype et on cherche les decklists qui les contiennent.
+        primary_parsed = sum(1 for sample in loaded if sample is not None)
+        signature_names: list[str] = []
+        signature_urls: list[str] = []
+        signature_pages_ok = 0
+        signature_links_added = 0
+        if primary_parsed < min(4, limit):
+            signature_names, signature_urls = await self._signature_discovery_urls(clean, limit=4)
+            signature_urls = [url for url in signature_urls if url not in source_urls][:8]
+            signature_pages = await asyncio.gather(
+                *(self._fetch_text(url, ttl_hours=self.search_cache_hours) for url in signature_urls),
+                return_exceptions=True,
+            )
+            extra_links: list[str] = []
+            for page in signature_pages:
+                if isinstance(page, Exception):
+                    continue
+                signature_pages_ok += 1
+                for link in self._extract_deck_links(page):
+                    if link not in seen_urls:
+                        seen_urls.add(link)
+                        extra_links.append(link)
+            max_extra = max(limit * 3, limit)
+            extra_links = extra_links[:max_extra]
+            signature_links_added = len(extra_links)
+            if extra_links:
+                loaded.extend(await asyncio.gather(*(load(url) for url in extra_links)))
+                links.extend(extra_links)
+
         live: list[DeckSample] = []
         explicit_non_tcg = 0
         for sample in loaded:
@@ -1238,6 +1332,11 @@ class DeckBuilderService:
             "query_variants": variants,
             "deck_links_found": len(links),
             "deck_pages_parsed": sum(1 for sample in loaded if sample is not None),
+            "signature_fallback_used": bool(signature_urls),
+            "signature_cards": signature_names,
+            "signature_pages_requested": len(signature_urls),
+            "signature_pages_loaded": signature_pages_ok,
+            "signature_deck_links_added": signature_links_added,
             "explicit_non_tcg_ignored": explicit_non_tcg,
             "tcg_incompatible_ignored": card_incompatible,
             "live_tcg_decks": len(tcg_compatible),
