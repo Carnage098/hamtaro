@@ -89,12 +89,14 @@
       "badge": "Champion Spiderman",
       "badge_description": "Une distinction unique réservée au vainqueur du tournoi Spiderman.",
       "source_master": "Meshy_AI_trophy_spiderman_mask_0816010747_image-to-3d-texture.glb",
-      "web_build": "original-glb",
+      "web_build": "full-glb + lightweight-preview",
       "award_match": [
         "Spiderman",
         "Spider-Man",
         "Spider Man"
-      ]
+      ],
+      "preview_model_path": "/static/models/trophies/ht-003-spiderman-preview.glb?v=20260816-web-2",
+      "preview_model_size_mb": 5.7
     }
   ]
 }

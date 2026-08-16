@@ -3235,11 +3235,23 @@ td a {
 /* ===== HAMTARO FORMAT ARAIGNEE END ===== */
 
 /* ===== HAMTARO SPIDERMAN TROPHY START ===== */
-.format-trophy-preview{position:relative;min-height:260px;border:1px solid rgba(255,255,255,.12);border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 25%,rgba(205,44,70,.20),transparent 48%),rgba(255,255,255,.035);padding:0;display:grid;grid-template-rows:minmax(190px,1fr) auto}
-.format-trophy-preview-viewer{position:relative;min-height:190px;background:radial-gradient(circle,rgba(255,255,255,.06),transparent 65%)}
-.format-trophy-preview model-viewer{width:100%;height:100%;min-height:190px;display:block;background:transparent}
-.format-trophy-preview-copy{padding:.9rem 1rem 1rem;display:flex;align-items:flex-end;justify-content:space-between;gap:.8rem}.format-trophy-preview-copy h2{font-size:1rem;margin:.18rem 0 .25rem}.format-trophy-preview-copy p{margin:0;opacity:.72;font-size:.82rem}
+.format-trophy-preview{position:relative;min-height:300px;border:1px solid rgba(255,255,255,.12);border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 22%,rgba(205,44,70,.18),transparent 45%),rgba(255,255,255,.035);padding:0;display:grid;grid-template-rows:minmax(210px,1fr) auto}
+.format-trophy-preview-viewer{position:relative;min-height:210px;overflow:hidden;background:radial-gradient(circle at 50% 48%,rgba(255,255,255,.055),transparent 58%)}
+.format-trophy-preview model-viewer{width:100%;height:100%;min-height:210px;display:block;background:transparent;opacity:0;transition:opacity .35s ease}
+.format-trophy-preview model-viewer.is-ready{opacity:1}
+.spiderman-model-loading,.spiderman-model-error{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.55rem;padding:1rem;text-align:center;background:radial-gradient(circle at 50% 45%,rgba(171,35,62,.16),transparent 45%)}
+.spiderman-model-loading[hidden],.spiderman-model-error[hidden]{display:none}
+.spiderman-model-spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.18);border-top-color:rgba(255,255,255,.88);animation:spiderman-spin .85s linear infinite}
+@keyframes spiderman-spin{to{transform:rotate(360deg)}}
+.spiderman-model-loading strong,.spiderman-model-error strong{font-size:.92rem}
+.spiderman-model-progress{font-size:.75rem;opacity:.62;font-variant-numeric:tabular-nums}
+.spiderman-model-error p{margin:0;max-width:28rem;font-size:.78rem;opacity:.68}
+.format-trophy-preview-copy{padding:.9rem 1rem 1rem;display:flex;align-items:flex-end;justify-content:space-between;gap:.8rem;border-top:1px solid rgba(255,255,255,.075);background:linear-gradient(180deg,rgba(12,13,18,.15),rgba(12,13,18,.76))}
+.format-trophy-preview-copy h2{font-size:1rem;margin:.18rem 0 .25rem}.format-trophy-preview-copy p{margin:0;opacity:.72;font-size:.82rem}
 .format-trophy-preview-actions{display:flex;gap:.45rem;flex-wrap:wrap;justify-content:flex-end}.format-trophy-preview-button{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:inherit;border-radius:10px;padding:.48rem .68rem;cursor:pointer;text-decoration:none;font:inherit;font-size:.78rem}.format-trophy-preview-button:hover{background:rgba(255,255,255,.12)}
-.spiderman-trophy-dialog{width:min(900px,94vw);height:min(760px,88vh);padding:0;border:1px solid rgba(255,255,255,.15);border-radius:22px;background:#101116;color:inherit;overflow:hidden}.spiderman-trophy-dialog::backdrop{background:rgba(0,0,0,.78);backdrop-filter:blur(5px)}.spiderman-trophy-dialog-head{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem;border-bottom:1px solid rgba(255,255,255,.1)}.spiderman-trophy-dialog-close{border:0;background:transparent;color:inherit;font-size:1.4rem;cursor:pointer}.spiderman-trophy-dialog model-viewer{width:100%;height:calc(88vh - 60px);max-height:700px;background:radial-gradient(circle at center,rgba(180,26,52,.12),transparent 60%)}
-@media(max-width:680px){.format-trophy-preview{min-height:230px}.format-trophy-preview-copy{align-items:flex-start;flex-direction:column}.spiderman-trophy-dialog model-viewer{height:75vh}}
+.spiderman-trophy-dialog{width:min(900px,94vw);height:min(760px,88vh);padding:0;border:1px solid rgba(255,255,255,.15);border-radius:22px;background:#101116;color:inherit;overflow:hidden}.spiderman-trophy-dialog::backdrop{background:rgba(0,0,0,.78);backdrop-filter:blur(5px)}
+.spiderman-trophy-dialog-head{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem;border-bottom:1px solid rgba(255,255,255,.1)}.spiderman-trophy-dialog-close{border:0;background:transparent;color:inherit;font-size:1.4rem;cursor:pointer}
+.spiderman-trophy-dialog-body{position:relative;height:calc(88vh - 60px);max-height:700px;min-height:320px}.spiderman-trophy-dialog model-viewer{width:100%;height:100%;background:radial-gradient(circle at center,rgba(180,26,52,.12),transparent 60%)}
+.spiderman-dialog-loading{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:.6rem;pointer-events:none;background:rgba(16,17,22,.72)}.spiderman-dialog-loading[hidden]{display:none}
+@media(max-width:680px){.format-trophy-preview{min-height:260px;grid-template-rows:minmax(180px,1fr) auto}.format-trophy-preview-viewer,.format-trophy-preview model-viewer{min-height:180px}.format-trophy-preview-copy{align-items:flex-start;flex-direction:column}.spiderman-trophy-dialog-body{height:75vh}}
 /* ===== HAMTARO SPIDERMAN TROPHY END ===== */
