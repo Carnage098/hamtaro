@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from collections import defaultdict, deque
 from pathlib import Path
@@ -131,6 +132,49 @@ class DeckBuilderRoutes:
         return result
 
     @staticmethod
+    def _printing_selections(payload: Any) -> dict[int, str]:
+        if not isinstance(payload, dict):
+            return {}
+        result: dict[int, str] = {}
+        for card_id, item in list(payload.items())[:30]:
+            try:
+                cid = int(card_id)
+            except (TypeError, ValueError):
+                continue
+            if cid <= 0 or not isinstance(item, dict):
+                continue
+            printing_id = str(item.get("printing_id") or "").strip()
+            if printing_id:
+                result[cid] = printing_id[:220]
+        return result
+
+    async def _resolve_printing_selections(self, payload: Any) -> dict[int, dict[str, Any]]:
+        selections = self._printing_selections(payload)
+        if not selections:
+            return {}
+
+        async def one(card_id: int, printing_id: str) -> tuple[int, dict[str, Any] | None]:
+            try:
+                data = await self.service.card_printings(card_id)
+            except Exception:
+                return card_id, None
+            match = next((row for row in data.get("printings") or [] if str(row.get("printing_id") or "") == printing_id), None)
+            if not match or match.get("price_eur") is None:
+                return card_id, None
+            return card_id, {
+                "printing_id": printing_id,
+                "set_name": match.get("set_name"),
+                "set_code": match.get("set_code"),
+                "rarity": match.get("rarity"),
+                "price_eur": float(match["price_eur"]),
+                "price_source": match.get("price_source"),
+                "market_url": match.get("market_url"),
+            }
+
+        resolved = await asyncio.gather(*(one(cid, pid) for cid, pid in selections.items()))
+        return {cid: row for cid, row in resolved if row is not None}
+
+    @staticmethod
     def _locked_cards(payload: Any) -> dict[str, dict[int, int]]:
         result: dict[str, dict[int, int]] = {"main": {}, "extra": {}, "side": {}}
         if not isinstance(payload, dict):
@@ -212,6 +256,7 @@ class DeckBuilderRoutes:
         except (TypeError, ValueError):
             days = None
         try:
+            printing_selections = await self._resolve_printing_selections(body.get("selected_printings"))
             payload = await self.service.generate(
                 query,
                 mode=mode,
@@ -224,6 +269,7 @@ class DeckBuilderRoutes:
                 locked_cards=self._locked_cards(body.get("locked_cards")),
                 excluded_cards=self._excluded_cards(body.get("excluded_cards")),
                 freespot_profile=str(body.get("freespot_profile") or "auto").strip().lower(),
+                printing_selections=printing_selections,
             )
         except ValueError as exc:
             return web.json_response({"error": str(exc)}, status=400)
@@ -298,6 +344,20 @@ class DeckBuilderRoutes:
             return web.json_response({"error": str(exc)}, status=400)
         return web.json_response(payload, headers={"Cache-Control": "no-store"})
 
+    async def printings(self, request: web.Request) -> web.Response:
+        self._rate_limit(request, scope="printings", max_calls=24)
+        try:
+            card_id = int(request.query.get("card_id") or 0)
+        except (TypeError, ValueError):
+            card_id = 0
+        if card_id <= 0:
+            return web.json_response({"error": "Carte invalide."}, status=400)
+        try:
+            payload = await self.service.card_printings(card_id)
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        return web.json_response(payload, headers={"Cache-Control": "no-store"})
+
     async def card_image(self, request: web.Request) -> web.StreamResponse:
         self._rate_limit(request, scope="images", max_calls=90)
         try:
@@ -317,7 +377,7 @@ class DeckBuilderRoutes:
             {
                 "status": "ok",
                 "service": "hamtaro-deck-builder",
-                "version": 8,
+                "version": "8.2",
                 "page": "/deck-builder",
                 "price_source": "Cardmarket data via YGOPRODeck",
                 "card_language": self.service.card_language,
@@ -355,6 +415,9 @@ class DeckBuilderRoutes:
                     "freespot-generation-profiles",
                     "deck-specific-handtrap-spell-trap-radar",
                     "explicit-sqlite-connection-closing",
+                    "rarity-and-printing-selector",
+                    "per-printing-price-display",
+                    "cardmarket-version-floor-fallback",
                 ],
             },
             headers={"Cache-Control": "no-store"},
@@ -372,6 +435,7 @@ def register_deck_builder_routes(application: web.Application, website_cog: Any)
     application.router.add_post("/api/deck-builder/compare", routes.compare)
     application.router.add_get("/api/deck-builder/alternatives", routes.alternatives)
     application.router.add_get("/api/deck-builder/synergy", routes.synergy)
+    application.router.add_get("/api/deck-builder/printings", routes.printings)
     application.router.add_get(r"/api/deck-builder/card-image/{card_id:\d+}.jpg", routes.card_image)
     application.router.add_get("/api/deck-builder/health", routes.health)
     return routes

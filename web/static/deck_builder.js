@@ -15,6 +15,22 @@
         if (value === null || value === undefined || Number.isNaN(Number(value))) return 'Prix inconnu';
         return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(Number(value));
     };
+    const moneyUsd = (value) => {
+        if (value === null || value === undefined || Number.isNaN(Number(value))) return 'Prix inconnu';
+        return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD' }).format(Number(value));
+    };
+    const selectedPrinting = (cardId) => state.printingSelections?.[String(cardId)] || null;
+    const effectivePriceEur = (row) => {
+        const selected = selectedPrinting(row.id);
+        if (selected?.price_eur !== null && selected?.price_eur !== undefined) return Number(selected.price_eur);
+        return row.cardmarket_price === null || row.cardmarket_price === undefined ? null : Number(row.cardmarket_price);
+    };
+    const effectivePriceLabel = (row) => {
+        const selected = selectedPrinting(row.id);
+        if (selected?.price_eur !== null && selected?.price_eur !== undefined) return money(selected.price_eur);
+        if (selected?.price_usd_fallback !== null && selected?.price_usd_fallback !== undefined) return `${moneyUsd(selected.price_usd_fallback)} · secours`;
+        return row.cardmarket_price === null ? 'Inconnu' : money(row.cardmarket_price);
+    };
     const frDate = (value) => {
         if (!value) return '—';
         const parts = String(value).split('-').map(Number);
@@ -25,6 +41,7 @@
     const ownedKey = 'hamtaro-deck-builder-owned-v8';
     const previousOwnedKey = 'hamtaro-deck-builder-owned-v7';
     const constraintsKey = 'hamtaro-deck-builder-constraints-v8';
+    const printingsKey = 'hamtaro-deck-builder-printings-v82';
     const emptyZones = () => ({ main: {}, extra: {}, side: {} });
     const emptyExcluded = () => ({ main: [], extra: [], side: [] });
     const state = {
@@ -39,6 +56,8 @@
         owned: {},
         locked: emptyZones(),
         excluded: emptyExcluded(),
+        printingSelections: {},
+        activeRarity: 'all',
         requestSerial: 0,
     };
 
@@ -61,8 +80,14 @@
         state.locked = emptyZones();
         state.excluded = emptyExcluded();
     }
+    try {
+        state.printingSelections = JSON.parse(localStorage.getItem(printingsKey) || '{}') || {};
+    } catch (_) {
+        state.printingSelections = {};
+    }
     const saveOwned = () => localStorage.setItem(ownedKey, JSON.stringify(state.owned));
     const saveConstraints = () => localStorage.setItem(constraintsKey, JSON.stringify({ locked: state.locked, excluded: state.excluded }));
+    const savePrintings = () => localStorage.setItem(printingsKey, JSON.stringify(state.printingSelections));
 
     const els = {
         form: $('[data-db-search-form]'),
@@ -125,6 +150,12 @@
         alternativesNote: $('[data-db-alternatives-note]'),
         alternativesGrid: $('[data-db-alternatives-grid]'),
         closeAlternatives: $('[data-db-close-alternatives]'),
+        printingsPanel: $('[data-db-printings-panel]'),
+        printingsTitle: $('[data-db-printings-title]'),
+        printingsNote: $('[data-db-printings-note]'),
+        rarityFilter: $('[data-db-rarity-filter]'),
+        printingsGrid: $('[data-db-printings-grid]'),
+        closePrintings: $('[data-db-close-printings]'),
         synergyPanel: $('[data-db-synergy-panel]'),
         synergyTitle: $('[data-db-synergy-title]'),
         synergyNote: $('[data-db-synergy-note]'),
@@ -151,6 +182,7 @@
         sourceCount: $('[data-db-source-count]'),
         sources: $('[data-db-sources]'),
         degraded: $('[data-db-degraded]'),
+        discoveryDebug: $('[data-db-discovery-debug]'),
         fallbackGrid: $('[data-db-fallback-grid]'),
         compareInput: $('[data-db-compare-input]'),
         compareFile: $('[data-db-compare-file]'),
@@ -382,12 +414,94 @@
         return `<small class="db-price-trend ${cls}">${sign}${esc(value)} % sur 7 j</small>`;
     };
 
+    const showPrintings = async (row) => {
+        els.printingsPanel.hidden = false;
+        els.synergyPanel.hidden = true;
+        els.alternativesPanel.hidden = true;
+        els.printingsTitle.textContent = `${row.name} · raretés & éditions`;
+        els.printingsNote.textContent = 'Chargement des impressions et prix disponibles…';
+        els.printingsGrid.innerHTML = '<div class="db-state-card"><span>Recherche des impressions…</span></div>';
+        els.rarityFilter.innerHTML = '';
+        state.activeRarity = 'all';
+        try {
+            const payload = await fetchJson(`/api/deck-builder/printings?card_id=${encodeURIComponent(row.id)}`);
+            const values = payload.printings || [];
+            const rarities = payload.rarities || [];
+            const eurValues = values.filter((item) => item.price_eur !== null && item.price_eur !== undefined).map((item) => Number(item.price_eur));
+            const cheapestEur = eurValues.length ? Math.min(...eurValues) : null;
+            els.printingsNote.textContent = payload.note || '';
+            els.rarityFilter.innerHTML = [
+                `<button type="button" data-db-reset-printing>Prix auto · ${payload.default_cardmarket_price == null ? 'inconnu' : esc(money(payload.default_cardmarket_price))}</button>`,
+                `<button type="button" class="is-active" data-db-rarity="all">Toutes · ${values.length}</button>`,
+                ...rarities.map((rarity) => {
+                    const count = values.filter((item) => item.rarity === rarity).length;
+                    return `<button type="button" data-db-rarity="${esc(rarity)}">${esc(rarity)} · ${count}</button>`;
+                }),
+            ].join('');
+            const renderPrintingRows = () => {
+                const selected = selectedPrinting(row.id);
+                const filtered = state.activeRarity === 'all' ? values : values.filter((item) => item.rarity === state.activeRarity);
+                els.printingsGrid.innerHTML = filtered.length ? filtered.map((item) => {
+                    const isSelected = selected?.printing_id === item.printing_id;
+                    const euro = item.price_eur !== null && item.price_eur !== undefined;
+                    const fallback = item.price_usd_fallback !== null && item.price_usd_fallback !== undefined;
+                    const price = euro ? money(item.price_eur) : (fallback ? moneyUsd(item.price_usd_fallback) : 'Prix inconnu');
+                    const priceClass = euro ? 'is-cardmarket' : (fallback ? 'is-fallback' : 'is-unknown');
+                    const isBestEur = euro && cheapestEur !== null && Number(item.price_eur) === cheapestEur;
+                    return `<article class="db-printing-card ${isSelected ? 'is-selected' : ''}" data-printing-id="${esc(item.printing_id)}">
+                        <div class="db-printing-head"><span class="db-pill">${esc(item.rarity || 'Rareté non précisée')}</span>${item.rarity_code ? `<small>${esc(item.rarity_code)}</small>` : ''}${isBestEur ? '<span class="db-printing-best">Meilleur prix EUR</span>' : ''}</div>
+                        <strong>${esc(item.set_name || 'Édition inconnue')}</strong>
+                        <small>${item.set_code ? esc(item.set_code) : 'Code de set non attribué'}</small>
+                        <div class="db-printing-price ${priceClass}"><span>${euro ? 'Cardmarket' : 'Prix impression'}</span><b>${esc(price)}</b></div>
+                        <small>${esc(item.price_source || '')}</small>
+                        ${item.available !== null && item.available !== undefined ? `<small>${esc(item.available)} exemplaire(s) disponibles au relevé</small>` : ''}
+                        <div class="db-printing-actions"><button type="button" data-db-select-printing>${isSelected ? '✓ Sélectionnée' : 'Utiliser cette édition'}</button><a href="${esc(item.market_url)}" target="_blank" rel="noopener noreferrer">Voir sur Cardmarket</a></div>
+                    </article>`;
+                }).join('') : '<div class="db-state-card"><strong>Aucune impression dans ce filtre.</strong></div>';
+            };
+            els.rarityFilter.onclick = (event) => {
+                const reset = event.target.closest('[data-db-reset-printing]');
+                if (reset) {
+                    delete state.printingSelections[String(row.id)];
+                    savePrintings();
+                    renderPrintingRows();
+                    renderCards();
+                    refreshGeneratedPrintingPrices();
+                    return;
+                }
+                const button = event.target.closest('[data-db-rarity]');
+                if (!button) return;
+                state.activeRarity = button.dataset.dbRarity || 'all';
+                [...els.rarityFilter.querySelectorAll('[data-db-rarity]')].forEach((node) => node.classList.toggle('is-active', node === button));
+                renderPrintingRows();
+            };
+            els.printingsGrid.onclick = (event) => {
+                const button = event.target.closest('[data-db-select-printing]');
+                const card = event.target.closest('[data-printing-id]');
+                if (!button || !card) return;
+                const item = values.find((candidate) => candidate.printing_id === card.dataset.printingId);
+                if (!item) return;
+                state.printingSelections[String(row.id)] = { printing_id: item.printing_id, set_name: item.set_name, set_code: item.set_code, rarity: item.rarity, price_eur: item.price_eur, price_usd_fallback: item.price_usd_fallback, price_source: item.price_source, market_url: item.market_url };
+                savePrintings();
+                renderPrintingRows();
+                renderCards();
+                refreshGeneratedPrintingPrices();
+            };
+            renderPrintingRows();
+        } catch (error) {
+            els.printingsNote.textContent = error.message || 'Impossible de charger les impressions.';
+            els.printingsGrid.innerHTML = '<div class="db-state-card"><span>Les raretés restent indisponibles pour cette carte.</span></div>';
+        }
+        els.printingsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
     const cardRow = (row) => {
         const owned = ownedQty(row.id);
         const recommended = Number(row.recommended_copies || 0);
         const distribution = Object.entries(row.copy_distribution_pct || {})
             .map(([qty, pct]) => `×${qty}: ${pct}%`).join(' · ');
-        const price = row.cardmarket_price === null ? 'Inconnu' : money(row.cardmarket_price);
+        const printing = selectedPrinting(row.id);
+        const price = effectivePriceLabel(row);
         const img = row.image_url
             ? `<img class="db-card-image" src="${esc(row.image_url)}" loading="lazy" alt="${esc(row.name)}">`
             : `<span class="db-card-image" aria-hidden="true"></span>`;
@@ -409,6 +523,7 @@
                     <div class="db-card-links">
                         <a href="${esc(row.cardmarket_url)}" target="_blank" rel="noopener noreferrer">Cardmarket</a>
                         <a href="${esc(row.neuron_url)}" target="_blank" rel="noopener noreferrer">Neuron</a>
+                        ${row.relation === 'archetype' ? '<button type="button" data-db-find-printings>Raretés / éditions</button>' : ''}
                         <button type="button" data-db-find-alternatives>Alternatives</button>
                     <button type="button" data-db-find-synergy>Souvent jouée avec…</button>
                     </div>
@@ -435,6 +550,7 @@
                 <div class="db-stat db-price-stat">
                     <span>Prix / carte</span>
                     <strong>${esc(price)}</strong>
+                    ${printing ? `<small class="db-selected-printing">${esc(printing.rarity || '')}${printing.set_code ? ` · ${esc(printing.set_code)}` : ''}</small>` : ''}
                     ${trendMarkup(row)}
                 </div>
                 <div class="db-owned-control" title="Quantité que tu possèdes">
@@ -483,8 +599,9 @@
                 ownedCopies += have;
                 const missing = Math.max(0, target - have);
                 if (!missing) return;
-                if (row.cardmarket_price === null || row.cardmarket_price === undefined) unknown += 1;
-                else remainingKnown += Number(row.cardmarket_price) * missing;
+                const effective = effectivePriceEur(row);
+                if (effective === null || Number.isNaN(effective)) unknown += 1;
+                else remainingKnown += effective * missing;
             });
         });
         els.ownedSummary.hidden = ownedCopies === 0;
@@ -511,10 +628,20 @@
     const renderFallback = () => {
         const cards = state.analysis?.fallback_archetype_cards || [];
         els.degraded.hidden = !state.analysis?.degraded;
+        const discovery = state.analysis?.discovery || {};
+        if (els.discoveryDebug) {
+            const requested = Number(discovery.source_pages_requested || 0);
+            const loaded = Number(discovery.source_pages_loaded || 0);
+            const links = Number(discovery.deck_links_found || 0);
+            const parsed = Number(discovery.deck_pages_parsed || 0);
+            els.discoveryDebug.textContent = state.analysis?.degraded
+                ? `Diagnostic source : ${loaded}/${requested} page(s) chargée(s) · ${links} lien(s) de deck trouvé(s) · ${parsed} deck(s) parsé(s).`
+                : '';
+        }
         els.fallbackGrid.innerHTML = cards.map((card) => `
-            <article class="db-fallback-card">
+            <article class="db-fallback-card" data-fallback-card-id="${esc(card.id)}">
                 ${card.image_url ? `<img src="${esc(card.image_url)}" loading="lazy" alt="${esc(card.name)}">` : '<span></span>'}
-                <div><strong>${esc(card.name)}</strong><small>${esc(card.zone)} · ${card.cardmarket_price === null ? 'Prix inconnu' : money(card.cardmarket_price)}</small></div>
+                <div><strong>${esc(card.name)}</strong><small>${esc(card.zone)} · ${effectivePriceLabel(card)}</small><button type="button" data-db-fallback-printings>Raretés / éditions</button></div>
             </article>`).join('');
     };
 
@@ -586,13 +713,81 @@
         if (!state.generated) els.generatedPanel.hidden = true;
     };
 
+    const generatedLinePrices = (row) => {
+        const copies = Math.max(0, Number(row.copies || 0));
+        const owned = Math.min(copies, Math.max(0, ownedQty(row.id)));
+        const missing = Math.max(0, copies - owned);
+        const selected = selectedPrinting(row.id);
+        const selectedEur = selected?.price_eur !== null && selected?.price_eur !== undefined ? Number(selected.price_eur) : null;
+        const baseEur = row.cardmarket_price !== null && row.cardmarket_price !== undefined ? Number(row.cardmarket_price) : null;
+        const unit = selectedEur ?? baseEur;
+        return {
+            line: unit === null ? null : Math.round(unit * copies * 100) / 100,
+            purchase: unit === null ? null : Math.round(unit * missing * 100) / 100,
+            selected: selectedEur !== null,
+            selectedLabel: selectedEur !== null ? [selected?.rarity, selected?.set_code].filter(Boolean).join(' · ') : '',
+        };
+    };
+
+    const generatedPriceTotals = (deck) => {
+        let total = 0;
+        let purchase = 0;
+        let unknown = 0;
+        let unknownPurchase = 0;
+        let selectedLines = 0;
+        ['main', 'extra', 'side'].forEach((zone) => {
+            (deck?.[zone] || []).forEach((row) => {
+                const prices = generatedLinePrices(row);
+                if (prices.line === null) unknown += 1; else total += prices.line;
+                if (prices.purchase === null) unknownPurchase += 1; else purchase += prices.purchase;
+                if (prices.selected) selectedLines += 1;
+            });
+        });
+        return {
+            total: Math.round(total * 100) / 100,
+            purchase: Math.round(purchase * 100) / 100,
+            unknown,
+            unknownPurchase,
+            selectedLines,
+        };
+    };
+
+    const refreshGeneratedPrintingPrices = () => {
+        const d = state.generated;
+        if (!d || !els.generatedPanel || els.generatedPanel.hidden) return;
+        const adjusted = generatedPriceTotals(d);
+        els.generatedPrice.textContent = adjusted.unknown
+            ? `${money(adjusted.total)} + ${adjusted.unknown} inconnu(s)`
+            : money(adjusted.total);
+        els.generatedPurchase.textContent = adjusted.unknownPurchase
+            ? `${money(adjusted.purchase)} + ${adjusted.unknownPurchase} inconnu(s)`
+            : money(adjusted.purchase);
+        els.generatedSavings.textContent = money(Math.max(0, adjusted.total - adjusted.purchase));
+        els.generatedZones.innerHTML = [
+            generatedZone('Main Deck', d.main || []),
+            generatedZone('Extra Deck', d.extra || []),
+            generatedZone('Side Deck', d.side || []),
+        ].join('');
+        const suffix = adjusted.selectedLines ? ` · ${adjusted.selectedLines} édition(s) choisie(s)` : '';
+        els.generatedPrice.title = `Prix recalculé avec les éditions sélectionnées${suffix}.`;
+        els.generatedPurchase.title = `Reste à acheter recalculé avec les éditions sélectionnées${suffix}.`;
+        if (d.budget !== null && d.budget !== undefined && !adjusted.unknownPurchase) {
+            const over = Math.round(Math.max(0, adjusted.purchase - Number(d.budget)) * 100) / 100;
+            els.generatedNote.textContent = over > 0
+                ? `Avec les éditions choisies, le coût restant dépasse ton budget de ${money(over)}.`
+                : `Avec les éditions choisies, le coût restant rentre dans ton budget de ${money(d.budget)}.`;
+        }
+    };
+
     const generatedZone = (title, rows) => `
         <section class="db-generated-zone">
             <h4>${esc(title)}</h4>
             <ul>${rows.map((row) => {
-                const line = row.line_price === null ? '—' : money(row.line_price);
-                const purchase = row.purchase_price === null ? '—' : money(row.purchase_price);
-                return `<li><strong>×${esc(row.copies)}</strong><span>${esc(row.name)}</span><span title="Valeur totale : ${esc(line)}">${esc(purchase)}</span></li>`;
+                const prices = generatedLinePrices(row);
+                const line = prices.line === null ? '—' : money(prices.line);
+                const purchase = prices.purchase === null ? '—' : money(prices.purchase);
+                const edition = prices.selectedLabel ? `<small class="db-generated-printing">${esc(prices.selectedLabel)}</small>` : '';
+                return `<li><strong>×${esc(row.copies)}</strong><span>${esc(row.name)}${edition}</span><span title="Valeur totale : ${esc(line)}">${esc(purchase)}</span></li>`;
             }).join('')}</ul>
         </section>`;
 
@@ -786,13 +981,19 @@
         els.generatedMainCount.textContent = `${d.main_count} / 40`;
         els.generatedExtraCount.textContent = `${d.extra_count} / 15`;
         els.generatedSideCount.textContent = `${d.side_count} / 15`;
-        els.generatedPrice.textContent = d.unknown_price_lines
-            ? `${money(d.known_total_price)} + ${d.unknown_price_lines} inconnu(s)`
-            : money(d.known_total_price);
-        els.generatedPurchase.textContent = d.unknown_purchase_lines
-            ? `${money(d.known_purchase_price)} + ${d.unknown_purchase_lines} inconnu(s)`
-            : money(d.known_purchase_price);
-        els.generatedSavings.textContent = money(d.owned_savings || 0);
+        const adjustedPrices = generatedPriceTotals(d);
+        els.generatedPrice.textContent = adjustedPrices.unknown
+            ? `${money(adjustedPrices.total)} + ${adjustedPrices.unknown} inconnu(s)`
+            : money(adjustedPrices.total);
+        els.generatedPurchase.textContent = adjustedPrices.unknownPurchase
+            ? `${money(adjustedPrices.purchase)} + ${adjustedPrices.unknownPurchase} inconnu(s)`
+            : money(adjustedPrices.purchase);
+        els.generatedSavings.textContent = adjustedPrices.unknown || adjustedPrices.unknownPurchase
+            ? money(Math.max(0, adjustedPrices.total - adjustedPrices.purchase))
+            : money(Math.max(0, adjustedPrices.total - adjustedPrices.purchase));
+        const selectedSuffix = adjustedPrices.selectedLines ? ` · ${adjustedPrices.selectedLines} édition(s) choisie(s)` : '';
+        els.generatedPrice.title = `Prix recalculé avec les éditions sélectionnées${selectedSuffix}.`;
+        els.generatedPurchase.title = `Reste à acheter recalculé avec les éditions sélectionnées${selectedSuffix}.`;
         renderWarnings(payload.generation_warnings || [], els.generationWarnings);
         renderBudgetChanges(d.budget_substitutions || []);
         renderLegality(d.legality);
@@ -852,6 +1053,7 @@
             owned_cards: state.owned,
             locked_cards: state.locked,
             excluded_cards: state.excluded,
+            selected_printings: state.printingSelections,
         };
     };
 
@@ -1045,6 +1247,10 @@
             renderCards();
             return;
         }
+        if (event.target.closest('[data-db-find-printings]')) {
+            showPrintings(dataRow);
+            return;
+        }
         if (event.target.closest('[data-db-find-alternatives]')) {
             showAlternatives(dataRow);
             return;
@@ -1052,6 +1258,14 @@
         if (event.target.closest('[data-db-find-synergy]')) {
             showSynergy(dataRow);
         }
+    });
+
+    els.fallbackGrid.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-db-fallback-printings]');
+        const card = event.target.closest('[data-fallback-card-id]');
+        if (!button || !card) return;
+        const row = (state.analysis?.fallback_archetype_cards || []).find((item) => String(item.id) === String(card.dataset.fallbackCardId));
+        if (row) showPrintings(row);
     });
 
     els.freespotCategories.addEventListener('click', (event) => {
@@ -1134,6 +1348,7 @@
         button.textContent = 'Package verrouillé ✓';
     });
     els.closeSynergy.addEventListener('click', () => { els.synergyPanel.hidden = true; });
+    els.closePrintings.addEventListener('click', () => { els.printingsPanel.hidden = true; });
 
     els.resetConstraints.addEventListener('click', () => {
         state.locked = emptyZones();
