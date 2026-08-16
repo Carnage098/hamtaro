@@ -3126,21 +3126,4 @@ td a {
     .format-search { width: 100%; }
     .format-version-box { text-align: left; }
 }
-
-.spider-card-link{
-    color:inherit;
-    text-decoration:none;
-    border-bottom:1px dashed rgba(255,255,255,.28);
-}
-.spider-card-link:hover,
-.spider-card-link:focus-visible{
-    border-bottom-style:solid;
-    text-decoration:none;
-}
-.spider-card-link::after{
-    content:" ↗";
-    opacity:.55;
-    font-size:.82em;
-}
-
 /* ===== HAMTARO FORMAT ARAIGNEE END ===== */

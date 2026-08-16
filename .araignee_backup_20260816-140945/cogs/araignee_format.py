@@ -41,7 +41,7 @@ class AraigneeFormatCog(commands.Cog):
         embed.add_field(
             name="Main Deck",
             value=(
-                f"• **{main['min_cards']} à {main['max_cards']} cartes**\n"
+                f"• exactement **{main['exact_cards']} cartes**\n"
                 f"• **{main['spider_min']} à {main['spider_max']}** cartes Araignée\n"
                 f"• un seul archétype secondaire : "
                 f"**{main['secondary_archetype_min']} à "
@@ -55,10 +55,8 @@ class AraigneeFormatCog(commands.Cog):
             name="Extra & Side",
             value=(
                 f"• Extra Deck libre jusqu'à **{extra['max_cards']} cartes**\n"
-                "• les banlists sont celles annoncées pour le format/tournoi\n"
-                "• Side Deck **libre**\n"
-                f"• jusqu'à **{side['secondary_archetype_cards_allowed']} cartes** "
-                "de l'archétype secondaire déclaré peuvent être ajoutées au Side"
+                f"• Side Deck : **{side['exact_cards']} cartes**, uniquement "
+                "de l'archétype secondaire déclaré"
             ),
             inline=False,
         )
@@ -66,7 +64,7 @@ class AraigneeFormatCog(commands.Cog):
             name="Tournoi & banlists",
             value=(
                 "• archétype secondaire verrouillé pendant tout le tournoi\n"
-                "• les banlists applicables sont celles annoncées pour le Format Araignée ou le tournoi"
+                "• Banlist TCG + banlist spéciale du Format Araignée"
             ),
             inline=False,
         )
@@ -157,7 +155,7 @@ class AraigneeFormatCog(commands.Cog):
         )
         embed.add_field(
             name="Main",
-            value=f"**{result.main_count}/40–60**",
+            value=f"**{result.main_count}/40**",
             inline=True,
         )
         embed.add_field(
@@ -167,7 +165,7 @@ class AraigneeFormatCog(commands.Cog):
         )
         embed.add_field(
             name="Extra / Side",
-            value=f"**{result.extra_count}/15 · Side libre ({result.side_count})**",
+            value=f"**{result.extra_count}/15 · {result.side_count}/3**",
             inline=True,
         )
 
@@ -233,10 +231,8 @@ class AraigneeFormatCog(commands.Cog):
         exact = pool.get(normalized)
 
         if exact:
-            url = self.service.official_card_search_url(exact)
             await interaction.response.send_message(
-                f"✅ **{exact}** appartient au pool officiel Araignée.\n"
-                f"🔗 Fiche/recherche officielle : {url}",
+                f"✅ **{exact}** appartient au pool officiel Araignée.",
                 ephemeral=True,
             )
             return
