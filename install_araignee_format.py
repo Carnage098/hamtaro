@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-PACK_VERSION = "4.4"
+PACK_VERSION = "4.5"
 HERE = Path(__file__).resolve().parent
 ROOT = Path.cwd()
 
@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-images",
         action="store_true",
-        help="Installer la v4.4 sans télécharger la galerie d'images.",
+        help="Installer la v4.5 sans télécharger la galerie d'images.",
     )
     return parser.parse_args()
 
@@ -296,9 +296,9 @@ def main() -> int:
             (ROOT / "data/formats/araignee.json").read_text(encoding="utf-8")
         )
         pool = data.get("spider_card_pool") or []
-        if len(pool) != 119:
+        if len(pool) != 134:
             raise RuntimeError(
-                f"Le pack attendu contient 119 cartes, détecté : {len(pool)}"
+                f"Le pack attendu contient 134 cartes, détecté : {len(pool)}"
             )
 
         if not args.skip_images:
@@ -338,7 +338,7 @@ def main() -> int:
         return 1
 
     print("\n✅ Installation terminée.")
-    print("Pool officiel : 119 cartes")
+    print("Pool officiel : 134 cartes")
     print("Discord : /araignee rules · pool · check · card")
     print("Site : /formats · /formats/araignee")
     print("API : /api/formats/araignee")

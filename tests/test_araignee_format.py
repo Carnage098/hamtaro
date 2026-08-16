@@ -21,8 +21,8 @@ def _ten_spiders():
 
 def test_pool_contains_120_unique_cards():
     service = AraigneeFormatService()
-    assert len(service.pool()) == 119
-    assert len(service.normalized_pool()) == 119
+    assert len(service.pool()) == 134
+    assert len(service.normalized_pool()) == 134
 
 
 def test_normalization_accepts_typography():
@@ -141,7 +141,7 @@ def test_typo_can_suggest_pool_card():
 def test_each_card_has_official_search_link():
     service = AraigneeFormatService()
     entries = service.card_entries()
-    assert len(entries) == 119
+    assert len(entries) == 134
     assert all(entry["url"].startswith("https://www.db.yugioh-card.com/") for entry in entries)
     assert "keyword=Jirai+Gumo" in service.official_card_search_url("Jirai Gumo")
 
@@ -156,7 +156,7 @@ def test_card_entries_do_not_hotlink_images_without_manifest(tmp_path):
     service = AraigneeFormatService()
     service.image_manifest_path = tmp_path / "missing.json"
     entries = service.card_entries()
-    assert len(entries) == 119
+    assert len(entries) == 134
     assert all(entry["image_url"] is None for entry in entries)
 
 
@@ -234,3 +234,35 @@ def test_ombre_spectrale_and_dragon_de_lave_removed():
 def test_glass_spider_removed_from_pool():
     service = AraigneeFormatService()
     assert "Araignée de Verre" not in set(service.pool())
+
+
+def test_v45_cards_added_to_pool():
+    service = AraigneeFormatService()
+    names = set(service.pool())
+    added = [
+        "Toile d'Araignée",
+        "Larves d'Araignées",
+        "Insecte des Ténèbres",
+        "Épine Krawler",
+        "Qualiarche X-Krawler",
+        "Neurogos X-Krawler",
+        "Krawler Croisédia",
+        "Dendrite Krawler",
+        "Deus X-Krawler",
+        "Soma Krawler",
+        "Récepteur Krawler",
+        "Gliale Krawler",
+        "Axone Krawler",
+        "Ranvier Krawler",
+        "Tragoedia",
+    ]
+    for card in added:
+        assert card in names
+
+
+def test_v45_new_cards_follow_positions_120_to_134():
+    service = AraigneeFormatService()
+    tail = service.pool()[-15:]
+    assert tail[0] == "Toile d'Araignée"
+    assert tail[-1] == "Tragoedia"
+    assert len(tail) == 15

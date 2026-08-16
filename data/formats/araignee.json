@@ -2,7 +2,7 @@
   "id": "araignee",
   "name": "Araignée",
   "emoji": "🕷️",
-  "format_version": "4.4",
+  "format_version": "4.5",
   "pool_version": 1,
   "description": "Format communautaire Hamtaro centré sur un noyau de cartes Araignée et un unique archétype secondaire.",
   "main_deck": {
@@ -163,7 +163,22 @@
     "Cyber Esper",
     "Répression",
     "Overdrive Méchabot",
-    "Gardna, Cyber Ombre"
+    "Gardna, Cyber Ombre",
+    "Toile d'Araignée",
+    "Larves d'Araignées",
+    "Insecte des Ténèbres",
+    "Épine Krawler",
+    "Qualiarche X-Krawler",
+    "Neurogos X-Krawler",
+    "Krawler Croisédia",
+    "Dendrite Krawler",
+    "Deus X-Krawler",
+    "Soma Krawler",
+    "Récepteur Krawler",
+    "Gliale Krawler",
+    "Axone Krawler",
+    "Ranvier Krawler",
+    "Tragoedia"
   ],
   "image_gallery": {
     "enabled": true,
@@ -172,5 +187,5 @@
     "source_language": "fr",
     "image_variant": "small"
   },
-  "pool_note": "Les 8 cartes Scorpion Noir, Ombre Spectrale et Dragon de Lave ont été retirés du pool officiel. Araignée de Verre a aussi été retirée du pool officiel."
+  "pool_note": "Pool officiel à 134 cartes. Les 15 ajouts v4.5 sont : Toile d'Araignée, Larves d'Araignées, Insecte des Ténèbres, Épine Krawler, Qualiarche X-Krawler, Neurogos X-Krawler, Krawler Croisédia, Dendrite Krawler, Deus X-Krawler, Soma Krawler, Récepteur Krawler, Gliale Krawler, Axone Krawler, Ranvier Krawler et Tragoedia."
 }
