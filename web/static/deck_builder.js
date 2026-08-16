@@ -41,7 +41,8 @@
     const ownedKey = 'hamtaro-deck-builder-owned-v8';
     const previousOwnedKey = 'hamtaro-deck-builder-owned-v7';
     const constraintsKey = 'hamtaro-deck-builder-constraints-v8';
-    const printingsKey = 'hamtaro-deck-builder-printings-v82';
+    const printingsKey = 'hamtaro-deck-builder-printings-v83';
+    const previousPrintingsKey = 'hamtaro-deck-builder-printings-v82';
     const emptyZones = () => ({ main: {}, extra: {}, side: {} });
     const emptyExcluded = () => ({ main: [], extra: [], side: [] });
     const state = {
@@ -81,7 +82,10 @@
         state.excluded = emptyExcluded();
     }
     try {
-        state.printingSelections = JSON.parse(localStorage.getItem(printingsKey) || '{}') || {};
+        const currentPrintings = localStorage.getItem(printingsKey);
+        const legacyPrintings = localStorage.getItem(previousPrintingsKey);
+        state.printingSelections = JSON.parse(currentPrintings || legacyPrintings || '{}') || {};
+        if (!currentPrintings && legacyPrintings) localStorage.setItem(printingsKey, JSON.stringify(state.printingSelections));
     } catch (_) {
         state.printingSelections = {};
     }
@@ -117,6 +121,9 @@
         sourceWindow: $('[data-db-source-window]'),
         banlistStatus: $('[data-db-banlist-status]'),
         banlistDate: $('[data-db-banlist-date]'),
+        catalogDecks: $('[data-db-catalog-decks]'),
+        catalogSamples: $('[data-db-catalog-samples]'),
+        ruleset: $('[data-db-ruleset]'),
         warnings: $('[data-db-warnings]'),
         variantsPanel: $('[data-db-variants-panel]'),
         variants: $('[data-db-variants]'),
@@ -634,9 +641,11 @@
             const loaded = Number(discovery.source_pages_loaded || 0);
             const links = Number(discovery.deck_links_found || 0);
             const parsed = Number(discovery.deck_pages_parsed || 0);
+            const ignored = Number(discovery.explicit_non_tcg_ignored || 0) + Number(discovery.tcg_incompatible_ignored || 0);
+            const stored = Number(discovery.stored_tcg_decks_reused || 0);
             els.discoveryDebug.textContent = state.analysis?.degraded
-                ? `Diagnostic source : ${loaded}/${requested} page(s) chargée(s) · ${links} lien(s) de deck trouvé(s) · ${parsed} deck(s) parsé(s).`
-                : '';
+                ? `Diagnostic TCG : ${loaded}/${requested} page(s) chargée(s) · ${links} lien(s) · ${parsed} deck(s) parsé(s) · ${ignored} non-TCG ignoré(s) · ${stored} liste(s) Hamtaro réutilisée(s).`
+                : (stored ? `${stored} liste(s) TCG déjà apprises par Hamtaro ont complété les données fraîches.` : '');
         }
         els.fallbackGrid.innerHTML = cards.map((card) => `
             <article class="db-fallback-card" data-fallback-card-id="${esc(card.id)}">
@@ -676,9 +685,10 @@
         els.error.hidden = true;
         els.results.hidden = false;
         els.title.textContent = a.variant || a.query;
+        const learned = Number(a.discovery?.stored_tcg_decks_reused || 0);
         els.subtitle.textContent = a.degraded
-            ? 'Aucune decklist exploitable : Hamtaro affiche uniquement les cartes reconnues sans inventer de statistiques.'
-            : `${a.samples_analyzed} listes uniques après dédoublonnage et filtres.`;
+            ? 'Aucune decklist TCG exploitable : Hamtaro affiche uniquement les cartes reconnues sans inventer de statistiques.'
+            : `${a.samples_analyzed} listes TCG uniques après dédoublonnage et filtres${learned ? ` · ${learned} depuis la base Hamtaro` : ''}.`;
         els.samples.textContent = String(a.samples_analyzed);
         els.tournaments.textContent = `${a.tournament_samples} tournoi${a.tournament_samples > 1 ? 's' : ''} · ${a.side_samples} liste${a.side_samples > 1 ? 's' : ''} avec Side`;
         const confidence = a.confidence || {};
@@ -697,6 +707,10 @@
         els.banlistDate.textContent = banlist.effective_from
             ? `Effective depuis le ${frDate(banlist.effective_from)} · source Konami`
             : 'Source officielle Konami non joignable lors de cette analyse';
+        const catalog = a.catalog || {};
+        if (els.catalogDecks) els.catalogDecks.textContent = `${catalog.decks_total || 0} deck${Number(catalog.decks_total || 0) > 1 ? 's' : ''}`;
+        if (els.catalogSamples) els.catalogSamples.textContent = `${catalog.samples_saved || 0} decklist(s) TCG mémorisée(s) · ${catalog.confirmed || 0} base(s) confirmée(s)`;
+        if (els.ruleset) els.ruleset.textContent = a.ruleset || 'TCG';
         renderWarnings(a.warnings);
         renderVariants();
         renderEngines();

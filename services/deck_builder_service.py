@@ -78,6 +78,7 @@ class DeckSample:
     placement: str | None
     weight: float
     fingerprint: str
+    format_name: str = "unknown"
 
 
 class DeckBuilderService:
@@ -112,11 +113,11 @@ class DeckBuilderService:
         self.image_cache_path = Path(os.getenv("DECK_BUILDER_IMAGE_CACHE_PATH", str(default_images)))
         self.image_cache_path.mkdir(parents=True, exist_ok=True)
         self._last_card_fetch_dates: list[str] = []
-        self.cache_namespace = "v82"
+        self.cache_namespace = "v83"
         self._last_discovery_debug: dict[str, Any] = {}
         self.user_agent = os.getenv(
             "DECK_BUILDER_USER_AGENT",
-            "HamtaroDeckBuilder/8.2 (+public Yu-Gi-Oh deck assistant)",
+            "HamtaroDeckBuilder/8.3 (+public Yu-Gi-Oh TCG deck assistant)",
         )
         self._init_db()
 
@@ -152,6 +153,30 @@ class DeckBuilderService:
                 );
                 CREATE INDEX IF NOT EXISTS idx_deck_builder_price_history_date
                     ON deck_builder_price_history(price_date);
+
+                CREATE TABLE IF NOT EXISTS deck_builder_catalog (
+                    deck_key TEXT PRIMARY KEY,
+                    canonical_name TEXT NOT NULL,
+                    aliases_json TEXT NOT NULL DEFAULT '[]',
+                    status TEXT NOT NULL DEFAULT 'to_enrich',
+                    tcg_samples INTEGER NOT NULL DEFAULT 0,
+                    last_success_at INTEGER,
+                    last_attempt_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_deck_builder_catalog_status
+                    ON deck_builder_catalog(status, updated_at DESC);
+
+                CREATE TABLE IF NOT EXISTS deck_builder_sample_library (
+                    deck_key TEXT NOT NULL,
+                    fingerprint TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    learned_at INTEGER NOT NULL,
+                    last_seen_at INTEGER NOT NULL,
+                    PRIMARY KEY(deck_key, fingerprint)
+                );
+                CREATE INDEX IF NOT EXISTS idx_deck_builder_sample_library_seen
+                    ON deck_builder_sample_library(deck_key, last_seen_at DESC);
                 """
             )
             # Garde le cache borné : les réponses expirées très anciennes ne servent plus,
@@ -223,6 +248,252 @@ class DeckBuilderService:
                 (f"%{key}%", limit),
             ).fetchall()
         return [str(row["display_query"]) for row in rows]
+
+
+    @staticmethod
+    def _deck_identity(value: str) -> str:
+        """Identité tolérante à la ponctuation pour D/D, D/D/D, P.U.N.K., etc."""
+        normalized = unicodedata.normalize("NFKD", str(value or ""))
+        normalized = normalized.encode("ascii", "ignore").decode("ascii").casefold()
+        return re.sub(r"[^a-z0-9]+", "", normalized)
+
+    @classmethod
+    def _query_variants(cls, query: str) -> list[str]:
+        clean = re.sub(r"\s+", " ", str(query or "")).strip()
+        if not clean:
+            return []
+        identity = cls._deck_identity(clean)
+        variants = [clean]
+        special = {
+            "dd": ["D/D", "D/D/D", "DDD"],
+            "ddd": ["D/D/D", "D/D", "DDD"],
+            "punk": ["P.U.N.K.", "PUNK", "P.U.N.K"],
+            "blueeyes": ["Blue-Eyes", "Blue Eyes"],
+            "redarchfiend": ["Red Dragon Archfiend", "RDA"],
+        }
+        variants.extend(special.get(identity, []))
+        punctuation_light = re.sub(r"[./_\\-]+", " ", clean)
+        punctuation_light = re.sub(r"\s+", " ", punctuation_light).strip()
+        if punctuation_light and punctuation_light.casefold() != clean.casefold():
+            variants.append(punctuation_light)
+        compact = re.sub(r"[^A-Za-z0-9]+", "", clean)
+        if len(compact) >= 3:
+            variants.append(compact)
+        result: list[str] = []
+        seen: set[str] = set()
+        for value in variants:
+            key = value.casefold()
+            if value and key not in seen:
+                seen.add(key)
+                result.append(value)
+        return result[:8]
+
+    def _catalog_upsert_sync(
+        self,
+        query: str,
+        *,
+        canonical_name: str | None = None,
+        aliases: Iterable[str] = (),
+        sample_count: int | None = None,
+        success: bool = False,
+    ) -> None:
+        canonical = re.sub(r"\s+", " ", str(canonical_name or query or "")).strip()
+        if not canonical:
+            return
+        deck_key = self._deck_identity(canonical) or self._query_key(canonical)
+        now = int(time.time())
+        alias_values = {re.sub(r"\s+", " ", str(v or "")).strip() for v in aliases}
+        alias_values.add(re.sub(r"\s+", " ", str(query or "")).strip())
+        alias_values.discard("")
+        with closing(self._connect()) as db:
+            row = db.execute(
+                "SELECT aliases_json, tcg_samples, last_success_at FROM deck_builder_catalog WHERE deck_key = ?",
+                (deck_key,),
+            ).fetchone()
+            existing_aliases: set[str] = set()
+            existing_count = 0
+            last_success = None
+            if row:
+                try:
+                    existing_aliases.update(json.loads(str(row["aliases_json"] or "[]")))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    pass
+                existing_count = int(row["tcg_samples"] or 0)
+                last_success = row["last_success_at"]
+            existing_aliases.update(alias_values)
+            count = max(existing_count, int(sample_count or 0))
+            if success and count >= 5:
+                status = "confirmed"
+            elif success and count > 0:
+                status = "partial"
+            else:
+                status = "to_enrich"
+            db.execute(
+                """
+                INSERT INTO deck_builder_catalog(
+                    deck_key, canonical_name, aliases_json, status, tcg_samples,
+                    last_success_at, last_attempt_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(deck_key) DO UPDATE SET
+                    canonical_name = excluded.canonical_name,
+                    aliases_json = excluded.aliases_json,
+                    status = CASE
+                        WHEN excluded.status = 'confirmed' THEN 'confirmed'
+                        WHEN deck_builder_catalog.status = 'confirmed' THEN 'confirmed'
+                        WHEN excluded.status = 'partial' THEN 'partial'
+                        ELSE deck_builder_catalog.status
+                    END,
+                    tcg_samples = MAX(deck_builder_catalog.tcg_samples, excluded.tcg_samples),
+                    last_success_at = COALESCE(excluded.last_success_at, deck_builder_catalog.last_success_at),
+                    last_attempt_at = excluded.last_attempt_at,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    deck_key,
+                    canonical,
+                    json.dumps(sorted(existing_aliases), ensure_ascii=False),
+                    status,
+                    count,
+                    now if success else last_success,
+                    now,
+                    now,
+                ),
+            )
+            db.commit()
+
+    def _catalog_resolve_sync(self, query: str) -> tuple[str | None, list[str]]:
+        identity = self._deck_identity(query)
+        key = self._query_key(query)
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT canonical_name, aliases_json FROM deck_builder_catalog ORDER BY updated_at DESC LIMIT 1000"
+            ).fetchall()
+        for row in rows:
+            canonical = str(row["canonical_name"] or "").strip()
+            aliases = []
+            try:
+                aliases = list(json.loads(str(row["aliases_json"] or "[]")))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                pass
+            candidates = [canonical, *aliases]
+            if any(self._deck_identity(value) == identity for value in candidates if value):
+                return canonical, [str(value) for value in aliases if value]
+            if any(self._query_key(value) == key for value in candidates if value):
+                return canonical, [str(value) for value in aliases if value]
+        return None, []
+
+    def _store_samples_sync(self, query: str, samples: Iterable[DeckSample]) -> None:
+        values = list(samples)
+        if not values:
+            return
+        canonical, aliases = self._catalog_resolve_sync(query)
+        canonical = canonical or re.sub(r"\s+", " ", str(query or "")).strip()
+        deck_key = self._deck_identity(canonical) or self._query_key(canonical)
+        now = int(time.time())
+        rows = []
+        for sample in values:
+            payload = {
+                "title": sample.title,
+                "url": sample.url,
+                "main": sample.main,
+                "extra": sample.extra,
+                "side": sample.side,
+                "is_tournament": sample.is_tournament,
+                "published": sample.published,
+                "placement": sample.placement,
+                "weight": sample.weight,
+                "fingerprint": sample.fingerprint,
+                "format_name": sample.format_name,
+            }
+            rows.append((deck_key, sample.fingerprint, json.dumps(payload, ensure_ascii=False), now, now))
+        with closing(self._connect()) as db:
+            db.executemany(
+                """
+                INSERT INTO deck_builder_sample_library(deck_key, fingerprint, payload, learned_at, last_seen_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(deck_key, fingerprint) DO UPDATE SET
+                    payload = excluded.payload,
+                    last_seen_at = excluded.last_seen_at
+                """,
+                rows,
+            )
+            db.commit()
+        self._catalog_upsert_sync(
+            query,
+            canonical_name=canonical,
+            aliases=[*aliases, *self._query_variants(query)],
+            sample_count=len(values),
+            success=True,
+        )
+
+    def _load_samples_sync(self, query: str, limit: int = 60) -> list[DeckSample]:
+        canonical, _aliases = self._catalog_resolve_sync(query)
+        canonical = canonical or query
+        deck_key = self._deck_identity(canonical) or self._query_key(canonical)
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT payload FROM deck_builder_sample_library WHERE deck_key = ? ORDER BY last_seen_at DESC LIMIT ?",
+                (deck_key, int(limit)),
+            ).fetchall()
+        result: list[DeckSample] = []
+        for row in rows:
+            try:
+                payload = json.loads(str(row["payload"]))
+                result.append(DeckSample(
+                    title=str(payload.get("title") or "Deck appris"),
+                    url=str(payload.get("url") or ""),
+                    main=[int(x) for x in payload.get("main") or []],
+                    extra=[int(x) for x in payload.get("extra") or []],
+                    side=[int(x) for x in payload.get("side") or []],
+                    is_tournament=bool(payload.get("is_tournament")),
+                    published=payload.get("published"),
+                    placement=payload.get("placement"),
+                    weight=float(payload.get("weight") or 1.0),
+                    fingerprint=str(payload.get("fingerprint") or ""),
+                    format_name=str(payload.get("format_name") or "tcg"),
+                ))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+        return result
+
+    def _catalog_stats_sync(self) -> dict[str, int]:
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT status, COUNT(*) AS c FROM deck_builder_catalog GROUP BY status"
+            ).fetchall()
+            sample_count = db.execute("SELECT COUNT(*) FROM deck_builder_sample_library").fetchone()[0]
+        counts = {str(row["status"]): int(row["c"] or 0) for row in rows}
+        return {
+            "decks_total": sum(counts.values()),
+            "confirmed": counts.get("confirmed", 0),
+            "partial": counts.get("partial", 0),
+            "to_enrich": counts.get("to_enrich", 0),
+            "samples_saved": int(sample_count or 0),
+        }
+
+    def _catalog_suggestions_sync(self, query: str, limit: int = 12) -> list[str]:
+        key = self._query_key(query)
+        identity = self._deck_identity(query)
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                "SELECT canonical_name, aliases_json FROM deck_builder_catalog ORDER BY updated_at DESC LIMIT 1000"
+            ).fetchall()
+        values: list[str] = []
+        for row in rows:
+            canonical = str(row["canonical_name"] or "").strip()
+            aliases = []
+            try:
+                aliases = list(json.loads(str(row["aliases_json"] or "[]")))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                pass
+            haystack = " ".join([canonical, *map(str, aliases)]).casefold()
+            identities = [self._deck_identity(value) for value in [canonical, *aliases] if value]
+            if not key or key in haystack or (identity and any(identity in item or item in identity for item in identities if item)):
+                if canonical and canonical not in values:
+                    values.append(canonical)
+            if len(values) >= limit:
+                break
+        return values
 
     def _store_price_snapshots_sync(
         self, cards: Iterable[dict[str, Any]], snapshot_date: str | None = None
@@ -763,6 +1034,33 @@ class DeckBuilderService:
     def _valid_deck(main: list[int], extra: list[int], side: list[int]) -> bool:
         return 40 <= len(main) <= 60 and len(extra) <= 15 and len(side) <= 15
 
+    @staticmethod
+    def _detect_sample_format(body: str, title: str = "") -> str:
+        text = f"{title} {body}".casefold()
+        explicit_non_tcg = (
+            ("master duel", "master_duel"),
+            ("tournament meta decks ocg", "ocg"),
+            ("ocg tournament", "ocg"),
+            ("japan championship", "ocg"),
+            ("asia championship", "ocg"),
+            ("china championship", "ocg"),
+            ("ocg-ae", "ocg_ae"),
+            ("genesys ocg", "genesys_ocg"),
+            ("genesys", "genesys"),
+            ("rush duel", "rush"),
+            ("speed duel", "speed"),
+        )
+        for marker, value in explicit_non_tcg:
+            if marker in text:
+                return value
+        tcg_markers = (
+            "tournament meta decks", "tcg", "wcq regional", "regional qualifier",
+            "national championship", "ycs ", "world championship qualifier",
+        )
+        if any(marker in text for marker in tcg_markers):
+            return "tcg"
+        return "unknown"
+
     async def _deck_sample_from_url(self, url: str) -> DeckSample | None:
         try:
             body = await self._fetch_text(url, ttl_hours=self.cache_hours)
@@ -816,6 +1114,7 @@ class DeckBuilderService:
             placement=placement,
             weight=weight,
             fingerprint=self._fingerprint(main, extra, side),
+            format_name=self._detect_sample_format(body, title),
         )
 
     async def search_samples(self, query: str, *, max_decks: int | None = None) -> list[DeckSample]:
@@ -823,13 +1122,51 @@ class DeckBuilderService:
         if not clean:
             return []
         await self.remember_query(clean)
-        encoded = quote_plus(clean)
-        search_urls = [
-            f"{YGOPRODECK_SITE}/deck-search/?name={encoded}&offset=0&tournament=tier-2",
-            f"{YGOPRODECK_SITE}/deck-search/?name={encoded}&offset=0",
-        ]
-        category_urls = await self._category_urls_for_query(clean)
-        source_urls = search_urls + category_urls
+        limit = min(max_decks or self.max_decks, self.max_decks)
+        stored = await asyncio.to_thread(self._load_samples_sync, clean, limit)
+        canonical, learned_aliases = await asyncio.to_thread(self._catalog_resolve_sync, clean)
+        variants = self._query_variants(canonical or clean)
+        for alias in learned_aliases:
+            if alias and alias.casefold() not in {v.casefold() for v in variants}:
+                variants.append(alias)
+        # L'endpoint des archétypes permet de retrouver automatiquement les noms
+        # officiels qui diffèrent seulement par la ponctuation (P.U.N.K., D/D/D...).
+        try:
+            archetypes = await self._fetch_json(f"{YGOPRODECK_API}/archetypes.php", ttl_hours=72)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            archetypes = []
+        identities = {self._deck_identity(value) for value in variants if value}
+        base_identity = self._deck_identity(clean)
+        for item in archetypes if isinstance(archetypes, list) else []:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("archetype_name") or "").strip()
+            nid = self._deck_identity(name)
+            if not name or not nid:
+                continue
+            if nid in identities or nid == base_identity or (len(base_identity) >= 3 and (base_identity in nid or nid in base_identity)):
+                if name.casefold() not in {v.casefold() for v in variants}:
+                    variants.append(name)
+        variants = variants[:8]
+
+        source_urls: list[str] = []
+        category_urls: list[str] = []
+        for value in variants:
+            encoded = quote_plus(value)
+            # Tournament Meta Decks = TCG sur YGOPRODeck ; les formats OCG et Genesys
+            # disposent de catégories séparées. La page générale sert de secours,
+            # puis les deck pages explicitement non-TCG sont rejetées plus bas.
+            for url in (
+                f"{YGOPRODECK_SITE}/deck-search/?name={encoded}&offset=0&tournament=tier-2",
+                f"{YGOPRODECK_SITE}/deck-search/?name={encoded}&offset=0",
+            ):
+                if url not in source_urls:
+                    source_urls.append(url)
+            for url in await self._category_urls_for_query(value):
+                if url not in category_urls:
+                    category_urls.append(url)
+        source_urls.extend(category_urls)
+        source_urls = source_urls[:18]
         pages = await asyncio.gather(
             *(self._fetch_text(url, ttl_hours=self.search_cache_hours) for url in source_urls),
             return_exceptions=True,
@@ -845,45 +1182,70 @@ class DeckBuilderService:
                 if link not in seen_urls:
                     seen_urls.add(link)
                     links.append(link)
-        limit = min(max_decks or self.max_decks, self.max_decks)
-        # On charge un peu plus de pages que le plafond final pour absorber les doublons.
-        links = links[: min(len(links), max(limit * 2, limit))]
-        if not links:
-            self._last_discovery_debug = {
-                "source_pages_requested": len(source_urls),
-                "source_pages_loaded": pages_ok,
-                "category_pages": category_urls,
-                "deck_links_found": 0,
-                "deck_pages_parsed": 0,
-            }
-            return []
+        links = links[: min(len(links), max(limit * 3, limit))]
         semaphore = asyncio.Semaphore(5)
 
         async def load(url: str) -> DeckSample | None:
             async with semaphore:
                 return await self._deck_sample_from_url(url)
 
-        loaded = await asyncio.gather(*(load(url) for url in links))
-        deduped: dict[str, DeckSample] = {}
-        parsed_count = 0
+        loaded = await asyncio.gather(*(load(url) for url in links)) if links else []
+        live: list[DeckSample] = []
+        explicit_non_tcg = 0
         for sample in loaded:
             if sample is None:
                 continue
-            parsed_count += 1
+            if sample.format_name not in {"tcg", "unknown"}:
+                explicit_non_tcg += 1
+                continue
+            live.append(sample)
+
+        # Validation carte-par-carte TCG : format=tcg ne renvoie que les cartes avec
+        # une date de sortie TCG et exclut notamment Speed/Rush selon la doc API.
+        live_ids = [cid for sample in live for cid in [*sample.main, *sample.extra, *sample.side]]
+        tcg_cards = await self.card_data_by_ids(live_ids) if live_ids else {}
+        tcg_compatible: list[DeckSample] = []
+        card_incompatible = 0
+        for sample in live:
+            sample_ids = set(sample.main + sample.extra + sample.side)
+            if sample_ids and sample_ids.issubset(set(tcg_cards)):
+                tcg_compatible.append(sample)
+            else:
+                card_incompatible += 1
+
+        deduped: dict[str, DeckSample] = {}
+        for sample in [*tcg_compatible, *stored]:
             previous = deduped.get(sample.fingerprint)
             if previous is None or sample.weight > previous.weight:
                 deduped[sample.fingerprint] = sample
         valid = list(deduped.values())
         valid.sort(key=lambda item: (item.weight, item.is_tournament, item.published or ""), reverse=True)
+        valid = valid[:limit]
+        if tcg_compatible:
+            await asyncio.to_thread(self._store_samples_sync, clean, tcg_compatible)
+        else:
+            await asyncio.to_thread(
+                self._catalog_upsert_sync,
+                clean,
+                aliases=variants,
+                sample_count=len(stored),
+                success=bool(stored),
+            )
         self._last_discovery_debug = {
             "source_pages_requested": len(source_urls),
             "source_pages_loaded": pages_ok,
             "category_pages": category_urls,
+            "query_variants": variants,
             "deck_links_found": len(links),
-            "deck_pages_parsed": parsed_count,
+            "deck_pages_parsed": sum(1 for sample in loaded if sample is not None),
+            "explicit_non_tcg_ignored": explicit_non_tcg,
+            "tcg_incompatible_ignored": card_incompatible,
+            "live_tcg_decks": len(tcg_compatible),
+            "stored_tcg_decks_reused": len(stored),
             "unique_decks": len(valid),
+            "tcg_only": True,
         }
-        return valid[:limit]
+        return valid
 
     @staticmethod
     def _filter_samples(
@@ -924,7 +1286,7 @@ class DeckBuilderService:
         chunks = [ids[index:index + 50] for index in range(0, len(ids), 50)]
 
         async def fetch(chunk: list[int]) -> tuple[list[dict[str, Any]], int]:
-            url = f"{YGOPRODECK_API}/cardinfo.php?id={','.join(map(str, chunk))}&misc=yes"
+            url = f"{YGOPRODECK_API}/cardinfo.php?id={','.join(map(str, chunk))}&misc=yes&format=tcg"
             try:
                 payload, fetched_at = await self._fetch_json_with_meta(url, ttl_hours=self.cache_hours)
             except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
@@ -955,7 +1317,7 @@ class DeckBuilderService:
             async def fetch_localized(chunk: list[int]) -> list[dict[str, Any]]:
                 url = (
                     f"{YGOPRODECK_API}/cardinfo.php?id={','.join(map(str, chunk))}"
-                    f"&misc=yes&language={quote_plus(self.card_language)}"
+                    f"&misc=yes&format=tcg&language={quote_plus(self.card_language)}"
                 )
                 try:
                     payload = await self._fetch_json(url, ttl_hours=self.cache_hours)
@@ -980,21 +1342,41 @@ class DeckBuilderService:
         return cards
 
     async def archetype_cards(self, query: str) -> list[dict[str, Any]]:
-        url = f"{YGOPRODECK_API}/cardinfo.php?archetype={quote_plus(query)}&misc=yes"
+        candidates = self._query_variants(query)
         try:
-            payload, fetched_at = await self._fetch_json_with_meta(url, ttl_hours=self.cache_hours)
+            payload_arch = await self._fetch_json(f"{YGOPRODECK_API}/archetypes.php", ttl_hours=72)
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
-            return []
-        cards = list(payload.get("data") or []) if isinstance(payload, dict) else []
-        fetch_date = datetime.fromtimestamp(fetched_at).date().isoformat()
-        await asyncio.to_thread(self._store_price_snapshots_sync, cards, fetch_date)
-        self._last_card_fetch_dates.append(fetch_date)
-        if self.card_language != "en" and cards:
-            localized = await self.card_data_by_ids(
-                [int(card.get("id") or 0) for card in cards if int(card.get("id") or 0) > 0]
-            )
-            return [localized.get(int(card.get("id") or 0), card) for card in cards]
-        return cards
+            payload_arch = []
+        identity = self._deck_identity(query)
+        for item in payload_arch if isinstance(payload_arch, list) else []:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("archetype_name") or "").strip()
+            nid = self._deck_identity(name)
+            if not name or not nid:
+                continue
+            if nid == identity or (len(identity) >= 2 and (identity in nid or nid in identity)):
+                if name.casefold() not in {value.casefold() for value in candidates}:
+                    candidates.append(name)
+        for candidate in candidates[:10]:
+            url = f"{YGOPRODECK_API}/cardinfo.php?archetype={quote_plus(candidate)}&misc=yes&format=tcg"
+            try:
+                payload, fetched_at = await self._fetch_json_with_meta(url, ttl_hours=self.cache_hours)
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+                continue
+            cards = list(payload.get("data") or []) if isinstance(payload, dict) else []
+            if not cards:
+                continue
+            fetch_date = datetime.fromtimestamp(fetched_at).date().isoformat()
+            await asyncio.to_thread(self._store_price_snapshots_sync, cards, fetch_date)
+            self._last_card_fetch_dates.append(fetch_date)
+            if self.card_language != "en" and cards:
+                localized = await self.card_data_by_ids(
+                    [int(card.get("id") or 0) for card in cards if int(card.get("id") or 0) > 0]
+                )
+                return [localized.get(int(card.get("id") or 0), card) for card in cards]
+            return cards
+        return []
 
     @staticmethod
     def _market_slug(value: str) -> str:
@@ -1294,10 +1676,23 @@ class DeckBuilderService:
     @classmethod
     def _relation(cls, card: dict[str, Any], query: str, frequency: float) -> str:
         tokens = cls._query_tokens(query)
-        name = str(card.get("name") or "").casefold().replace("-", " ")
-        archetype = str(card.get("archetype") or "").casefold().replace("-", " ")
+        name_raw = str(card.get("name") or "")
+        archetype_raw = str(card.get("archetype") or "")
+        name = name_raw.casefold().replace("-", " ")
+        archetype = archetype_raw.casefold().replace("-", " ")
         haystack = f"{name} {archetype}"
-        if tokens and any(token in haystack for token in tokens):
+        query_identity = cls._deck_identity(query)
+        archetype_identity = cls._deck_identity(archetype_raw)
+        name_identity = cls._deck_identity(name_raw)
+        identity_match = bool(
+            query_identity
+            and (
+                query_identity == archetype_identity
+                or query_identity == name_identity
+                or (len(query_identity) >= 2 and archetype_identity and (query_identity in archetype_identity or archetype_identity in query_identity))
+            )
+        )
+        if identity_match or (tokens and any(token in haystack for token in tokens)):
             return "archetype"
         if archetype and frequency >= 0.35:
             return "engine"
@@ -2642,8 +3037,10 @@ class DeckBuilderService:
             "variant": variant or "",
             "generated_on": date.today().isoformat(),
             "price_checked_on": min(self._last_card_fetch_dates) if self._last_card_fetch_dates else date.today().isoformat(),
-            "price_source": "Cardmarket via YGOPRODeck",
-            "price_note": "Prix indicatifs par carte ; un prix indisponible est affiché comme inconnu.",
+            "price_source": "Cardmarket via YGOPRODeck · cartes TCG uniquement",
+            "price_note": "Prix indicatifs de cartes sorties en TCG ; un prix indisponible est affiché comme inconnu.",
+            "ruleset": "TCG",
+            "catalog": await asyncio.to_thread(self._catalog_stats_sync),
             "samples_found_before_filters": len(all_samples),
             "samples_analyzed": len(samples),
             "tournament_samples": sum(1 for sample in samples if sample.is_tournament),
@@ -2659,7 +3056,7 @@ class DeckBuilderService:
             "source_freshness": self._source_freshness(samples),
             "banlist": banlist_meta,
             "source_catalog": [
-                {"name": "YGOPRODeck", "use": "decklists, données de cartes et prix Cardmarket disponibles"},
+                {"name": "YGOPRODeck", "use": "decklists TCG, données de cartes TCG et prix Cardmarket disponibles"},
                 {"name": "Konami / Neuron", "use": "référence officielle, liens cartes et vérification de la banlist"},
             ],
             "engines": engines,
@@ -3415,15 +3812,20 @@ class DeckBuilderService:
             "generation_warnings": generation_warnings,
         }
 
+    async def catalog_stats(self) -> dict[str, int]:
+        return await asyncio.to_thread(self._catalog_stats_sync)
+
     async def suggestions(self, query: str) -> list[str]:
         clean = re.sub(r"\s+", " ", str(query or "")).strip()
         defaults = [
             "Blue-Eyes", "Yummy", "Sky Striker", "X-Saber", "Mitsurugi", "Cyber Dragon",
             "Branded", "Traptrix", "Fire King", "Ryzeal", "Maliss", "Primite Blue-Eyes",
+            "D/D/D", "P.U.N.K.",
         ]
         if not clean:
             return defaults
         recent = await asyncio.to_thread(self._recent_queries_sync, clean, 8)
+        catalog_matches = await asyncio.to_thread(self._catalog_suggestions_sync, clean, 12)
         try:
             payload = await self._fetch_json(f"{YGOPRODECK_API}/archetypes.php", ttl_hours=72)
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
@@ -3433,7 +3835,7 @@ class DeckBuilderService:
         direct = [name for name in names if name.casefold().startswith(key)]
         contains = [name for name in names if key in name.casefold() and name not in direct]
         combined: list[str] = []
-        for value in recent + direct + contains + defaults:
+        for value in catalog_matches + recent + direct + contains + defaults:
             if key not in value.casefold() and value not in recent:
                 continue
             if value and value not in combined:
