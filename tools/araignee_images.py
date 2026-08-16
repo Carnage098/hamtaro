@@ -135,6 +135,37 @@ def load_manifest() -> dict[str, Any]:
     return loaded
 
 
+def prune_unused_images(manifest: dict[str, Any], pool: list[str]) -> tuple[int, int]:
+    """Retire du manifest et du dossier local les images qui ne servent plus au pool."""
+    cards = manifest.get("cards") or {}
+    pool_set = set(pool)
+    removed_manifest = 0
+    removed_files = 0
+
+    referenced_paths = {
+        str((cards.get(name) or {}).get("local_path"))
+        for name in pool
+        if (cards.get(name) or {}).get("local_path")
+    }
+
+    for name in list(cards):
+        if name not in pool_set:
+            cards.pop(name, None)
+            removed_manifest += 1
+
+    if IMAGE_DIR.exists():
+        for path in IMAGE_DIR.glob("*.jpg"):
+            relative = str(path.relative_to(ROOT)).replace("\\", "/")
+            if relative not in referenced_paths:
+                try:
+                    path.unlink()
+                    removed_files += 1
+                except OSError:
+                    pass
+
+    return removed_manifest, removed_files
+
+
 def status() -> int:
     data = load_format()
     pool = data.get("spider_card_pool") or []
@@ -246,6 +277,8 @@ def sync(force: bool = False) -> int:
             unresolved.append(pool_name)
             print(f"[{index:03}/{len(pool):03}] ❌ {pool_name} — {error}")
 
+    removed_manifest, removed_files = prune_unused_images(manifest, pool)
+
     MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
     MANIFEST_PATH.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
@@ -257,6 +290,8 @@ def sync(force: bool = False) -> int:
     print(f"🔁 Alias utilisés : {alias_hits}")
     print(f"✅ Images téléchargées/rafraîchies : {downloaded}")
     print(f"⚠️ Sans image : {len(unresolved)}")
+    print(f"🧹 Entrées obsolètes retirées du manifest : {removed_manifest}")
+    print(f"🧹 Images locales inutilisées supprimées : {removed_files}")
     print(f"📄 Manifest : {MANIFEST_PATH.relative_to(ROOT)}")
     print(f"🖼️ Dossier : {IMAGE_DIR.relative_to(ROOT)}")
     if unresolved:

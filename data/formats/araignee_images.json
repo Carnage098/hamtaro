@@ -248,13 +248,6 @@
       "language": "fr",
       "local_path": "web/static/araignee/cards/5325155.jpg"
     },
-    "Dragon de Lave": {
-      "status": "ok",
-      "card_id": 41741922,
-      "api_name": "Dragon de Lave",
-      "language": "fr",
-      "local_path": "web/static/araignee/cards/41741922.jpg"
-    },
     "Âme de l'Ombre": {
       "status": "ok",
       "card_id": 86229493,
@@ -268,10 +261,6 @@
       "api_name": "Mayakashi Mayhem",
       "language": "en",
       "local_path": "web/static/araignee/cards/41867019.jpg"
-    },
-    "Araignée de Verre": {
-      "status": "missing",
-      "local_path": null
     },
     "Numéro S37 : Araignée Requin": {
       "status": "ok",
@@ -440,13 +429,6 @@
       "api_name": "Cerbère Aigu Tindangle",
       "language": "fr",
       "local_path": "web/static/araignee/cards/75119040.jpg"
-    },
-    "Ombre Spectrale": {
-      "status": "ok",
-      "card_id": 40575313,
-      "api_name": "Ombre Spectrale",
-      "language": "fr",
-      "local_path": "web/static/araignee/cards/40575313.jpg"
     },
     "Traptrix Rafflesia": {
       "status": "ok",

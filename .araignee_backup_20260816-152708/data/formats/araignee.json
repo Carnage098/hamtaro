@@ -2,7 +2,7 @@
   "id": "araignee",
   "name": "Araignée",
   "emoji": "🕷️",
-  "format_version": "4.4",
+  "format_version": "4.2",
   "pool_version": 1,
   "description": "Format communautaire Hamtaro centré sur un noyau de cartes Araignée et un unique archétype secondaire.",
   "main_deck": {
@@ -80,8 +80,10 @@
     "Orchidée Araignée Prédaplante",
     "Numéro 37 : Espoir Tissé Dragon Araignée Requin",
     "Tsukahagi, Mayakashi du Poison",
+    "Dragon de Lave",
     "Âme de l'Ombre",
     "Mayakashi Mayhem",
+    "Araignée de Verre",
     "Numéro S37 : Araignée Requin",
     "Tsuchigumo, Mayakashi du Poison",
     "Matrice Insecte",
@@ -106,6 +108,7 @@
     "Reine Insecte Métamorphosée",
     "Insecte Arsenal",
     "Cerbère Aigu Tindangle",
+    "Ombre Spectrale",
     "Traptrix Rafflesia",
     "Chien de Chasse Tindangle",
     "Jhrelth Tindangle",
@@ -172,5 +175,5 @@
     "source_language": "fr",
     "image_variant": "small"
   },
-  "pool_note": "Les 8 cartes Scorpion Noir, Ombre Spectrale et Dragon de Lave ont été retirés du pool officiel. Araignée de Verre a aussi été retirée du pool officiel."
+  "pool_note": "Les 8 cartes Scorpion Noir ont été retirées du pool officiel."
 }
