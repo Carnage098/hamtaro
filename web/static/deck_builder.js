@@ -649,6 +649,13 @@
                 .map(([format, count]) => `${format}: ${Number(count)}`);
             const formatNote = formatNoteParts.length ? ` · formats détectés [${formatNoteParts.join(', ')}]` : '';
             const stored = Number(discovery.stored_tcg_decks_reused || 0);
+            const cardLookup = state.analysis?.card_lookup || {};
+            const lookupRequested = Number(cardLookup.requested || 0);
+            const lookupRecovered = Number(cardLookup.single_recovered || 0);
+            const lookupMissing = Number(cardLookup.missing || 0);
+            const lookupNote = lookupRequested
+                ? ` · validation cartes ${Math.max(0, lookupRequested - lookupMissing)}/${lookupRequested}${lookupRecovered ? ` (${lookupRecovered} récupérée(s) individuellement)` : ''}`
+                : '';
             const signatureCards = Array.isArray(discovery.signature_cards) ? discovery.signature_cards : [];
             const signatureLinks = Number(discovery.signature_deck_links_added || 0);
             const signatureNote = discovery.signature_fallback_used
