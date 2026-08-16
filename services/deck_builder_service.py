@@ -113,11 +113,11 @@ class DeckBuilderService:
         self.image_cache_path = Path(os.getenv("DECK_BUILDER_IMAGE_CACHE_PATH", str(default_images)))
         self.image_cache_path.mkdir(parents=True, exist_ok=True)
         self._last_card_fetch_dates: list[str] = []
-        self.cache_namespace = "v85"
+        self.cache_namespace = "v86"
         self._last_discovery_debug: dict[str, Any] = {}
         self.user_agent = os.getenv(
             "DECK_BUILDER_USER_AGENT",
-            "HamtaroDeckBuilder/8.5 (+public Yu-Gi-Oh TCG deck assistant)",
+            "HamtaroDeckBuilder/8.6 (+public Yu-Gi-Oh TCG deck assistant)",
         )
         self._init_db()
 
@@ -701,6 +701,193 @@ class DeckBuilderService:
                     seen.add(url)
                     found.append(url)
         return found
+
+    @staticmethod
+    def _query_components(query: str, *, limit: int = 10) -> list[str]:
+        """Découpe un nom communautaire/hybride en recherches utiles sans table dédiée.
+
+        Exemples : ``Vanquish Soul K9`` -> ``Vanquish Soul``, ``Soul K9``,
+        ``Vanquish``, ``K9``. Les variantes ponctuées (D/D, P.U.N.K.) restent
+        prises en charge par :meth:`_query_variants`.
+        """
+        clean = re.sub(r"\s+", " ", str(query or "")).strip()
+        if not clean:
+            return []
+        normalized = unicodedata.normalize("NFKD", clean)
+        normalized = normalized.encode("ascii", "ignore").decode("ascii")
+        words = [w for w in re.split(r"[^A-Za-z0-9]+", normalized) if w]
+        words = [w for w in words if w.casefold() not in QUERY_STOP_WORDS]
+        found: list[str] = []
+        seen: set[str] = set()
+
+        def add(value: str) -> None:
+            value = re.sub(r"\s+", " ", value).strip()
+            key = value.casefold()
+            if not value or key in seen:
+                return
+            # Les tokens d'une seule lettre génèrent énormément de faux positifs.
+            if len(value) == 1 and not value.isdigit():
+                return
+            seen.add(key)
+            found.append(value)
+
+        add(clean)
+        # D'abord les groupes longs : ils sont plus discriminants.
+        for width in (3, 2):
+            if len(words) < width:
+                continue
+            for i in range(0, len(words) - width + 1):
+                add(" ".join(words[i:i + width]))
+        for word in words:
+            if len(word) >= 3 or any(ch.isdigit() for ch in word):
+                add(word)
+        return found[:max(1, limit)]
+
+    @classmethod
+    def _archetype_candidates_from_query(cls, query: str, names: Iterable[str], *, limit: int = 8) -> list[str]:
+        """Retrouve les archétypes contenus dans un nom de deck hybride.
+
+        Cette résolution est volontairement tolérante à la ponctuation et ne
+        dépend d'aucune liste codée en dur.
+        """
+        qid = cls._deck_identity(query)
+        components = cls._query_components(query, limit=12)
+        component_ids = {cls._deck_identity(value) for value in components if value}
+        scored: list[tuple[int, int, str]] = []
+        seen: set[str] = set()
+        for raw in names:
+            name = re.sub(r"\s+", " ", str(raw or "")).strip()
+            nid = cls._deck_identity(name)
+            if not name or not nid or nid in seen:
+                continue
+            score = 0
+            if nid == qid:
+                score = 200
+            elif nid in component_ids:
+                score = 180
+            elif qid and len(nid) >= 2 and nid in qid:
+                score = 150 + min(25, len(nid))
+            elif qid and len(qid) >= 3 and qid in nid:
+                score = 120
+            else:
+                # Petit score par chevauchement de mots, utile pour les noms
+                # communautaires sans créer un fuzzy-match trop permissif.
+                ntokens = {cls._deck_identity(tok) for tok in re.split(r"[^A-Za-z0-9]+", name) if len(tok) >= 2}
+                overlap = len(ntokens & component_ids)
+                if overlap:
+                    score = 70 + overlap * 15
+            if score:
+                seen.add(nid)
+                scored.append((score, len(nid), name))
+        scored.sort(key=lambda item: (-item[0], -item[1], item[2].casefold()))
+        return [name for _score, _length, name in scored[:max(1, limit)]]
+
+    async def _card_name_resolution(self, query: str, *, limit_cards: int = 10) -> dict[str, Any]:
+        """Résout un nom libre vers des cartes/archétypes TCG.
+
+        C'est le dernier maillon qui permet à un boss monster, un nom de moteur
+        ou un nom communautaire de redevenir une recherche de deck structurée.
+        """
+        phrases: list[str] = []
+        seen_phrases: set[str] = set()
+        for value in [*self._query_variants(query), *self._query_components(query, limit=10)]:
+            key = value.casefold()
+            if value and key not in seen_phrases:
+                seen_phrases.add(key)
+                phrases.append(value)
+        phrases = phrases[:6]
+        payloads = await asyncio.gather(
+            *(self._fetch_json(
+                f"{YGOPRODECK_API}/cardinfo.php?fname={quote_plus(value)}&misc=yes&format=tcg",
+                ttl_hours=self.cache_hours,
+            ) for value in phrases),
+            return_exceptions=True,
+        )
+        cards_by_id: dict[int, dict[str, Any]] = {}
+        archetypes: list[str] = []
+        seen_arch: set[str] = set()
+        for payload in payloads:
+            if isinstance(payload, Exception) or not isinstance(payload, dict):
+                continue
+            for card in payload.get("data") or []:
+                if not isinstance(card, dict):
+                    continue
+                try:
+                    cid = int(card.get("id") or 0)
+                except (TypeError, ValueError):
+                    cid = 0
+                if cid > 0:
+                    cards_by_id.setdefault(cid, card)
+                arch = str(card.get("archetype") or "").strip()
+                akey = self._deck_identity(arch)
+                if arch and akey and akey not in seen_arch:
+                    seen_arch.add(akey)
+                    archetypes.append(arch)
+        cards = list(cards_by_id.values())
+        qid = self._deck_identity(query)
+        cards.sort(
+            key=lambda card: (
+                0 if qid and qid in self._deck_identity(str(card.get("name") or "")) else 1,
+                len(str(card.get("name") or "")),
+            )
+        )
+        return {
+            "phrases": phrases,
+            "cards": cards[:max(1, limit_cards)],
+            "archetypes": archetypes[:8],
+        }
+
+    async def _universal_discovery_urls(
+        self, query: str, archetype_names: Iterable[str], *, card_limit: int = 8
+    ) -> tuple[dict[str, Any], list[str]]:
+        """Dernier étage de découverte, indépendant d'un archétype exact.
+
+        Il combine décomposition d'un nom hybride, résolution par cartes TCG et
+        pages d'archétypes. Toutes les URLs restent des recherches publiques
+        YGOPRODeck ; les decklists sont ensuite revalidées carte-par-carte TCG.
+        """
+        components = self._query_components(query, limit=10)
+        candidate_arch = self._archetype_candidates_from_query(query, archetype_names, limit=8)
+        resolution = await self._card_name_resolution(query, limit_cards=card_limit)
+        for arch in resolution.get("archetypes") or []:
+            if self._deck_identity(arch) not in {self._deck_identity(v) for v in candidate_arch}:
+                candidate_arch.append(arch)
+        candidate_arch = candidate_arch[:10]
+
+        urls: list[str] = []
+        seen: set[str] = set()
+        def add(url: str) -> None:
+            if url and url not in seen:
+                seen.add(url)
+                urls.append(url)
+
+        # Recherches textuelles : les deux routes sont gardées car le rendu du site
+        # a déjà changé au fil du temps.
+        for phrase in [*candidate_arch, *components][:12]:
+            encoded = quote_plus(phrase)
+            add(f"{YGOPRODECK_SITE}/deck-search.php?name={encoded}&offset=0&tournament=tier-2")
+            add(f"{YGOPRODECK_SITE}/deck-search.php?name={encoded}&offset=0")
+            add(f"{YGOPRODECK_SITE}/deck-search/?name={encoded}&offset=0&tournament=tier-2")
+            for category_url in await self._category_urls_for_query(phrase):
+                add(category_url)
+
+        card_names: list[str] = []
+        for card in resolution.get("cards") or []:
+            name = str(card.get("name") or "").strip()
+            if not name:
+                continue
+            card_names.append(name)
+            encoded = quote_plus(name) + "%7C"
+            add(f"{YGOPRODECK_SITE}/deck-search.php?cardcode={encoded}&offset=0&tournament=tier-2")
+            add(f"{YGOPRODECK_SITE}/deck-search.php?cardcode={encoded}&offset=0")
+
+        debug = {
+            "components": components,
+            "candidate_archetypes": candidate_arch,
+            "resolved_card_names": card_names[:card_limit],
+            "resolution_phrases": resolution.get("phrases") or [],
+        }
+        return debug, urls[:40]
 
     @staticmethod
     def _slugify_archetype(value: str) -> str:
@@ -1306,6 +1493,44 @@ class DeckBuilderService:
                 loaded.extend(await asyncio.gather(*(load(url) for url in extra_links)))
                 links.extend(extra_links)
 
+        # V8.6 : dernier étage universel. On ne suppose plus que le terme saisi
+        # est un archétype : il peut être un hybride, un moteur, un boss monster
+        # ou un nom communautaire. On résout alors le nom vers des composants,
+        # cartes TCG et archétypes proches, puis on relance la découverte.
+        universal_debug: dict[str, Any] = {}
+        universal_urls: list[str] = []
+        universal_pages_ok = 0
+        universal_links_added = 0
+        parsed_after_signature = sum(1 for sample in loaded if sample is not None)
+        if parsed_after_signature < min(4, limit):
+            archetype_names = [
+                str(item.get("archetype_name") or "").strip()
+                for item in archetypes if isinstance(item, dict) and str(item.get("archetype_name") or "").strip()
+            ] if isinstance(archetypes, list) else []
+            universal_debug, universal_urls = await self._universal_discovery_urls(
+                clean, archetype_names, card_limit=8
+            )
+            already_queried = set(source_urls) | set(signature_urls)
+            universal_urls = [url for url in universal_urls if url not in already_queried][:30]
+            universal_pages = await asyncio.gather(
+                *(self._fetch_text(url, ttl_hours=self.search_cache_hours) for url in universal_urls),
+                return_exceptions=True,
+            )
+            universal_links: list[str] = []
+            for page in universal_pages:
+                if isinstance(page, Exception):
+                    continue
+                universal_pages_ok += 1
+                for link in self._extract_deck_links(page):
+                    if link not in seen_urls:
+                        seen_urls.add(link)
+                        universal_links.append(link)
+            universal_links = universal_links[:max(limit * 4, limit)]
+            universal_links_added = len(universal_links)
+            if universal_links:
+                loaded.extend(await asyncio.gather(*(load(url) for url in universal_links)))
+                links.extend(universal_links)
+
         live: list[DeckSample] = []
         explicit_non_tcg = 0
         for sample in loaded:
@@ -1359,6 +1584,13 @@ class DeckBuilderService:
             "signature_pages_requested": len(signature_urls),
             "signature_pages_loaded": signature_pages_ok,
             "signature_deck_links_added": signature_links_added,
+            "universal_fallback_used": bool(universal_urls),
+            "universal_pages_requested": len(universal_urls),
+            "universal_pages_loaded": universal_pages_ok,
+            "universal_deck_links_added": universal_links_added,
+            "universal_components": universal_debug.get("components") or [],
+            "universal_candidate_archetypes": universal_debug.get("candidate_archetypes") or [],
+            "universal_resolved_cards": universal_debug.get("resolved_card_names") or [],
             "explicit_non_tcg_ignored": explicit_non_tcg,
             "tcg_incompatible_ignored": card_incompatible,
             "live_tcg_decks": len(tcg_compatible),
@@ -1497,7 +1729,45 @@ class DeckBuilderService:
                 )
                 return [localized.get(int(card.get("id") or 0), card) for card in cards]
             return cards
-        return []
+
+        # V8.6 : si aucun archétype exact n'existe, le terme peut désigner une
+        # carte-signature, un deck hybride ou un nom communautaire. On résout le
+        # texte vers des cartes TCG puis, si possible, vers leurs archétypes.
+        resolution = await self._card_name_resolution(query, limit_cards=24)
+        resolved_cards = list(resolution.get("cards") or [])
+        resolved_arch = list(resolution.get("archetypes") or [])[:4]
+        combined: dict[int, dict[str, Any]] = {}
+        for arch in resolved_arch:
+            url = f"{YGOPRODECK_API}/cardinfo.php?archetype={quote_plus(arch)}&misc=yes&format=tcg"
+            try:
+                payload, fetched_at = await self._fetch_json_with_meta(url, ttl_hours=self.cache_hours)
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+                continue
+            rows = list(payload.get("data") or []) if isinstance(payload, dict) else []
+            if rows:
+                fetch_date = datetime.fromtimestamp(fetched_at).date().isoformat()
+                await asyncio.to_thread(self._store_price_snapshots_sync, rows, fetch_date)
+                self._last_card_fetch_dates.append(fetch_date)
+            for card in rows:
+                try:
+                    cid = int(card.get("id") or 0)
+                except (TypeError, ValueError):
+                    continue
+                if cid > 0:
+                    combined[cid] = card
+        if not combined:
+            for card in resolved_cards:
+                try:
+                    cid = int(card.get("id") or 0)
+                except (TypeError, ValueError):
+                    continue
+                if cid > 0:
+                    combined[cid] = card
+        cards = list(combined.values())
+        if cards and self.card_language != "en":
+            localized = await self.card_data_by_ids([int(card.get("id") or 0) for card in cards])
+            return [localized.get(int(card.get("id") or 0), card) for card in cards]
+        return cards
 
     @staticmethod
     def _market_slug(value: str) -> str:
@@ -3151,8 +3421,11 @@ class DeckBuilderService:
             warnings.append("Aucune liste assez récente n'a passé la période choisie.")
         if samples and len(samples) < 5:
             warnings.append("Échantillon faible : les pourcentages sont à interpréter avec prudence.")
-        if not samples:
-            warnings.append("Mode dégradé : aucune decklist exploitable n'a été trouvée, donc aucun pourcentage n'est inventé.")
+        if not samples and fallback_cards:
+            warnings.append("Reconstruction TCG partielle : Hamtaro a retrouvé des cartes liées mais pas assez de decklists exploitables pour calculer des pourcentages fiables.")
+        elif not samples:
+            warnings.append("Recherche non résolue : aucune decklist ni carte TCG suffisamment liée n'a été retrouvée. Aucun résultat n'est inventé.")
+        discovery_mode = "statistical" if samples else ("reconstructed" if fallback_cards else "unresolved")
         return {
             "query": clean,
             "variant": variant or "",
@@ -3167,6 +3440,7 @@ class DeckBuilderService:
             "tournament_samples": sum(1 for sample in samples if sample.is_tournament),
             "side_samples": sum(1 for sample in samples if sample.side),
             "discovery": dict(self._last_discovery_debug),
+            "discovery_mode": discovery_mode,
             "filters": {
                 "tournament_only": tournament_only,
                 "days": days,
@@ -3941,7 +4215,7 @@ class DeckBuilderService:
         defaults = [
             "Blue-Eyes", "Yummy", "Sky Striker", "X-Saber", "Mitsurugi", "Cyber Dragon",
             "Branded", "Traptrix", "Fire King", "Ryzeal", "Maliss", "Primite Blue-Eyes",
-            "D/D/D", "P.U.N.K.",
+            "D/D/D", "P.U.N.K.", "Rose Dragon", "Radiant Typhoon", "Vanquish Soul K9",
         ]
         if not clean:
             return defaults

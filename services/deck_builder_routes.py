@@ -80,6 +80,8 @@ class DeckBuilderRoutes:
                 "D/D/D",
                 "P.U.N.K.",
                 "Rose Dragon",
+                "Radiant Typhoon",
+                "Vanquish Soul K9",
             ],
         )
 

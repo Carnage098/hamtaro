@@ -648,11 +648,20 @@
             const signatureNote = discovery.signature_fallback_used
                 ? ` · secours cartes-signatures${signatureCards.length ? ` (${signatureCards.slice(0, 3).join(', ')})` : ''}: ${signatureLinks} lien(s)`
                 : '';
+            const universalComponents = Array.isArray(discovery.universal_components) ? discovery.universal_components : [];
+            const universalArchetypes = Array.isArray(discovery.universal_candidate_archetypes) ? discovery.universal_candidate_archetypes : [];
+            const universalCards = Array.isArray(discovery.universal_resolved_cards) ? discovery.universal_resolved_cards : [];
+            const universalLinks = Number(discovery.universal_deck_links_added || 0);
+            const universalNote = discovery.universal_fallback_used
+                ? ` · résolution universelle: ${universalLinks} lien(s)${universalArchetypes.length ? ` · archétype(s) ${universalArchetypes.slice(0, 3).join(', ')}` : ''}${universalCards.length ? ` · cartes ${universalCards.slice(0, 3).join(', ')}` : ''}`
+                : '';
             els.discoveryDebug.textContent = state.analysis?.degraded
-                ? `Diagnostic TCG : ${loaded}/${requested} page(s) chargée(s) · ${links} lien(s) · ${parsed} deck(s) parsé(s) · ${ignored} non-TCG ignoré(s) · ${stored} liste(s) Hamtaro réutilisée(s)${signatureNote}.`
-                : (discovery.signature_fallback_used
-                    ? `Hamtaro a complété la recherche par cartes-signatures${signatureCards.length ? ` (${signatureCards.slice(0, 3).join(', ')})` : ''}. ${stored ? `${stored} liste(s) TCG déjà apprises ont aussi été réutilisées.` : ''}`
-                    : (stored ? `${stored} liste(s) TCG déjà apprises par Hamtaro ont complété les données fraîches.` : ''));
+                ? `Diagnostic TCG : ${loaded}/${requested} page(s) chargée(s) · ${links} lien(s) · ${parsed} deck(s) parsé(s) · ${ignored} non-TCG ignoré(s) · ${stored} liste(s) Hamtaro réutilisée(s)${signatureNote}${universalNote}.`
+                : (discovery.universal_fallback_used
+                    ? `Hamtaro a dû élargir automatiquement la recherche${universalComponents.length ? ` (${universalComponents.slice(0, 3).join(' / ')})` : ''} pour retrouver cette base. ${stored ? `${stored} liste(s) TCG déjà apprises ont aussi été réutilisées.` : ''}`
+                    : (discovery.signature_fallback_used
+                        ? `Hamtaro a complété la recherche par cartes-signatures${signatureCards.length ? ` (${signatureCards.slice(0, 3).join(', ')})` : ''}. ${stored ? `${stored} liste(s) TCG déjà apprises ont aussi été réutilisées.` : ''}`
+                        : (stored ? `${stored} liste(s) TCG déjà apprises par Hamtaro ont complété les données fraîches.` : '')));
         }
         els.fallbackGrid.innerHTML = cards.map((card) => `
             <article class="db-fallback-card" data-fallback-card-id="${esc(card.id)}">
