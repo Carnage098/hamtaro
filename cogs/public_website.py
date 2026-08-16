@@ -23,6 +23,7 @@ from services.bracket_export_service import (
 )
 from services.archetype_web_routes import register_archetype_routes
 from services.banlist_routes import register_banlist_routes
+from services.deck_builder_routes import register_deck_builder_routes
 from services.format_routes import register_format_routes
 from services.site_experience_routes import register_site_experience_routes
 from services.trophy_routes import register_trophy_routes
@@ -274,6 +275,7 @@ class PublicWebsiteCog(commands.Cog):
             application,
             self,
         )
+        register_deck_builder_routes(application, self)
 
         application.router.add_get("/favicon.ico", self.favicon)
         # HAMTARO FORMAT ARAIGNEE: routes publiques et API.
