@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import quote_plus, unquote
+from urllib.parse import quote, quote_plus, unquote
 
 import aiohttp
 
@@ -113,11 +113,11 @@ class DeckBuilderService:
         self.image_cache_path = Path(os.getenv("DECK_BUILDER_IMAGE_CACHE_PATH", str(default_images)))
         self.image_cache_path.mkdir(parents=True, exist_ok=True)
         self._last_card_fetch_dates: list[str] = []
-        self.cache_namespace = "v84"
+        self.cache_namespace = "v85"
         self._last_discovery_debug: dict[str, Any] = {}
         self.user_agent = os.getenv(
             "DECK_BUILDER_USER_AGENT",
-            "HamtaroDeckBuilder/8.4 (+public Yu-Gi-Oh TCG deck assistant)",
+            "HamtaroDeckBuilder/8.5 (+public Yu-Gi-Oh TCG deck assistant)",
         )
         self._init_db()
 
@@ -717,10 +717,20 @@ class DeckBuilderService:
         clean = re.sub(r"\s+", " ", str(query or "")).strip()
         if not clean:
             return []
+        urls: list[str] = []
+
+        # V8.5 : YGOPRODeck encode les noms d'archétypes dans le segment de chemin
+        # (ex. ``radiant%20typhoon``), il ne les slugifie pas forcément avec des
+        # tirets. On tente donc toujours d'abord le nom recherché tel quel, encodé
+        # pour une URL, même si l'endpoint /archetypes.php est temporairement indisponible.
+        direct = quote(clean.casefold(), safe="")
+        if direct:
+            urls.append(f"{YGOPRODECK_SITE}/category/type/{direct}")
+
         try:
             payload = await self._fetch_json(f"{YGOPRODECK_API}/archetypes.php", ttl_hours=72)
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
-            return []
+            return urls
         qkey = clean.casefold()
         scored: list[tuple[int, int, str]] = []
         for item in payload if isinstance(payload, list) else []:
@@ -740,12 +750,20 @@ class DeckBuilderService:
             if score is not None:
                 scored.append((score, len(name), name))
         scored.sort(reverse=True)
-        urls: list[str] = []
         for _score, _length, name in scored[:3]:
+            encoded = quote(name.casefold(), safe="")
+            if encoded:
+                candidate = f"{YGOPRODECK_SITE}/category/type/{encoded}"
+                if candidate not in urls:
+                    urls.append(candidate)
+            # Ancien format conservé en dernier recours pour les routes qui
+            # accepteraient encore une forme slugifiée.
             slug = self._slugify_archetype(name)
             if slug:
-                urls.append(f"{YGOPRODECK_SITE}/category/type/{slug}")
-        return urls
+                candidate = f"{YGOPRODECK_SITE}/category/type/{slug}"
+                if candidate not in urls:
+                    urls.append(candidate)
+        return urls[:6]
 
 
     @staticmethod
@@ -1227,7 +1245,11 @@ class DeckBuilderService:
             for url in await self._category_urls_for_query(value):
                 if url not in category_urls:
                     category_urls.append(url)
-        source_urls.extend(category_urls)
+        # Les pages /category/type/ sont la source la plus directe lorsqu'un
+        # archétype est correctement référencé (Radiant Typhoon, P.U.N.K., etc.).
+        # Elles passent avant les pages de recherche génériques afin de ne pas être
+        # éliminées par la limite de sources lorsque de nombreux alias existent.
+        source_urls = [*category_urls, *[url for url in source_urls if url not in category_urls]]
         source_urls = source_urls[:18]
         pages = await asyncio.gather(
             *(self._fetch_text(url, ttl_hours=self.search_cache_hours) for url in source_urls),
