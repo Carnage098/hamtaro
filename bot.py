@@ -70,6 +70,7 @@ REQUIRED_COGS = (
     "cogs.nextmatch",
     "cogs.bracket_full",
     "cogs.end_tournament",
+    "cogs.trophy_award",
     "cogs.help",
     "cogs.tournament_context",
     "cogs.tournament_undo",
