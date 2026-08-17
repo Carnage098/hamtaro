@@ -115,12 +115,12 @@ class DeckBuilderService:
         self.image_cache_path = Path(os.getenv("DECK_BUILDER_IMAGE_CACHE_PATH", str(default_images)))
         self.image_cache_path.mkdir(parents=True, exist_ok=True)
         self._last_card_fetch_dates: list[str] = []
-        self.cache_namespace = "v89"
+        self.cache_namespace = "v90"
         self._last_discovery_debug: dict[str, Any] = {}
         self._last_card_lookup_debug: dict[str, Any] = {}
         self.user_agent = os.getenv(
             "DECK_BUILDER_USER_AGENT",
-            "HamtaroDeckBuilder/8.9 (+public Yu-Gi-Oh TCG deck assistant)",
+            "HamtaroDeckBuilder/9.0 (+public Yu-Gi-Oh TCG deck assistant)",
         )
         self._init_db()
 

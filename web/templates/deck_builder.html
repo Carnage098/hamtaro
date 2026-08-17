@@ -6,37 +6,24 @@
 <section class="deck-builder-page" data-deck-builder-root>
     <header class="db-hero">
         <div class="db-hero-copy">
-            <p class="db-eyebrow">HAMTARO DECK INTELLIGENCE · V8.7</p>
-            <h1>Construis, comprends et chiffre ton deck.</h1>
+            <p class="db-eyebrow">HAMTARO DECK LAB · V9.0</p>
+            <h1>Construis un deck solide, comprends chaque choix.</h1>
             <p>
                 Recherche un archétype ou une variante. Hamtaro analyse des decklists publiques,
                 sépare Main / Extra / Side, détecte les moteurs récurrents, estime les quantités
                 habituelles et calcule le coût des cartes avec les données Cardmarket disponibles.
             </p>
         </div>
-        <div class="db-hero-badges" aria-label="Fonctions du générateur">
-            <span>Main / Extra / Side</span>
-            <span>Budget réellement optimisé</span>
-            <span>Prix Cardmarket</span>
-            <span>Noms de cartes en français</span>
-            <span>Moteurs détectés</span>
-            <span>Comparer ma liste</span>
-            <span>TCG uniquement</span>
-            <span>Légalité TCG globale</span>
-            <span>Parcours d'upgrade</span>
-            <span>Cartes verrouillées / exclues</span>
-            <span>Alternatives observées</span>
-            <span>Plan d'achat débutant</span>
-            <span>Score de préparation</span>
-            <span>Packages statistiques</span>
-            <span>Cartes souvent jouées ensemble</span>
-            <span>Comparaison avec/sans moteur</span>
-            <span>Probabilités de main de départ</span>
-            <span>Constructions observées</span>
-            <span>Slots flex concurrents</span>
-            <span>Diagnostic de cohérence</span>
-            <span>Freespots / staples dynamiques</span>
-            <span>Sources pondérées</span>
+        <div class="db-hero-console" aria-label="Fonctions principales">
+            <div class="db-hero-orb"><span>TCG</span><strong>Deck Lab</strong></div>
+            <div class="db-hero-features">
+                <span><b>01</b> Main · Extra · Side</span>
+                <span><b>02</b> Prix & raretés Cardmarket</span>
+                <span><b>03</b> Core · moteurs · freespots</span>
+                <span><b>04</b> Budget · collection · upgrades</span>
+                <span><b>05</b> Synergies & variantes</span>
+                <span><b>06</b> Comparaison & export .ydk</span>
+            </div>
         </div>
     </header>
 
@@ -65,6 +52,11 @@
             {% for deck in quick_decks %}
             <button type="button" data-db-quick-query="{{ deck }}">{{ deck }}</button>
             {% endfor %}
+        </div>
+        <div class="db-recent-row" data-db-recent-wrap hidden>
+            <span>Récents</span>
+            <div class="db-recent-searches" data-db-recent-searches></div>
+            <button type="button" class="db-link-button" data-db-clear-recents>Effacer</button>
         </div>
     </section>
 
@@ -154,12 +146,34 @@
                 <p class="db-result-subtitle" data-db-subtitle></p>
             </div>
             <div class="db-result-actions">
-                <button type="button" class="db-secondary-button" data-db-share>Partager cette recherche</button>
+                <button type="button" class="db-secondary-button" data-db-save-search>★ Enregistrer</button>
+                <button type="button" class="db-secondary-button" data-db-share>Partager</button>
                 <button type="button" class="db-primary-button" data-db-generate>Générer la liste</button>
             </div>
         </div>
 
         <div class="db-warning-list" data-db-warnings hidden></div>
+
+        <nav class="db-workspace-nav" data-db-workspace-nav aria-label="Navigation dans l'analyse">
+            <button type="button" class="is-active" data-db-jump="db-overview">Vue d'ensemble</button>
+            <button type="button" data-db-jump="db-strategy">Stratégie</button>
+            <button type="button" data-db-jump="db-library">Cartes</button>
+            <button type="button" data-db-jump="db-compare">Comparer</button>
+            <button type="button" data-db-jump="db-generated">Deck généré</button>
+        </nav>
+
+        <section class="db-overview-dashboard" id="db-overview">
+            <div class="db-confidence-orbit" data-db-confidence-orbit style="--db-score:0">
+                <div><strong data-db-confidence-orbit-value>—</strong><span>Fiabilité</span></div>
+            </div>
+            <div class="db-overview-copy">
+                <span class="db-kicker">Lecture rapide</span>
+                <h3 data-db-overview-title>Analyse du deck</h3>
+                <p data-db-overview-note>Les indicateurs clés apparaîtront ici après l'analyse.</p>
+                <div class="db-overview-pills" data-db-overview-pills></div>
+            </div>
+            <div class="db-next-step" data-db-next-step></div>
+        </section>
 
         <div class="db-summary-grid db-summary-grid-v3">
             <article class="db-summary-card">
@@ -214,7 +228,7 @@
             </article>
         </div>
 
-        <section class="db-variants-panel" data-db-variants-panel hidden>
+        <section class="db-variants-panel" id="db-strategy" data-db-variants-panel hidden>
             <div class="db-section-heading compact">
                 <div>
                     <span class="db-kicker">Variantes trouvées</span>
@@ -225,6 +239,12 @@
             </div>
             <div class="db-variant-chips" data-db-variants></div>
         </section>
+
+        <details class="db-advanced-lab" data-db-advanced-lab>
+            <summary>
+                <span><b>Analyses avancées</b><small>Moteurs, packages, variantes par moteur, constructions et slots flex</small></span>
+                <em>Ouvrir</em>
+            </summary>
 
         <section class="db-engine-panel" data-db-engine-panel hidden>
             <div class="db-section-heading compact">
@@ -280,6 +300,7 @@
             </div>
             <div class="db-flex-grid" data-db-flex-grid></div>
         </section>
+        </details>
 
         <section class="db-freespot-panel" data-db-freespot-panel hidden>
             <div class="db-section-heading compact">
@@ -327,7 +348,7 @@
             <div class="db-constraints-summary" data-db-constraints-summary></div>
         </section>
 
-        <section class="db-library-panel">
+        <section class="db-library-panel" id="db-library">
             <div class="db-section-heading">
                 <div>
                     <span class="db-kicker">Bibliothèque du deck</span>
@@ -335,6 +356,20 @@
                     <p>Les pourcentages sont calculés séparément pour Main, Extra et Side.</p>
                 </div>
                 <div class="db-library-tools">
+                    <label class="db-card-search-field">
+                        <span>Rechercher une carte</span>
+                        <input type="search" placeholder="Nom, rôle…" data-db-card-search>
+                    </label>
+                    <label>
+                        <span>Trier par</span>
+                        <select data-db-card-sort>
+                            <option value="frequency">Popularité</option>
+                            <option value="copies">Quantité habituelle</option>
+                            <option value="price_asc">Prix croissant</option>
+                            <option value="price_desc">Prix décroissant</option>
+                            <option value="name">Nom A → Z</option>
+                        </select>
+                    </label>
                     <label>
                         <span>Afficher</span>
                         <select data-db-importance-filter>
@@ -344,6 +379,10 @@
                             <option value="option">Jusqu'aux options</option>
                         </select>
                     </label>
+                    <div class="db-view-toggle" role="group" aria-label="Affichage des cartes">
+                        <button type="button" class="is-active" data-db-view="list">Liste</button>
+                        <button type="button" data-db-view="gallery">Galerie</button>
+                    </div>
                     <label class="db-switch-inline">
                         <input type="checkbox" data-db-owned-filter>
                         <span>Masquer mes cartes possédées</span>
@@ -410,7 +449,7 @@
             </div>
         </section>
 
-        <section class="db-compare-panel">
+        <section class="db-compare-panel" id="db-compare">
             <div class="db-section-heading">
                 <div>
                     <span class="db-kicker">Comparer ma liste</span>
@@ -441,7 +480,7 @@ ou
             <div class="db-compare-results" data-db-compare-results hidden></div>
         </section>
 
-        <section class="db-generated-panel" data-db-generated-panel hidden>
+        <section class="db-generated-panel" id="db-generated" data-db-generated-panel hidden>
             <div class="db-section-heading">
                 <div>
                     <span class="db-kicker">Deck généré par Hamtaro</span>
@@ -491,5 +530,11 @@ ou
             <div class="db-fallback-grid" data-db-fallback-grid></div>
         </section>
     </section>
+
+    <div class="db-action-dock" data-db-action-dock hidden>
+        <div><span data-db-dock-name>Deck</span><small>Deck Lab V9</small></div>
+        <button type="button" data-db-dock-cards>Voir les cartes</button>
+        <button type="button" class="primary" data-db-dock-generate>Générer</button>
+    </div>
 </section>
 {% endblock %}
