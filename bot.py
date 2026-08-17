@@ -63,6 +63,7 @@ REQUIRED_COGS = (
     "cogs.profile",
     "cogs.admin",
     "cogs.swiss",
+    "cogs.team_2v2",
     "cogs.match_history",
     "cogs.repair",
     "cogs.staff_logs",

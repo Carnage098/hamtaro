@@ -191,6 +191,15 @@ class SwissCog(commands.Cog):
             tournament = await self._get_required_tournament(
                 interaction
             )
+            # HAMTARO_2V2_V2:SWISS_START
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
+                text = await duo_cog.start_from_native(int(tournament.id), "swiss", total_rounds=rondes)
+                await interaction.followup.send(
+                    "✅ **Rondes suisses 2v2 lancées !**\n\n" + text,
+                    ephemeral=not visible,
+                )
+                return
 
             text = await self.swiss.start(
                 tournament_id=tournament.id,
@@ -238,6 +247,12 @@ class SwissCog(commands.Cog):
             tournament = await self._get_required_tournament(
                 interaction
             )
+            # HAMTARO_2V2_V2:SWISS_PAIRINGS
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
+                text = await duo_cog.format_swiss_pairings(int(tournament.id), ronde)
+                await interaction.followup.send(text, ephemeral=False)
+                return
 
             if ronde is None:
 
@@ -427,6 +442,12 @@ class SwissCog(commands.Cog):
             tournament = await self._get_required_tournament(
                 interaction
             )
+            # HAMTARO_2V2_V2:SWISS_NEXT
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
+                text = await duo_cog.swiss_next_from_native(int(tournament.id))
+                await interaction.followup.send(text, ephemeral=not visible)
+                return
 
             text = await self.swiss.next_round(
                 tournament.id
@@ -468,6 +489,12 @@ class SwissCog(commands.Cog):
             tournament = await self._get_required_tournament(
                 interaction
             )
+            # HAMTARO_2V2_V2:SWISS_STANDINGS
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
+                text = await duo_cog.format_swiss_standings(int(tournament.id))
+                await interaction.followup.send(text, ephemeral=False)
+                return
 
             text = await self._format_standings_with_double_loss(
                 tournament.id
@@ -509,6 +536,12 @@ class SwissCog(commands.Cog):
             tournament = await self._get_required_tournament(
                 interaction
             )
+            # HAMTARO_2V2_V2:SWISS_STATUS
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
+                text = await duo_cog.format_swiss_status(int(tournament.id))
+                await interaction.followup.send(text, ephemeral=True)
+                return
 
             text = await self.swiss.format_status(
                 tournament.id
@@ -553,6 +586,15 @@ class SwissCog(commands.Cog):
             tournament = await self._get_required_tournament(
                 interaction
             )
+            # HAMTARO_2V2_V2:SWISS_RESET
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
+                await duo_cog.reset_swiss_from_native(int(tournament.id))
+                await interaction.followup.send(
+                    "✅ Les rondes suisses 2v2 ont été réinitialisées.",
+                    ephemeral=True,
+                )
+                return
 
             await self.db.reset_swiss_tournament(
                 tournament.id

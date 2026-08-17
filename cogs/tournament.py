@@ -144,7 +144,8 @@ class TournamentCog(commands.Cog):
     @app_commands.describe(
         name="Nom du tournoi",
         format="Format du tournoi",
-        max_players="Nombre maximum de joueurs",
+        max_players="Nombre maximum de joueurs / équipes",
+        participants="Type de participants",
     )
     @app_commands.choices(
         format=[
@@ -153,6 +154,12 @@ class TournamentCog(commands.Cog):
                 value=format_name,
             )
             for format_name in FORMATS
+        ]
+    )
+    @app_commands.choices(
+        participants=[
+            app_commands.Choice(name="👤 Solo 1v1", value="solo"),
+            app_commands.Choice(name="👥 Équipes 2v2", value="duo"),
         ]
     )
     @app_commands.default_permissions(
@@ -164,6 +171,7 @@ class TournamentCog(commands.Cog):
         name: str,
         format: app_commands.Choice[str],
         max_players: int,
+        participants: app_commands.Choice[str],
     ) -> None:
         acknowledged = await self._safe_defer(
             interaction,
@@ -188,6 +196,14 @@ class TournamentCog(commands.Cog):
                 ),
             )
 
+            # HAMTARO_2V2_V2:TOURNAMENT
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is None:
+                raise RuntimeError("Le module 2v2 Hamtaro n'est pas chargé.")
+            participant_mode = await duo_cog.set_participant_mode(
+                int(tournament.id),
+                participants.value,
+            )
             if interaction.channel_id is not None:
                 await self.db.select_tournament_for_channel(
                     guild_id=guild_id,
@@ -247,6 +263,12 @@ class TournamentCog(commands.Cog):
         )
 
         embed.add_field(
+            name="Participants",
+            value=("👥 Équipes 2v2" if participant_mode == "duo" else "👤 Solo 1v1"),
+            inline=True,
+        )
+
+        embed.add_field(
             name="Code",
             value=f"`{tournament.code}`",
             inline=True,
@@ -259,7 +281,7 @@ class TournamentCog(commands.Cog):
         )
 
         embed.add_field(
-            name="Joueurs",
+            name=("Équipes" if participant_mode == "duo" else "Joueurs"),
             value=f"0/{tournament.max_players}",
             inline=True,
         )
@@ -927,6 +949,15 @@ class TournamentCog(commands.Cog):
                 )
                 return
 
+            # HAMTARO_2V2_V2:START_ELIMINATION
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
+                text = await duo_cog.start_from_native(int(tournament.id), "elimination")
+                await interaction.followup.send(
+                    "✅ **Tournoi 2v2 lancé en élimination directe !**\n\n" + text,
+                    ephemeral=True,
+                )
+                return
             await self.brackets.generate(
                 tournament.id
             )

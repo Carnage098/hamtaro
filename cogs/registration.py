@@ -78,6 +78,7 @@ class RegistrationCog(commands.Cog):
     @app_commands.describe(
         deck="Deck que tu joues pour ce tournoi",
         code="Code facultatif du tournoi",
+        team_id="ID de ton équipe 2v2 si tu en as plusieurs",
     )
     @app_commands.autocomplete(
         code=active_tournament_code_autocomplete,
@@ -87,6 +88,7 @@ class RegistrationCog(commands.Cog):
         interaction: discord.Interaction,
         deck: str | None = None,
         code: str | None = None,
+        team_id: int | None = None,
     ) -> None:
         await interaction.response.defer(ephemeral=True)
 
@@ -107,6 +109,11 @@ class RegistrationCog(commands.Cog):
                 )
                 return
 
+            # HAMTARO_2V2_V2:REGISTER
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
+                await duo_cog.register_from_native(interaction, tournament, team_id=team_id, deck=deck)
+                return
             user = interaction.user
             username = self._display_name(user)
             avatar_url = self._avatar_url(user)
@@ -200,6 +207,11 @@ class RegistrationCog(commands.Cog):
                 )
                 return
 
+            # HAMTARO_2V2_V2:UNREGISTER
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
+                await duo_cog.unregister_from_native(interaction, tournament)
+                return
             await self.db.unregister_player(
                 tournament_id=tournament.id,
                 discord_id=str(interaction.user.id),
@@ -268,6 +280,11 @@ class RegistrationCog(commands.Cog):
                 )
                 return
 
+            # HAMTARO_2V2_V2:DECK
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
+                await duo_cog.update_deck_from_native(interaction, tournament, deck)
+                return
             registration = await self.db.get_registration_by_user(
                 tournament_id=tournament.id,
                 discord_id=str(interaction.user.id),
@@ -353,6 +370,11 @@ class RegistrationCog(commands.Cog):
                 )
                 return
 
+            # HAMTARO_2V2_V2:PLAYERS
+            duo_cog = self.bot.get_cog("Team2v2Cog")
+            if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
+                await duo_cog.players_from_native(interaction, tournament)
+                return
             registrations = await self.db.list_registrations(
                 tournament.id
             )
