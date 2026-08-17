@@ -649,6 +649,12 @@
                 .map(([format, count]) => `${format}: ${Number(count)}`);
             const formatNote = formatNoteParts.length ? ` · formats détectés [${formatNoteParts.join(', ')}]` : '';
             const stored = Number(discovery.stored_tcg_decks_reused || 0);
+            const uniqueBeforeLimit = Number(discovery.unique_decks_before_limit || discovery.unique_decks || 0);
+            const selectedUnique = Number(discovery.unique_decks || 0);
+            const filterDebug = state.analysis?.filter_debug || {};
+            const afterFilters = Number(filterDebug.after_filters ?? state.analysis?.samples_analyzed ?? 0);
+            const beforeFilters = Number(filterDebug.before_filters ?? state.analysis?.samples_found_before_filters ?? 0);
+            const undated = Number(filterDebug.undated_before_filters || 0);
             const cardLookup = state.analysis?.card_lookup || {};
             const lookupRequested = Number(cardLookup.requested || 0);
             const lookupRecovered = Number(cardLookup.single_recovered || 0);
@@ -669,7 +675,7 @@
                 ? ` · résolution universelle: ${universalLinks} lien(s)${universalArchetypes.length ? ` · archétype(s) ${universalArchetypes.slice(0, 3).join(', ')}` : ''}${universalCards.length ? ` · cartes ${universalCards.slice(0, 3).join(', ')}` : ''}`
                 : '';
             els.discoveryDebug.textContent = state.analysis?.degraded
-                ? `Diagnostic TCG : ${loaded}/${requested} page(s) chargée(s) · ${links} lien(s) · ${parsed} deck(s) parsé(s) · ${explicitIgnored} explicitement non-TCG ignoré(s) · ${incompatibleIgnored} incompatible(s) avec le pool TCG · ${stored} liste(s) Hamtaro réutilisée(s)${formatNote}${signatureNote}${universalNote}.`
+                ? `Diagnostic TCG : ${loaded}/${requested} page(s) chargée(s) · ${links} lien(s) · ${parsed} deck(s) parsé(s) · ${explicitIgnored} explicitement non-TCG ignoré(s) · ${incompatibleIgnored} incompatible(s) avec le pool TCG · ${uniqueBeforeLimit} unique(s) TCG avant limite · ${selectedUnique} retenue(s) · ${afterFilters}/${beforeFilters} après filtres${undated ? ` · ${undated} sans date` : ''} · ${stored} liste(s) Hamtaro réutilisée(s)${formatNote}${signatureNote}${universalNote}.`
                 : (discovery.universal_fallback_used
                     ? `Hamtaro a dû élargir automatiquement la recherche${universalComponents.length ? ` (${universalComponents.slice(0, 3).join(' / ')})` : ''} pour retrouver cette base. ${stored ? `${stored} liste(s) TCG déjà apprises ont aussi été réutilisées.` : ''}`
                     : (discovery.signature_fallback_used
