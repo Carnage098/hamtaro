@@ -105,7 +105,9 @@ class DeckBuilderService:
         self.request_timeout = max(5, int(os.getenv("DECK_BUILDER_HTTP_TIMEOUT", "14")))
         self.cache_hours = max(6, int(os.getenv("DECK_BUILDER_CACHE_HOURS", "24")))
         self.search_cache_hours = max(3, int(os.getenv("DECK_BUILDER_SEARCH_CACHE_HOURS", "12")))
-        self.max_decks = min(60, max(6, int(os.getenv("DECK_BUILDER_MAX_DECKS", "32"))))
+        self.max_decks = min(96, max(6, int(os.getenv("DECK_BUILDER_MAX_DECKS", "48"))))
+        self.search_pages = min(4, max(1, int(os.getenv("DECK_BUILDER_SEARCH_PAGES", "3"))))
+        self.max_candidate_links = min(240, max(60, int(os.getenv("DECK_BUILDER_MAX_CANDIDATE_LINKS", "180"))))
         self.card_language = os.getenv("DECK_BUILDER_CARD_LANGUAGE", "fr").strip().casefold() or "fr"
         if self.card_language not in {"en", "fr", "de", "it", "pt"}:
             self.card_language = "fr"
@@ -113,12 +115,12 @@ class DeckBuilderService:
         self.image_cache_path = Path(os.getenv("DECK_BUILDER_IMAGE_CACHE_PATH", str(default_images)))
         self.image_cache_path.mkdir(parents=True, exist_ok=True)
         self._last_card_fetch_dates: list[str] = []
-        self.cache_namespace = "v88"
+        self.cache_namespace = "v89"
         self._last_discovery_debug: dict[str, Any] = {}
         self._last_card_lookup_debug: dict[str, Any] = {}
         self.user_agent = os.getenv(
             "DECK_BUILDER_USER_AGENT",
-            "HamtaroDeckBuilder/8.8 (+public Yu-Gi-Oh TCG deck assistant)",
+            "HamtaroDeckBuilder/8.9 (+public Yu-Gi-Oh TCG deck assistant)",
         )
         self._init_db()
 
@@ -1500,6 +1502,40 @@ class DeckBuilderService:
             format_name=self._detect_sample_format(body, title),
         )
 
+    @classmethod
+    def _sample_relevance_score(cls, sample: DeckSample, query: str, variants: Iterable[str]) -> float:
+        """Score de pertinence textuelle indépendant de la force compétitive.
+
+        Les pages d'archétype peuvent contenir des hybrides et les recherches
+        génériques beaucoup de bruit. On privilégie donc les listes dont le titre
+        contient réellement le deck demandé / l'un de ses alias, sans exclure les
+        hybrides qui ajoutent un second moteur.
+        """
+        title_id = cls._deck_identity(sample.title)
+        query_id = cls._deck_identity(query)
+        variant_ids = [cls._deck_identity(v) for v in variants if cls._deck_identity(v)]
+        score = 0.0
+        if query_id and query_id in title_id:
+            score += 8.0
+        if any(v and v in title_id for v in variant_ids):
+            score += 5.0
+        qparts = [cls._deck_identity(x) for x in cls._query_components(query, limit=8)]
+        qparts = [x for x in qparts if len(x) >= 2]
+        if qparts:
+            hits = sum(1 for part in qparts if part in title_id)
+            score += 1.5 * hits
+            if hits == len(qparts):
+                score += 2.0
+        if sample.is_tournament:
+            score += 1.0
+        return score
+
+    @classmethod
+    def _deck_link_relevance_score(cls, url: str, query: str, variants: Iterable[str]) -> float:
+        slug = unquote(url.rstrip('/').rsplit('/', 1)[-1]).replace('-', ' ')
+        fake = DeckSample(slug, url, [], [], [], False, None, None, 1.0, '')
+        return cls._sample_relevance_score(fake, query, variants)
+
     async def search_samples(self, query: str, *, max_decks: int | None = None) -> list[DeckSample]:
         clean = re.sub(r"\s+", " ", query).strip()
         if not clean:
@@ -1534,26 +1570,28 @@ class DeckBuilderService:
 
         source_urls: list[str] = []
         category_urls: list[str] = []
-        for value in variants:
+        # V8.9 : on pagine les recherches principales. Les versions précédentes
+        # ne lisaient que offset=0, ce qui appauvrissait fortement les archétypes
+        # très populaires. On limite la profondeur pour les alias secondaires afin
+        # de garder un coût réseau raisonnable.
+        for index, value in enumerate(variants):
             encoded = quote_plus(value)
-            # Tournament Meta Decks = TCG sur YGOPRODeck ; les formats OCG et Genesys
-            # disposent de catégories séparées. La page générale sert de secours,
-            # puis les deck pages explicitement non-TCG sont rejetées plus bas.
-            for url in (
-                f"{YGOPRODECK_SITE}/deck-search/?name={encoded}&offset=0&tournament=tier-2",
-                f"{YGOPRODECK_SITE}/deck-search/?name={encoded}&offset=0",
-            ):
-                if url not in source_urls:
-                    source_urls.append(url)
+            depth = self.search_pages if index < 2 else 1
+            for page_index in range(depth):
+                offset = page_index * 30
+                for url in (
+                    f"{YGOPRODECK_SITE}/deck-search/?name={encoded}&offset={offset}&tournament=tier-2",
+                    f"{YGOPRODECK_SITE}/deck-search/?name={encoded}&offset={offset}",
+                ):
+                    if url not in source_urls:
+                        source_urls.append(url)
             for url in await self._category_urls_for_query(value):
                 if url not in category_urls:
                     category_urls.append(url)
-        # Les pages /category/type/ sont la source la plus directe lorsqu'un
-        # archétype est correctement référencé (Radiant Typhoon, P.U.N.K., etc.).
-        # Elles passent avant les pages de recherche génériques afin de ne pas être
-        # éliminées par la limite de sources lorsque de nombreux alias existent.
+        # Les pages d'archétype restent prioritaires, mais on ne coupe plus à 18
+        # URLs avant d'avoir parcouru les pages du nom principal.
         source_urls = [*category_urls, *[url for url in source_urls if url not in category_urls]]
-        source_urls = source_urls[:18]
+        source_urls = source_urls[:36]
         pages = await asyncio.gather(
             *(self._fetch_text(url, ttl_hours=self.search_cache_hours) for url in source_urls),
             return_exceptions=True,
@@ -1569,8 +1607,13 @@ class DeckBuilderService:
                 if link not in seen_urls:
                     seen_urls.add(link)
                     links.append(link)
-        links = links[: min(len(links), max(limit * 3, limit))]
-        semaphore = asyncio.Semaphore(5)
+        # V8.9 : on classe les liens avant de les couper. Un Top YCS ou un deck
+        # contenant clairement le nom recherché ne doit plus disparaître simplement
+        # parce qu'il se trouvait après 96 liens génériques.
+        links.sort(key=lambda url: self._deck_link_relevance_score(url, clean, variants), reverse=True)
+        candidate_cap = min(self.max_candidate_links, max(limit * 5, 120))
+        links = links[: min(len(links), candidate_cap)]
+        semaphore = asyncio.Semaphore(7)
 
         async def load(url: str) -> DeckSample | None:
             async with semaphore:
@@ -1602,7 +1645,7 @@ class DeckBuilderService:
                     if link not in seen_urls:
                         seen_urls.add(link)
                         extra_links.append(link)
-            max_extra = max(limit * 3, limit)
+            max_extra = min(self.max_candidate_links, max(limit * 4, 100))
             extra_links = extra_links[:max_extra]
             signature_links_added = len(extra_links)
             if extra_links:
@@ -1641,7 +1684,7 @@ class DeckBuilderService:
                     if link not in seen_urls:
                         seen_urls.add(link)
                         universal_links.append(link)
-            universal_links = universal_links[:max(limit * 4, limit)]
+            universal_links = universal_links[:min(self.max_candidate_links, max(limit * 4, 120))]
             universal_links_added = len(universal_links)
             if universal_links:
                 loaded.extend(await asyncio.gather(*(load(url) for url in universal_links)))
@@ -1679,7 +1722,19 @@ class DeckBuilderService:
             if previous is None or sample.weight > previous.weight:
                 deduped[sample.fingerprint] = sample
         valid = list(deduped.values())
-        valid.sort(key=lambda item: (item.weight, item.is_tournament, item.published or ""), reverse=True)
+        # Pertinence du deck d'abord, qualité de la source ensuite. Cela conserve
+        # les hybrides pertinents mais évite qu'une liste très bien placée d'un
+        # autre deck prenne la place d'une vraie liste du deck recherché.
+        valid.sort(
+            key=lambda item: (
+                self._sample_relevance_score(item, clean, variants),
+                item.weight,
+                item.is_tournament,
+                item.published or "",
+            ),
+            reverse=True,
+        )
+        unique_before_limit = len(valid)
         valid = valid[:limit]
         if tcg_compatible:
             await asyncio.to_thread(self._store_samples_sync, clean, tcg_compatible)
@@ -1715,7 +1770,10 @@ class DeckBuilderService:
             "tcg_incompatible_ignored": card_incompatible,
             "live_tcg_decks": len(tcg_compatible),
             "stored_tcg_decks_reused": len(stored),
+            "unique_decks_before_limit": unique_before_limit,
             "unique_decks": len(valid),
+            "candidate_link_cap": candidate_cap,
+            "search_pages_per_primary_query": self.search_pages,
             "tcg_only": True,
         }
         return valid
@@ -1744,9 +1802,23 @@ class DeckBuilderService:
                 except ValueError:
                     continue
             result = filtered
-        clean_variant = re.sub(r"\s+", " ", str(variant or "")).strip().casefold()
-        if clean_variant and clean_variant != base_query.casefold():
-            result = [sample for sample in result if clean_variant in sample.title.casefold()]
+        clean_variant = re.sub(r"\s+", " ", str(variant or "")).strip()
+        if clean_variant and DeckBuilderService._deck_identity(clean_variant) != DeckBuilderService._deck_identity(base_query):
+            raw_tokens = re.findall(r"[\wÀ-ÿ∀@]+", clean_variant.casefold(), flags=re.UNICODE)
+            wanted_parts = [
+                DeckBuilderService._deck_identity(token)
+                for token in raw_tokens
+                if token not in QUERY_STOP_WORDS and len(DeckBuilderService._deck_identity(token)) >= 2
+            ]
+            wanted_parts = list(dict.fromkeys(part for part in wanted_parts if part))
+            if wanted_parts:
+                result = [
+                    sample for sample in result
+                    if all(part in DeckBuilderService._deck_identity(sample.title) for part in wanted_parts)
+                ]
+            else:
+                vid = DeckBuilderService._deck_identity(clean_variant)
+                result = [sample for sample in result if vid and vid in DeckBuilderService._deck_identity(sample.title)]
         return result
 
     # ------------------------------------------------------------------
@@ -3563,6 +3635,15 @@ class DeckBuilderService:
             variant=variant,
             base_query=clean,
         )
+        undated_before_filters = sum(1 for sample in all_samples if not sample.published)
+        filter_debug = {
+            "before_filters": len(all_samples),
+            "after_filters": len(samples),
+            "undated_before_filters": undated_before_filters,
+            "period_filter_active": bool(days),
+            "tournament_only": bool(tournament_only),
+            "variant_filter": variant or "",
+        }
         all_ids: list[int] = []
         for sample in samples:
             all_ids.extend(sample.main)
@@ -3607,8 +3688,10 @@ class DeckBuilderService:
         warnings: list[str] = []
         if tournament_only and all_samples and not samples:
             warnings.append("Aucune liste de tournoi n'a passé les filtres choisis.")
+        if days and undated_before_filters:
+            warnings.append(f"{undated_before_filters} liste(s) sans date vérifiable ont été écartées par le filtre de période.")
         if days and all_samples and not samples:
-            warnings.append("Aucune liste assez récente n'a passé la période choisie.")
+            warnings.append("Aucune liste datée assez récente n'a passé la période choisie. Essaie « Toutes » pour inclure les listes sans date exploitable.")
         if samples and len(samples) < 5:
             warnings.append("Échantillon faible : les pourcentages sont à interpréter avec prudence.")
         if not samples and fallback_cards:
@@ -3630,6 +3713,7 @@ class DeckBuilderService:
             "tournament_samples": sum(1 for sample in samples if sample.is_tournament),
             "side_samples": sum(1 for sample in samples if sample.side),
             "discovery": dict(self._last_discovery_debug),
+            "filter_debug": filter_debug,
             "card_lookup": dict(self._last_card_lookup_debug),
             "discovery_mode": discovery_mode,
             "filters": {

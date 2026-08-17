@@ -96,7 +96,7 @@ class DeckBuilderRoutes:
 
     def _common_options(self, request: web.Request) -> dict[str, Any]:
         return {
-            "max_decks": _int_arg(request.query.get("limit"), minimum=6, maximum=60),
+            "max_decks": _int_arg(request.query.get("limit"), minimum=6, maximum=96),
             "tournament_only": _bool_arg(request.query.get("tournament_only")),
             "days": _int_arg(request.query.get("days"), minimum=1, maximum=3650),
             "variant": str(request.query.get("variant") or "").strip() or None,
@@ -253,7 +253,7 @@ class DeckBuilderRoutes:
         max_decks = body.get("limit")
         days = body.get("days")
         try:
-            max_decks = max(6, min(60, int(max_decks))) if max_decks not in (None, "") else None
+            max_decks = max(6, min(96, int(max_decks))) if max_decks not in (None, "") else None
         except (TypeError, ValueError):
             max_decks = None
         try:
@@ -293,7 +293,7 @@ class DeckBuilderRoutes:
         max_decks = body.get("limit")
         days = body.get("days")
         try:
-            max_decks = max(6, min(60, int(max_decks))) if max_decks not in (None, "") else None
+            max_decks = max(6, min(96, int(max_decks))) if max_decks not in (None, "") else None
         except (TypeError, ValueError):
             max_decks = None
         try:
