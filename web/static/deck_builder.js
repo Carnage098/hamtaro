@@ -43,6 +43,9 @@
     const constraintsKey = 'hamtaro-deck-builder-constraints-v8';
     const printingsKey = 'hamtaro-deck-builder-printings-v83';
     const previousPrintingsKey = 'hamtaro-deck-builder-printings-v82';
+    const recentKey = 'hamtaro-deck-builder-recent-v9';
+    const savedKey = 'hamtaro-deck-builder-saved-v9';
+    const viewKey = 'hamtaro-deck-builder-view-v9';
     const emptyZones = () => ({ main: {}, extra: {}, side: {} });
     const emptyExcluded = () => ({ main: [], extra: [], side: [] });
     const state = {
@@ -59,6 +62,10 @@
         excluded: emptyExcluded(),
         printingSelections: {},
         activeRarity: 'all',
+        libraryView: 'list',
+        cardSort: 'frequency',
+        recentSearches: [],
+        savedSearches: [],
         requestSerial: 0,
     };
 
@@ -89,14 +96,31 @@
     } catch (_) {
         state.printingSelections = {};
     }
+    try {
+        state.recentSearches = JSON.parse(localStorage.getItem(recentKey) || '[]') || [];
+        state.savedSearches = JSON.parse(localStorage.getItem(savedKey) || '[]') || [];
+        state.libraryView = localStorage.getItem(viewKey) === 'gallery' ? 'gallery' : 'list';
+    } catch (_) {
+        state.recentSearches = [];
+        state.savedSearches = [];
+        state.libraryView = 'list';
+    }
     const saveOwned = () => localStorage.setItem(ownedKey, JSON.stringify(state.owned));
     const saveConstraints = () => localStorage.setItem(constraintsKey, JSON.stringify({ locked: state.locked, excluded: state.excluded }));
     const savePrintings = () => localStorage.setItem(printingsKey, JSON.stringify(state.printingSelections));
+    const saveHistory = () => {
+        localStorage.setItem(recentKey, JSON.stringify(state.recentSearches.slice(0, 8)));
+        localStorage.setItem(savedKey, JSON.stringify(state.savedSearches.slice(0, 8)));
+    };
+    const saveLibraryView = () => localStorage.setItem(viewKey, state.libraryView);
 
     const els = {
         form: $('[data-db-search-form]'),
         query: $('[data-db-query]'),
         suggestions: $('[data-db-suggestions]'),
+        recentWrap: $('[data-db-recent-wrap]'),
+        recentSearches: $('[data-db-recent-searches]'),
+        clearRecents: $('[data-db-clear-recents]'),
         empty: $('[data-db-empty-state]'),
         loading: $('[data-db-loading]'),
         error: $('[data-db-error]'),
@@ -124,6 +148,15 @@
         catalogDecks: $('[data-db-catalog-decks]'),
         catalogSamples: $('[data-db-catalog-samples]'),
         ruleset: $('[data-db-ruleset]'),
+        confidenceOrbit: $('[data-db-confidence-orbit]'),
+        confidenceOrbitValue: $('[data-db-confidence-orbit-value]'),
+        overviewTitle: $('[data-db-overview-title]'),
+        overviewNote: $('[data-db-overview-note]'),
+        overviewPills: $('[data-db-overview-pills]'),
+        nextStep: $('[data-db-next-step]'),
+        workspaceNav: $('[data-db-workspace-nav]'),
+        actionDock: $('[data-db-action-dock]'),
+        dockName: $('[data-db-dock-name]'),
         warnings: $('[data-db-warnings]'),
         variantsPanel: $('[data-db-variants-panel]'),
         variants: $('[data-db-variants]'),
@@ -147,6 +180,8 @@
         compositionGrid: $('[data-db-composition-grid]'),
         importance: $('[data-db-importance-filter]'),
         ownedFilter: $('[data-db-owned-filter]'),
+        cardSearch: $('[data-db-card-search]'),
+        cardSort: $('[data-db-card-sort]'),
         cardList: $('[data-db-card-list]'),
         loadMore: $('[data-db-load-more]'),
         constraintsPanel: $('[data-db-constraints-panel]'),
@@ -201,6 +236,128 @@
         openingPanel: $('[data-db-opening-panel]'),
         diagnosticsPanel: $('[data-db-diagnostics-panel]'),
         purchasePlan: $('[data-db-purchase-plan]'),
+    };
+
+    const normalizeHistoryQuery = (value) => String(value || '').trim().replace(/\s+/g, ' ');
+
+    const renderHistory = () => {
+        if (!els.recentWrap || !els.recentSearches) return;
+        const saved = (state.savedSearches || []).slice(0, 4);
+        const savedNames = new Set(saved.map((item) => normalizeHistoryQuery(item.q).toLowerCase()));
+        const recent = (state.recentSearches || [])
+            .filter((q) => !savedNames.has(normalizeHistoryQuery(q).toLowerCase()))
+            .slice(0, 6);
+        const items = [
+            ...saved.map((item) => `<button type="button" class="is-saved" data-db-history-query="${esc(item.q)}" title="Recherche enregistrée">★ ${esc(item.q)}</button>`),
+            ...recent.map((q) => `<button type="button" data-db-history-query="${esc(q)}">${esc(q)}</button>`),
+        ];
+        els.recentWrap.hidden = items.length === 0;
+        els.recentSearches.innerHTML = items.join('');
+    };
+
+    const rememberQuery = (query) => {
+        const q = normalizeHistoryQuery(query);
+        if (!q) return;
+        state.recentSearches = [q, ...(state.recentSearches || []).filter((item) => normalizeHistoryQuery(item).toLowerCase() !== q.toLowerCase())].slice(0, 8);
+        saveHistory();
+        renderHistory();
+    };
+
+    const saveCurrentSearch = () => {
+        const q = normalizeHistoryQuery(state.query || els.query.value);
+        if (!q) return;
+        const entry = {
+            q,
+            variant: state.variant || '',
+            mode: state.mode,
+            freespot_profile: state.freespotProfile || 'auto',
+            days: els.days.value || '',
+            limit: els.limit.value || '48',
+            tournament_only: !!els.tournamentOnly.checked,
+            budget: els.budget.value || '',
+        };
+        state.savedSearches = [entry, ...(state.savedSearches || []).filter((item) => normalizeHistoryQuery(item.q).toLowerCase() !== q.toLowerCase())].slice(0, 8);
+        saveHistory();
+        renderHistory();
+    };
+
+    const restoreSavedSearch = (query) => {
+        const q = normalizeHistoryQuery(query);
+        const saved = (state.savedSearches || []).find((item) => normalizeHistoryQuery(item.q).toLowerCase() === q.toLowerCase());
+        els.query.value = q;
+        if (!saved) return analyze();
+        state.variant = saved.variant || '';
+        const mode = $(`[data-db-mode="${CSS.escape(saved.mode || 'standard')}"]`);
+        if (mode) mode.click();
+        if (saved.freespot_profile && [...els.freespotProfile.options].some((opt) => opt.value === saved.freespot_profile)) {
+            els.freespotProfile.value = saved.freespot_profile;
+            state.freespotProfile = saved.freespot_profile;
+        }
+        els.days.value = saved.days || '';
+        els.limit.value = saved.limit || '48';
+        els.tournamentOnly.checked = !!saved.tournament_only;
+        els.budget.value = saved.budget || '';
+        analyze({ preserveVariant: true });
+    };
+
+    const jumpTo = (id) => {
+        const target = document.getElementById(id);
+        if (!target || target.hidden) return false;
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return true;
+    };
+
+    const renderOverviewDashboard = () => {
+        const a = state.analysis;
+        if (!a) return;
+        const confidence = Number(a.confidence?.score || 0);
+        if (els.confidenceOrbit) els.confidenceOrbit.style.setProperty('--db-score', String(Math.max(0, Math.min(100, confidence))));
+        if (els.confidenceOrbitValue) els.confidenceOrbitValue.textContent = `${confidence}/100`;
+        if (els.overviewTitle) els.overviewTitle.textContent = a.variant ? `${a.variant} · lecture rapide` : `${a.query} · lecture rapide`;
+        const mainProfile = a.deck_profile?.main || {};
+        const coreSlots = Number(mainProfile.core_slots || 0);
+        const frequentSlots = Number(mainProfile.frequent_slots || 0);
+        const flexSlots = Number(mainProfile.flex_slots_estimate || 0);
+        const sampleCount = Number(a.samples_analyzed || 0);
+        const tournamentCount = Number(a.tournament_samples || 0);
+        const coverage = sampleCount ? Math.round((tournamentCount / sampleCount) * 100) : 0;
+        if (els.overviewNote) {
+            els.overviewNote.textContent = a.degraded
+                ? 'Reconstruction TCG partielle : les cartes résolues sont visibles, mais Hamtaro n’invente pas de statistiques.'
+                : `${sampleCount} listes TCG uniques · ${coreSlots + frequentSlots} slots Main plutôt stables · ${flexSlots} slots flex estimés.`;
+        }
+        if (els.overviewPills) {
+            const base = a.base_price?.known_total ?? a.base_price?.total ?? null;
+            els.overviewPills.innerHTML = [
+                `<span><b>${sampleCount}</b> listes</span>`,
+                `<span><b>${coverage}%</b> tournoi</span>`,
+                `<span><b>${coreSlots}</b> slots Core</span>`,
+                `<span><b>${flexSlots}</b> slots Flex</span>`,
+                `<span><b>${base === null || base === undefined ? '—' : esc(money(base))}</b> base TCG</span>`,
+            ].join('');
+        }
+        if (els.nextStep) {
+            const variants = (a.variants || []).length;
+            let title = 'Prochaine étape';
+            let note = 'Génère une liste Standard puis ajuste les cartes à ton goût.';
+            let action = '<button type="button" data-db-next-generate>Générer maintenant</button>';
+            if (a.degraded) {
+                title = 'Données encore partielles';
+                note = 'Explore le pool TCG retrouvé et relance plus tard : la base Hamtaro s’enrichit au fil des recherches.';
+                action = '<button type="button" data-db-next-cards>Voir les cartes retrouvées</button>';
+            } else if (variants > 1 && !state.variant) {
+                title = `${variants} variantes trouvées`;
+                note = 'Choisir une variante rend les ratios, le core et les moteurs beaucoup plus précis.';
+                action = '<button type="button" data-db-next-strategy>Choisir une variante</button>';
+            } else if (confidence < 55) {
+                title = 'Échantillon à lire avec prudence';
+                note = 'Garde “Toutes les périodes” et augmente l’échantillon si tu veux une vue plus large.';
+                action = '<button type="button" data-db-next-cards>Explorer les cartes</button>';
+            }
+            els.nextStep.innerHTML = `<span>${esc(title)}</span><p>${esc(note)}</p>${action}`;
+        }
+        if (els.actionDock) els.actionDock.hidden = false;
+        if (els.dockName) els.dockName.textContent = a.variant || a.query || 'Deck';
     };
 
     const setBusy = (busy) => {
@@ -574,15 +731,30 @@
         els.mainTotal.textContent = String((zones.main || []).length);
         els.extraTotal.textContent = String((zones.extra || []).length);
         els.sideTotal.textContent = String((zones.side || []).length);
+        const needle = String(els.cardSearch?.value || '').trim().toLocaleLowerCase('fr');
         const filtered = rows.filter((row) => {
             if (!importanceAllowed(row)) return false;
             if (els.ownedFilter.checked && ownedQty(row.id) >= Number(row.recommended_copies || 0)) return false;
+            if (needle) {
+                const haystack = [row.name, row.source_name, row.role, ...(row.role_tags || []), row.archetype, row.relation, row.why_played]
+                    .filter(Boolean).join(' ').toLocaleLowerCase('fr');
+                if (!haystack.includes(needle)) return false;
+            }
             return true;
         });
+        const sort = els.cardSort?.value || state.cardSort || 'frequency';
+        filtered.sort((a, b) => {
+            if (sort === 'name') return String(a.name || '').localeCompare(String(b.name || ''), 'fr', { sensitivity: 'base' });
+            if (sort === 'copies') return Number(b.recommended_copies || 0) - Number(a.recommended_copies || 0) || Number(b.frequency_pct || 0) - Number(a.frequency_pct || 0);
+            if (sort === 'price_asc') return (effectivePriceEur(a) ?? Number.POSITIVE_INFINITY) - (effectivePriceEur(b) ?? Number.POSITIVE_INFINITY);
+            if (sort === 'price_desc') return (effectivePriceEur(b) ?? Number.NEGATIVE_INFINITY) - (effectivePriceEur(a) ?? Number.NEGATIVE_INFINITY);
+            return Number(b.frequency_pct || 0) - Number(a.frequency_pct || 0) || Number(b.recommended_copies || 0) - Number(a.recommended_copies || 0);
+        });
+        els.cardList.classList.toggle('is-gallery', state.libraryView === 'gallery');
         const visible = filtered.slice(0, state.shown);
         els.cardList.innerHTML = visible.length
             ? visible.map(cardRow).join('')
-            : '<div class="db-state-card"><strong>Aucune carte avec ces filtres.</strong><span>Essaie d’afficher davantage de catégories.</span></div>';
+            : '<div class="db-state-card"><strong>Aucune carte avec ces filtres.</strong><span>Essaie une autre recherche, un autre tri ou davantage de catégories.</span></div>';
         els.loadMore.hidden = filtered.length <= state.shown;
         renderOwnedSummary();
         renderConstraints();
@@ -759,6 +931,7 @@
         renderCards();
         renderSources();
         renderFallback();
+        renderOverviewDashboard();
         if (!state.generated) els.generatedPanel.hidden = true;
     };
 
@@ -836,7 +1009,8 @@
                 const line = prices.line === null ? '—' : money(prices.line);
                 const purchase = prices.purchase === null ? '—' : money(prices.purchase);
                 const edition = prices.selectedLabel ? `<small class="db-generated-printing">${esc(prices.selectedLabel)}</small>` : '';
-                return `<li><strong>×${esc(row.copies)}</strong><span>${esc(row.name)}${edition}</span><span title="Valeur totale : ${esc(line)}">${esc(purchase)}</span></li>`;
+                const image = row.image_url ? `<img src="${esc(row.image_url)}" loading="lazy" alt="${esc(row.name)}">` : '<span class="db-generated-image-placeholder"></span>';
+                return `<li>${image}<strong>×${esc(row.copies)}</strong><span>${esc(row.name)}${edition}</span><span title="Valeur totale : ${esc(line)}">${esc(purchase)}</span></li>`;
             }).join('')}</ul>
         </section>`;
 
@@ -1080,6 +1254,7 @@
             const payload = await fetchJson(`/api/deck-builder/analyze?${buildParams(false)}`);
             if (serial !== state.requestSerial) return;
             state.analysis = payload;
+            rememberQuery(query);
             renderAnalysis();
             syncUrl(false);
         } catch (error) {
@@ -1457,6 +1632,68 @@
             showError('Impossible de lire ce fichier .ydk.', true);
         }
     });
+
+    if (els.cardSearch) els.cardSearch.addEventListener('input', () => { state.shown = 24; renderCards(); });
+    if (els.cardSort) els.cardSort.addEventListener('change', () => { state.cardSort = els.cardSort.value; state.shown = 24; renderCards(); });
+    $$('[data-db-view]').forEach((button) => button.addEventListener('click', () => {
+        state.libraryView = button.dataset.dbView === 'gallery' ? 'gallery' : 'list';
+        saveLibraryView();
+        $$('[data-db-view]').forEach((node) => node.classList.toggle('is-active', node === button));
+        renderCards();
+    }));
+    const initialViewButton = $(`[data-db-view="${state.libraryView}"]`);
+    if (initialViewButton) $$('[data-db-view]').forEach((node) => node.classList.toggle('is-active', node === initialViewButton));
+
+    if (els.recentSearches) els.recentSearches.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-db-history-query]');
+        if (!button) return;
+        restoreSavedSearch(button.dataset.dbHistoryQuery || '');
+    });
+    if (els.clearRecents) els.clearRecents.addEventListener('click', () => {
+        state.recentSearches = [];
+        state.savedSearches = [];
+        saveHistory();
+        renderHistory();
+    });
+    const saveSearchButton = $('[data-db-save-search]');
+    if (saveSearchButton) saveSearchButton.addEventListener('click', () => {
+        saveCurrentSearch();
+        saveSearchButton.textContent = '★ Enregistré';
+        setTimeout(() => { saveSearchButton.textContent = '★ Enregistrer'; }, 1400);
+    });
+
+    if (els.workspaceNav) els.workspaceNav.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-db-jump]');
+        if (!button) return;
+        if (button.dataset.dbJump === 'db-generated' && els.generatedPanel.hidden) return generate();
+        jumpTo(button.dataset.dbJump);
+    });
+    root.addEventListener('click', (event) => {
+        if (event.target.closest('[data-db-next-generate]')) generate();
+        if (event.target.closest('[data-db-next-cards]')) jumpTo('db-library');
+        if (event.target.closest('[data-db-next-strategy]')) jumpTo('db-strategy');
+    });
+    const dockGenerate = $('[data-db-dock-generate]');
+    const dockCards = $('[data-db-dock-cards]');
+    if (dockGenerate) dockGenerate.addEventListener('click', generate);
+    if (dockCards) dockCards.addEventListener('click', () => jumpTo('db-library'));
+
+    document.addEventListener('keydown', (event) => {
+        const tag = document.activeElement?.tagName?.toLowerCase();
+        const typing = ['input', 'textarea', 'select'].includes(tag);
+        if (event.key === '/' && !typing) {
+            event.preventDefault();
+            els.query.focus();
+            els.query.select();
+        }
+        if (event.key === 'Escape') {
+            if (els.alternativesPanel) els.alternativesPanel.hidden = true;
+            if (els.printingsPanel) els.printingsPanel.hidden = true;
+            if (els.synergyPanel) els.synergyPanel.hidden = true;
+        }
+    });
+
+    renderHistory();
 
     const initial = new URLSearchParams(window.location.search);
     const initialQuery = initial.get('q') || '';
