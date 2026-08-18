@@ -115,12 +115,12 @@ class DeckBuilderService:
         self.image_cache_path = Path(os.getenv("DECK_BUILDER_IMAGE_CACHE_PATH", str(default_images)))
         self.image_cache_path.mkdir(parents=True, exist_ok=True)
         self._last_card_fetch_dates: list[str] = []
-        self.cache_namespace = "v90"
+        self.cache_namespace = "v101"
         self._last_discovery_debug: dict[str, Any] = {}
         self._last_card_lookup_debug: dict[str, Any] = {}
         self.user_agent = os.getenv(
             "DECK_BUILDER_USER_AGENT",
-            "HamtaroDeckBuilder/9.0 (+public Yu-Gi-Oh TCG deck assistant)",
+            "HamtaroDeckBuilder/10.1 (+public Yu-Gi-Oh TCG deck assistant)",
         )
         self._init_db()
 
@@ -271,7 +271,19 @@ class DeckBuilderService:
             "dd": ["D/D", "D/D/D", "DDD"],
             "ddd": ["D/D/D", "D/D", "DDD"],
             "punk": ["P.U.N.K.", "PUNK", "P.U.N.K"],
-            "blueeyes": ["Blue-Eyes", "Blue Eyes"],
+            "blueeyes": [
+                "Blue-Eyes",
+                "Blue Eyes",
+                "Blue-Eyes White Dragon",
+                "Primite Blue-Eyes",
+                "Blue-Eyes Primite",
+            ],
+            "primiteblueeyes": [
+                "Primite Blue-Eyes",
+                "Blue-Eyes Primite",
+                "Blue-Eyes",
+                "Blue Eyes",
+            ],
             "redarchfiend": ["Red Dragon Archfiend", "RDA"],
         }
         variants.extend(special.get(identity, []))
@@ -1338,30 +1350,35 @@ class DeckBuilderService:
 
     @staticmethod
     def _deck_primer_context(body: str) -> dict[str, str]:
-        """Extrait uniquement le contexte propre AU deck.
-
-        Les pages YGOPRODeck contiennent dans leur navigation globale des liens vers
-        TCG, OCG, Genesys et Master Duel en même temps. Scanner tout le HTML faisait
-        donc classer à tort des listes TCG comme OCG/Genesys. On limite ici
-        l'analyse au Deck Primer et, en priorité, aux champs Category/Tournament.
-        """
+        # Contexte local au deck : jamais la navigation globale entière.
         text = html_lib.unescape(body)
         text = re.sub(r"<script\b[^>]*>.*?</script>", " ", text, flags=re.I | re.S)
         text = re.sub(r"<style\b[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
         text = re.sub(r"<[^>]+>", " ", text)
         text = re.sub(r"\s+", " ", text).strip()
-
         lower = text.casefold()
+
+        anchor_kind = "none"
+        local = ""
         primer_pos = lower.find("deck primer")
         if primer_pos >= 0:
-            local = text[primer_pos:primer_pos + 2200]
+            anchor_kind = "primer"
+            local = text[max(0, primer_pos - 300):primer_pos + 2600]
         else:
-            # Pour les anciennes pages / fixtures de tests qui n'ont pas de bloc
-            # Deck Primer, on conserve un petit contexte local sans scanner toute
-            # une grosse page et sa navigation.
-            local = text[:2200]
+            # Sans Deck Primer, on n'accepte un bloc Main Deck que s'il est
+            # précédé de champs propres au deck (Category/Tournament).
+            for match in re.finditer(r"\bmain deck\b", lower):
+                start = max(0, match.start() - 1800)
+                candidate = text[start:match.start() + 300]
+                candidate_lower = candidate.casefold()
+                if "category:" in candidate_lower or "tournament:" in candidate_lower:
+                    anchor_kind = "main"
+                    local = candidate
+                    break
 
         def field(label: str, stops: tuple[str, ...]) -> str:
+            if not local:
+                return ""
             escaped = "|".join(re.escape(stop) for stop in stops)
             match = re.search(
                 rf"\b{re.escape(label)}:\s*(.+?)(?=\s+(?:{escaped})(?:\s|$)|$)",
@@ -1387,23 +1404,26 @@ class DeckBuilderService:
             "category": category,
             "tournament": tournament,
             "placement": placement,
+            "anchor_kind": anchor_kind,
         }
 
     @staticmethod
     def _detect_sample_format(body: str, title: str = "") -> str:
+        # Les champs structurés font foi. Sans eux, on ne regarde jamais
+        # arbitrairement les premiers caractères de la page.
         ctx = DeckBuilderService._deck_primer_context(body)
         category = ctx.get("category", "").casefold()
         tournament = ctx.get("tournament", "").casefold()
-        # Si les champs structurés existent, eux seuls font foi. Cela évite les
-        # faux positifs venant du menu global YGOPRODeck.
-        scoped = " ".join(part for part in (category, tournament) if part).strip()
-        # Fallback pour les anciennes pages très simples et les tests unitaires.
-        if not scoped:
-            scoped = f"{title} {ctx.get('local', '')}".casefold()
+        structured = " ".join(part for part in (category, tournament) if part).strip()
 
-        # Les formats non-TCG doivent être explicitement identifiés dans le
-        # contexte du deck, jamais simplement présents quelque part dans le menu.
-        rules = (
+        if structured:
+            scoped = structured
+        elif ctx.get("anchor_kind") == "primer":
+            scoped = f"{title} {ctx.get('local', '')}".casefold()
+        else:
+            scoped = str(title or "").casefold()
+
+        non_tcg_rules = (
             ("genesys ocg", "genesys_ocg"),
             ("tournament meta decks (genesys ocg)", "genesys_ocg"),
             ("tournament meta decks (genesys)", "genesys"),
@@ -1420,8 +1440,10 @@ class DeckBuilderService:
             ("master duel", "master_duel"),
             ("rush duel", "rush"),
             ("speed duel", "speed"),
+            ("edison format", "legacy"),
+            ("goat format", "legacy"),
         )
-        for marker, value in rules:
+        for marker, value in non_tcg_rules:
             if marker in scoped:
                 return value
 
@@ -1625,11 +1647,18 @@ class DeckBuilderService:
         # Si le premier passage donne peu de pages exploitables, on repart de cartes
         # propres à l'archétype et on cherche les decklists qui les contiennent.
         primary_parsed = sum(1 for sample in loaded if sample is not None)
+        # V10.1 : le fallback dépend des listes TCG/unknown potentiellement
+        # utilisables, pas du nombre brut de pages parsées.
+        primary_potential_tcg = sum(
+            1
+            for sample in loaded
+            if sample is not None and sample.format_name in {"tcg", "unknown"}
+        )
         signature_names: list[str] = []
         signature_urls: list[str] = []
         signature_pages_ok = 0
         signature_links_added = 0
-        if primary_parsed < min(4, limit):
+        if primary_potential_tcg < min(4, limit):
             signature_names, signature_urls = await self._signature_discovery_urls(clean, limit=4)
             signature_urls = [url for url in signature_urls if url not in source_urls][:8]
             signature_pages = await asyncio.gather(
@@ -1661,7 +1690,12 @@ class DeckBuilderService:
         universal_pages_ok = 0
         universal_links_added = 0
         parsed_after_signature = sum(1 for sample in loaded if sample is not None)
-        if parsed_after_signature < min(4, limit):
+        post_signature_potential_tcg = sum(
+            1
+            for sample in loaded
+            if sample is not None and sample.format_name in {"tcg", "unknown"}
+        )
+        if post_signature_potential_tcg < min(4, limit):
             archetype_names = [
                 str(item.get("archetype_name") or "").strip()
                 for item in archetypes if isinstance(item, dict) and str(item.get("archetype_name") or "").strip()
@@ -1703,18 +1737,35 @@ class DeckBuilderService:
                 continue
             live.append(sample)
 
-        # Validation carte-par-carte TCG : format=tcg ne renvoie que les cartes avec
-        # une date de sortie TCG et exclut notamment Speed/Rush selon la doc API.
+        # V10.1 : validation TCG robuste.
+        # Format inconnu = validation stricte.
+        # Page explicitement TCG = tolérance d'un seul passcode non résolu.
         live_ids = [cid for sample in live for cid in [*sample.main, *sample.extra, *sample.side]]
         tcg_cards = await self.card_data_by_ids(live_ids) if live_ids else {}
+        known_tcg_ids = set(tcg_cards)
         tcg_compatible: list[DeckSample] = []
         card_incompatible = 0
+        tcg_soft_accepted = 0
+        missing_tcg_ids: Counter[int] = Counter()
+
         for sample in live:
             sample_ids = set(sample.main + sample.extra + sample.side)
-            if sample_ids and sample_ids.issubset(set(tcg_cards)):
-                tcg_compatible.append(sample)
-            else:
+            if not sample_ids:
                 card_incompatible += 1
+                continue
+
+            missing_ids = sample_ids - known_tcg_ids
+            if not missing_ids:
+                tcg_compatible.append(sample)
+                continue
+
+            missing_tcg_ids.update(missing_ids)
+            if sample.format_name == "tcg" and len(missing_ids) <= 1:
+                tcg_compatible.append(sample)
+                tcg_soft_accepted += 1
+                continue
+
+            card_incompatible += 1
 
         deduped: dict[str, DeckSample] = {}
         for sample in [*tcg_compatible, *stored]:
@@ -1753,6 +1804,10 @@ class DeckBuilderService:
             "query_variants": variants,
             "deck_links_found": len(links),
             "deck_pages_parsed": sum(1 for sample in loaded if sample is not None),
+            "primary_parsed": primary_parsed,
+            "primary_potential_tcg": primary_potential_tcg,
+            "post_signature_potential_tcg": post_signature_potential_tcg,
+            "format_scope_version": "v101-local",
             "signature_fallback_used": bool(signature_urls),
             "signature_cards": signature_names,
             "signature_pages_requested": len(signature_urls),
@@ -1768,6 +1823,11 @@ class DeckBuilderService:
             "parsed_format_counts": dict(parsed_format_counts),
             "explicit_non_tcg_ignored": explicit_non_tcg,
             "tcg_incompatible_ignored": card_incompatible,
+            "tcg_soft_accepted": tcg_soft_accepted,
+            "missing_tcg_ids_top": [
+                {"card_id": card_id, "occurrences": count}
+                for card_id, count in missing_tcg_ids.most_common(12)
+            ],
             "live_tcg_decks": len(tcg_compatible),
             "stored_tcg_decks_reused": len(stored),
             "unique_decks_before_limit": unique_before_limit,
