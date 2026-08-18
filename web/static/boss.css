@@ -521,3 +521,88 @@
         min-width: 140px;
     }
 }
+
+
+/* HAMTARO BOSS DRAG & DROP V1.1 */
+
+.boss-program-list[data-boss-sortable="1"] .boss-program-row[draggable="true"] {
+    cursor: grab;
+    transition:
+        transform .16s ease,
+        border-color .16s ease,
+        background .16s ease,
+        opacity .16s ease;
+}
+
+.boss-program-list[data-boss-sortable="1"] .boss-program-row[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+.boss-drag-handle {
+    width: 34px;
+    min-height: 38px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid rgba(255, 164, 75, .2);
+    border-radius: 10px;
+    background: rgba(255, 129, 30, .10);
+    color: #ffc181;
+    font-size: 1.05rem;
+    font-weight: 900;
+    letter-spacing: -.2em;
+    cursor: grab;
+    user-select: none;
+}
+
+.boss-program-row.is-dragging {
+    opacity: .48;
+    transform: scale(.988);
+    border-color: rgba(255, 167, 79, .55);
+}
+
+.boss-program-row.is-drop-target {
+    border-color: rgba(255, 188, 106, .72);
+    background: rgba(255, 119, 25, .11);
+}
+
+.boss-drag-status {
+    margin-top: .75rem;
+    padding: .6rem .8rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 155, 63, .16);
+    background: rgba(0, 0, 0, .22);
+    color: #d9c0a8;
+    font-size: .86rem;
+}
+
+.boss-drag-status.is-saving {
+    color: #ffd29f;
+}
+
+.boss-drag-status.is-success {
+    color: #aef2c7;
+    border-color: rgba(66, 211, 120, .24);
+}
+
+.boss-drag-status.is-error {
+    color: #ffb1a9;
+    border-color: rgba(235, 73, 61, .30);
+}
+
+@media (min-width: 861px) {
+    .boss-program-row:has(.boss-drag-handle) {
+        grid-template-columns:
+            34px 56px minmax(180px, 1fr) auto;
+    }
+}
+
+@media (max-width: 860px) {
+    .boss-program-row:has(.boss-drag-handle) {
+        grid-template-columns:
+            34px 46px 1fr;
+    }
+
+    .boss-program-row:has(.boss-drag-handle) .boss-staff-actions {
+        grid-column: 1 / -1;
+    }
+}

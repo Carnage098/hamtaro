@@ -442,6 +442,39 @@ class BossRoutes:
             location="/formats/boss?saved=1"
         )
 
+    async def staff_reorder(self, request: web.Request) -> web.Response:
+        guild_id, user, _ = await self._require_staff(request)
+
+        try:
+            data = await request.json()
+        except Exception:
+            raise web.HTTPBadRequest(text="Corps JSON invalide.")
+
+        csrf = str(data.get("csrf") or "")
+        if not self._csrf_ok(user, csrf):
+            raise web.HTTPForbidden(text="Jeton de sécurité invalide.")
+
+        raw_ids = data.get("challenger_ids")
+        if not isinstance(raw_ids, list):
+            raise web.HTTPBadRequest(text="Ordre des challengers invalide.")
+
+        try:
+            challenger_ids = [int(value) for value in raw_ids]
+            await self.service.reorder_challengers(
+                guild_id,
+                challenger_ids,
+            )
+        except (TypeError, ValueError) as exc:
+            raise web.HTTPBadRequest(text=str(exc))
+
+        return web.json_response(
+            {
+                "ok": True,
+                "challenger_ids": challenger_ids,
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+
     async def staff_remove(self, request: web.Request) -> web.Response:
         guild_id, user, _ = await self._require_staff(request)
         data = await request.post()
@@ -513,6 +546,10 @@ def register_boss_routes(
     application.router.add_post(
         "/formats/boss/staff/remove",
         routes.staff_remove,
+    )
+    application.router.add_post(
+        "/formats/boss/staff/reorder",
+        routes.staff_reorder,
     )
     application.router.add_get(
         "/api/formats/boss",
