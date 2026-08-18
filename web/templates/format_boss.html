@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Format Boss · Hamtaro{% endblock %}
+{% block title %}Format Boss · Hamtaro<script src="/static/boss.js?v=20260818-2" defer></script>
+{% endblock %}
 
 {% block content %}
 <link rel="stylesheet" href="/static/boss.css?v=20260818-1">
@@ -172,10 +173,32 @@
             </div>
 
             {% if challengers %}
-            <div class="boss-program-list">
+            <div
+                class="boss-program-list"
+                {% if is_staff and user %}
+                data-boss-sortable="1"
+                data-csrf="{{ user.csrf }}"
+                data-reorder-url="/formats/boss/staff/reorder"
+                {% endif %}
+            >
                 {% for row in challengers %}
-                <div class="boss-program-row status-{{ row.status }}">
-                    <div class="boss-program-rank">
+                <div
+                    class="boss-program-row status-{{ row.status }}"
+                    data-challenger-id="{{ row.id }}"
+                    {% if is_staff and user and row.status not in ["defeated", "boss_killer"] %}
+                    draggable="true"
+                    {% endif %}
+                >
+                    {% if is_staff and user and row.status not in ["defeated", "boss_killer"] %}
+                    <button
+                        class="boss-drag-handle"
+                        type="button"
+                        aria-label="Déplacer {{ row.username }}"
+                        title="Glisser pour changer l'ordre"
+                    >⋮⋮</button>
+                    {% endif %}
+
+                    <div class="boss-program-rank" data-boss-rank>
                         #{{ row.position }}
                     </div>
 
@@ -236,6 +259,16 @@
                 </div>
                 {% endfor %}
             </div>
+
+            {% if is_staff and user %}
+            <div
+                class="boss-drag-status"
+                data-boss-drag-status
+                aria-live="polite"
+            >
+                ↕️ Mode staff : fais glisser un challenger pour changer l'ordre.
+            </div>
+            {% endif %}
 
             {% else %}
             <div class="boss-empty">

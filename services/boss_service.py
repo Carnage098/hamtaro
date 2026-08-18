@@ -388,6 +388,50 @@ class BossService:
         finally:
             await db.close()
 
+    async def reorder_challengers(
+        self,
+        guild_id: str,
+        challenger_ids: list[int],
+    ) -> None:
+        """Réordonne toute la file courante en une seule transaction.
+
+        Sécurité : l'appelant doit déjà avoir vérifié les droits staff.
+        La méthode refuse une liste contenant un joueur d'une autre semaine
+        ou une liste partielle qui tenterait de masquer un challenger.
+        """
+        rows = await self.challengers(guild_id)
+        current_ids = [int(row["id"]) for row in rows]
+        requested_ids = [int(value) for value in challenger_ids]
+
+        if not requested_ids:
+            raise ValueError("La liste des challengers est vide.")
+        if len(requested_ids) != len(set(requested_ids)):
+            raise ValueError("Le nouvel ordre contient des doublons.")
+        if set(requested_ids) != set(current_ids):
+            raise ValueError(
+                "Le nouvel ordre doit contenir exactement tous les challengers "
+                "de la semaine."
+            )
+
+        db = await self._connect()
+        try:
+            await db.execute("BEGIN IMMEDIATE")
+            for position, challenger_id in enumerate(requested_ids, start=1):
+                await db.execute(
+                    """
+                    UPDATE boss_challengers
+                    SET position = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (position, challenger_id),
+                )
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+        finally:
+            await db.close()
+
     async def swap_challengers(self, guild_id: str, first_id: str, second_id: str) -> None:
         first = await self.challenger_by_discord(guild_id, first_id)
         second = await self.challenger_by_discord(guild_id, second_id)
