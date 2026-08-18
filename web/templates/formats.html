@@ -23,6 +23,17 @@
                 <span>{{ item.pool_count }} cartes</span>
                 <span>Pool {{ item.pool_revision }}</span>
             </div>
+            {% if item.trophy %}
+            <!-- HAMTARO FORMAT TROPHY INTEGRATION V1 -->
+            <div class="format-card-trophy" aria-label="Trophée associé : {{ item.trophy.name }}">
+                <span class="format-card-trophy-icon" aria-hidden="true">{{ item.trophy.emoji }}</span>
+                <span class="format-card-trophy-copy">
+                    <small>Trophée associé · {{ item.trophy.code }}</small>
+                    <strong>{{ item.trophy.name }}</strong>
+                </span>
+                <span class="format-card-trophy-status">{{ item.trophy.status }}</span>
+            </div>
+            {% endif %}
         </div>
     </a>
     {% endfor %}

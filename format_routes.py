@@ -10,6 +10,31 @@ from services.araignee_format_service import AraigneeFormatService
 
 MAX_REQUEST_BYTES = 32_000
 
+# HAMTARO FORMAT TROPHY INTEGRATION V1
+# Métadonnées d'affichage uniquement : le trophée reste géré par le système /trophies.
+FORMAT_TROPHIES: dict[str, dict[str, str]] = {
+    "araignee": {
+        "id": "ht-003",
+        "code": "HT-003",
+        "name": "Champion Spiderman",
+        "label": "Trophée du tournoi Spiderman",
+        "status": "À venir",
+        "description": "Attribué au vainqueur du tournoi Spiderman.",
+        "url": "/trophies/ht-003",
+        "emoji": "🏆",
+    },
+}
+
+
+def _format_page_data(service: AraigneeFormatService) -> dict[str, Any]:
+    """Ajoute les métadonnées de présentation liées au format sans modifier l'API métier."""
+    data = service.public_data()
+    format_id = str(data.get("id") or "").strip().lower()
+    trophy = FORMAT_TROPHIES.get(format_id)
+    if trophy:
+        data["trophy"] = dict(trophy)
+    return data
+
 
 def register_format_routes(
     application: web.Application,
@@ -21,14 +46,14 @@ def register_format_routes(
         return website_cog.render(
             "formats.html",
             request=request,
-            formats=[service.public_data()],
+            formats=[_format_page_data(service)],
         )
 
     async def araignee_page(request: web.Request) -> web.Response:
         return website_cog.render(
             "format_araignee.html",
             request=request,
-            format_data=service.public_data(),
+            format_data=_format_page_data(service),
         )
 
     async def araignee_api(request: web.Request) -> web.Response:

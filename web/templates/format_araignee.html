@@ -67,6 +67,22 @@
             <li>L'archétype secondaire est <strong>verrouillé</strong> pour tout le tournoi.</li>
             <li>La <strong>banlist TCG actuelle</strong> s'applique au Format Araignée.</li>
         </ul>
+        {% if format_data.trophy %}
+        <!-- HAMTARO FORMAT TROPHY INTEGRATION V1 -->
+        <div class="format-tournament-trophy">
+            <div class="format-tournament-trophy-main">
+                <span class="format-tournament-trophy-icon" aria-hidden="true">{{ format_data.trophy.emoji }}</span>
+                <div>
+                    <span class="format-tournament-trophy-kicker">TROPHÉE ASSOCIÉ · {{ format_data.trophy.code }}</span>
+                    <strong>{{ format_data.trophy.name }}</strong>
+                    <p>{{ format_data.trophy.description }}</p>
+                </div>
+            </div>
+            <a class="format-tournament-trophy-link" href="{{ format_data.trophy.url }}">
+                Voir la fiche du trophée →
+            </a>
+        </div>
+        {% endif %}
     </article>
 </section>
 
