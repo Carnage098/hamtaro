@@ -468,7 +468,7 @@ class DeckBuilderRoutes:
             {
                 "status": "ok",
                 "service": "hamtaro-deck-builder",
-                "version": "10.1",
+                "version": "10.2",
                 "page": "/deck-builder",
                 "price_source": "Cardmarket data via YGOPRODeck · TCG only",
                 "catalog": await self.service.catalog_stats(),
@@ -515,6 +515,9 @@ class DeckBuilderRoutes:
                     "persistent-learned-decklists",
                     "adaptive-analysis-retry",
                     "analysis-quality-cockpit",
+                    "explicit-format-marker-filtering",
+                    "query-relevance-gate",
+                    "generic-fallback-noise-rejection",
                     "format-local-scope-filtering",
                     "usable-tcg-sample-fallback-trigger",
                     "explicit-tcg-single-card-tolerance",
