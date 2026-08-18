@@ -1,0 +1,523 @@
+/* HAMTARO FORMAT BOSS V1 */
+
+.boss-page {
+    position: relative;
+    min-height: 100vh;
+    margin: -1rem calc(50% - 50vw) 0;
+    padding: 2.2rem max(1rem, calc((100vw - 1180px) / 2)) 5rem;
+    overflow: hidden;
+    isolation: isolate;
+    color: #fff5e9;
+}
+
+.boss-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -3;
+    background:
+        linear-gradient(
+            90deg,
+            rgba(6, 6, 8, .94) 0%,
+            rgba(8, 7, 8, .79) 42%,
+            rgba(8, 7, 8, .55) 100%
+        ),
+        linear-gradient(
+            180deg,
+            rgba(5, 5, 7, .25),
+            rgba(6, 6, 8, .93)
+        ),
+        url("/static/boss-radagon-wolf.jpg")
+        center 20% / cover no-repeat;
+    filter: saturate(.92) contrast(1.04);
+}
+
+.boss-page::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background:
+        radial-gradient(
+            circle at 78% 20%,
+            rgba(255, 112, 20, .16),
+            transparent 32%
+        ),
+        radial-gradient(
+            circle at 55% 70%,
+            rgba(255, 72, 0, .09),
+            transparent 30%
+        );
+}
+
+.boss-content {
+    width: min(1180px, 100%);
+    margin: 0 auto;
+    display: grid;
+    gap: 1.15rem;
+}
+
+.boss-glass {
+    background:
+        linear-gradient(
+            145deg,
+            rgba(20, 17, 17, .90),
+            rgba(11, 11, 14, .78)
+        );
+    border: 1px solid rgba(255, 154, 61, .22);
+    box-shadow:
+        0 22px 60px rgba(0, 0, 0, .35),
+        inset 0 1px 0 rgba(255, 255, 255, .035);
+    backdrop-filter: blur(14px);
+    border-radius: 24px;
+}
+
+.boss-hero {
+    display: grid;
+    grid-template-columns:
+        minmax(0, 1.4fr)
+        minmax(260px, .6fr);
+    gap: 2rem;
+    padding: clamp(1.4rem, 4vw, 3.3rem);
+    align-items: center;
+    min-height: 340px;
+}
+
+.boss-kicker {
+    margin: 0 0 .5rem;
+    font-size: .78rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: #ffb467;
+    font-weight: 800;
+}
+
+.boss-hero h1 {
+    margin: 0;
+    font-size: clamp(2.5rem, 7vw, 5.5rem);
+    line-height: .95;
+    letter-spacing: -.045em;
+    text-shadow:
+        0 0 40px rgba(255, 91, 0, .2);
+}
+
+.boss-subtitle {
+    max-width: 760px;
+    margin: 1rem 0 0;
+    font-size: clamp(1rem, 2vw, 1.15rem);
+    line-height: 1.65;
+    color: #e7d9cc;
+}
+
+.boss-identity {
+    display: grid;
+    justify-items: center;
+    gap: .35rem;
+    padding: 1.3rem;
+    text-align: center;
+    border:
+        1px solid rgba(255, 170, 74, .24);
+    border-radius: 22px;
+    background: rgba(0, 0, 0, .28);
+}
+
+.boss-crown {
+    font-size: 3rem;
+    filter:
+        drop-shadow(
+            0 0 18px rgba(255, 169, 54, .35)
+        );
+}
+
+.boss-identity small {
+    letter-spacing: .16em;
+    color: #d8b38e;
+}
+
+.boss-identity strong {
+    font-size: clamp(1.35rem, 3vw, 2rem);
+}
+
+.boss-fallen {
+    margin-top: .55rem;
+    padding: .55rem .75rem;
+    border-radius: 12px;
+    background: rgba(163, 24, 20, .35);
+    color: #ffd4cb;
+    font-weight: 700;
+}
+
+.boss-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    gap: 1.15rem;
+}
+
+.boss-grid-main {
+    grid-template-columns:
+        minmax(0, 1.25fr)
+        minmax(300px, .75fr);
+}
+
+.boss-panel {
+    padding: clamp(1.1rem, 2.5vw, 1.7rem);
+}
+
+.boss-panel h2 {
+    margin: 0 0 1rem;
+    font-size:
+        clamp(1.3rem, 2.8vw, 1.9rem);
+}
+
+.boss-panel-title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.boss-pill {
+    display: inline-flex;
+    padding: .4rem .7rem;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+    background: rgba(255, 255, 255, .08);
+    color: #bbb;
+}
+
+.boss-pill.is-open {
+    background: rgba(35, 155, 84, .22);
+    color: #a6f7c3;
+    border:
+        1px solid rgba(89, 225, 137, .28);
+}
+
+.boss-pill-staff {
+    background: rgba(255, 126, 28, .18);
+    color: #ffc382;
+}
+
+.boss-session {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem 1rem;
+    align-items: center;
+    margin: .8rem 0;
+    color: #d8c7b6;
+}
+
+.boss-session a {
+    color: #ffb66d;
+}
+
+.boss-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: .72rem 1rem;
+    border-radius: 13px;
+    border:
+        1px solid rgba(255, 154, 61, .35);
+    text-decoration: none;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.boss-button-primary {
+    color: #211006;
+    background:
+        linear-gradient(
+            135deg,
+            #ffb250,
+            #ff6a19
+        );
+    box-shadow:
+        0 12px 28px rgba(255, 86, 0, .15);
+}
+
+.boss-button-ghost {
+    color: #f8d5b5;
+    background:
+        rgba(255, 255, 255, .04);
+}
+
+.boss-registered {
+    color: #b6f6ca;
+    font-weight: 750;
+}
+
+.boss-rules-mini {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: 1.2rem;
+}
+
+.boss-rules-mini span {
+    padding: .45rem .65rem;
+    border-radius: 999px;
+    background:
+        rgba(255, 255, 255, .055);
+    color: #d7c8b9;
+    font-size: .82rem;
+}
+
+.boss-stat-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+}
+
+.boss-stat-grid div {
+    min-height: 96px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: .2rem;
+    border-radius: 18px;
+    background:
+        rgba(255, 255, 255, .045);
+    border:
+        1px solid rgba(255, 255, 255, .06);
+    text-align: center;
+}
+
+.boss-stat-grid strong {
+    font-size: 1.6rem;
+    color: #ffbd78;
+}
+
+.boss-stat-grid span {
+    color: #cdbcae;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.boss-program-list {
+    display: grid;
+    gap: .7rem;
+}
+
+.boss-program-row {
+    display: grid;
+    grid-template-columns:
+        56px minmax(180px, 1fr) auto;
+    gap: .9rem;
+    align-items: center;
+    padding: .85rem;
+    border-radius: 16px;
+    background:
+        rgba(255, 255, 255, .045);
+    border:
+        1px solid rgba(255, 255, 255, .06);
+}
+
+.boss-program-row.status-boss_killer {
+    border-color:
+        rgba(255, 89, 50, .5);
+    background:
+        rgba(155, 29, 16, .14);
+}
+
+.boss-program-row.status-defeated {
+    opacity: .72;
+}
+
+.boss-program-rank {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #ffac59;
+    text-align: center;
+}
+
+.boss-program-player {
+    display: grid;
+    gap: .2rem;
+}
+
+.boss-program-player small {
+    color: #cbb9aa;
+}
+
+.boss-staff-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .45rem;
+}
+
+.boss-staff-actions form {
+    display: flex;
+    gap: .35rem;
+}
+
+.boss-staff-actions input,
+.boss-staff-actions button {
+    min-height: 36px;
+    border-radius: 9px;
+    border:
+        1px solid rgba(255, 255, 255, .12);
+    background:
+        rgba(0, 0, 0, .32);
+    color: #f8ecdf;
+    padding: .35rem .55rem;
+}
+
+.boss-staff-actions input[type="number"] {
+    width: 70px;
+}
+
+.boss-staff-actions input[type="text"] {
+    width: 150px;
+}
+
+.boss-staff-actions button {
+    cursor: pointer;
+    background:
+        rgba(255, 139, 44, .16);
+}
+
+.boss-staff-actions button.danger {
+    background:
+        rgba(194, 40, 31, .18);
+    color: #ffb8ae;
+}
+
+.boss-empty {
+    padding: 1.5rem;
+    text-align: center;
+    border-radius: 16px;
+    color: #c9b8a8;
+    background:
+        rgba(255, 255, 255, .035);
+}
+
+.boss-rules {
+    display: grid;
+    gap: .6rem;
+    padding-left: 1.3rem;
+    color: #e1d4c7;
+    line-height: 1.55;
+}
+
+.boss-rules code,
+.boss-command-grid code {
+    color: #ffc488;
+    background:
+        rgba(0, 0, 0, .32);
+    border:
+        1px solid rgba(255, 151, 58, .16);
+}
+
+.boss-history {
+    display: grid;
+    gap: .55rem;
+}
+
+.boss-history > div {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .2rem .8rem;
+    padding: .65rem .75rem;
+    border-radius: 12px;
+    background:
+        rgba(255, 255, 255, .04);
+}
+
+.boss-history small {
+    grid-column: 1 / -1;
+    color: #c4b2a2;
+}
+
+.boss-command-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+.boss-command-grid code {
+    padding: .5rem .7rem;
+    border-radius: 10px;
+}
+
+.boss-flash {
+    padding: .8rem 1rem;
+    border-radius: 14px;
+    font-weight: 750;
+}
+
+.boss-flash-ok {
+    background:
+        rgba(27, 129, 68, .2);
+    border:
+        1px solid rgba(67, 210, 118, .28);
+}
+
+.boss-flash-error {
+    background:
+        rgba(158, 28, 22, .22);
+    border:
+        1px solid rgba(235, 73, 61, .3);
+}
+
+@media (max-width: 860px) {
+    .boss-hero,
+    .boss-grid,
+    .boss-grid-main {
+        grid-template-columns: 1fr;
+    }
+
+    .boss-program-row {
+        grid-template-columns:
+            46px 1fr;
+    }
+
+    .boss-staff-actions {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+    }
+
+    .boss-backdrop {
+        background-position: 62% 20%;
+    }
+}
+
+@media (max-width: 560px) {
+    .boss-page {
+        padding-inline: .75rem;
+    }
+
+    .boss-glass {
+        border-radius: 18px;
+    }
+
+    .boss-hero {
+        padding: 1.1rem;
+        min-height: 0;
+    }
+
+    .boss-stat-grid {
+        grid-template-columns:
+            1fr 1fr;
+    }
+
+    .boss-staff-actions,
+    .boss-staff-actions form {
+        width: 100%;
+    }
+
+    .boss-staff-actions form {
+        flex-wrap: wrap;
+    }
+
+    .boss-staff-actions input[type="text"] {
+        flex: 1;
+        min-width: 140px;
+    }
+}

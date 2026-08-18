@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
 from aiohttp import web
 
 from services.araignee_format_service import AraigneeFormatService
-from services.boss_service import BossService
 
 
 MAX_REQUEST_BYTES = 32_000
@@ -18,25 +16,12 @@ def register_format_routes(
     website_cog: Any,
 ) -> None:
     service = AraigneeFormatService()
-    boss_service = BossService()
 
     async def formats_page(request: web.Request) -> web.Response:
-        configured_guild = str(
-            request.query.get("guild")
-            or os.environ.get("PUBLIC_GUILD_ID")
-            or os.environ.get("GUILD_ID")
-            or ""
-        ).strip()
-        if not configured_guild:
-            guilds = list(getattr(website_cog.bot, "guilds", []))
-            configured_guild = str(guilds[0].id) if guilds else ""
-        boss_card = await boss_service.public_format_card(
-            configured_guild if configured_guild.isdigit() else None
-        )
         return website_cog.render(
             "formats.html",
             request=request,
-            formats=[service.public_data(), boss_card],
+            formats=[service.public_data()],
         )
 
     async def araignee_page(request: web.Request) -> web.Response:
