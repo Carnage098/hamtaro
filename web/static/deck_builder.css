@@ -1157,3 +1157,155 @@
     .db-generated-zone li > img,
     .db-generated-image-placeholder { width:26px; height:38px; }
 }
+
+/* --- HAMTARO DECK LAB V10: quality cockpit --- */
+.db-quality-cockpit {
+    position: relative;
+    overflow: hidden;
+    margin: 18px 0 22px;
+    padding: 20px;
+    border: 1px solid rgba(148, 163, 184, .2);
+    border-radius: 24px;
+    background:
+        radial-gradient(circle at 12% 0%, rgba(99, 102, 241, .16), transparent 34%),
+        linear-gradient(145deg, rgba(15, 23, 42, .96), rgba(17, 24, 39, .88));
+    box-shadow: 0 18px 50px rgba(2, 6, 23, .18);
+}
+
+.db-quality-cockpit::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(110deg, rgba(255,255,255,.025), transparent 30%, transparent 70%, rgba(255,255,255,.018));
+}
+
+.db-quality-head,
+.db-quality-actions {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.db-quality-head h3 {
+    margin: 4px 0 6px;
+    font-size: clamp(1.08rem, 2vw, 1.35rem);
+}
+
+.db-quality-head p {
+    margin: 0;
+    max-width: 760px;
+    color: rgba(226, 232, 240, .78);
+}
+
+.db-quality-badge {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    font-size: .82rem;
+    font-weight: 800;
+    letter-spacing: .02em;
+    border: 1px solid rgba(148, 163, 184, .24);
+    background: rgba(15, 23, 42, .72);
+}
+
+.db-quality-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin: 18px 0;
+}
+
+.db-quality-grid article {
+    min-width: 0;
+    padding: 14px;
+    border-radius: 17px;
+    border: 1px solid rgba(148, 163, 184, .14);
+    background: rgba(15, 23, 42, .48);
+}
+
+.db-quality-grid span,
+.db-quality-grid small {
+    display: block;
+    color: rgba(203, 213, 225, .68);
+}
+
+.db-quality-grid span {
+    font-size: .74rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.db-quality-grid strong {
+    display: block;
+    margin: 6px 0 3px;
+    font-size: 1.22rem;
+    line-height: 1.2;
+}
+
+.db-quality-grid small {
+    font-size: .72rem;
+    line-height: 1.35;
+}
+
+.db-quality-cockpit[data-tier="solid"] .db-quality-badge {
+    border-color: rgba(34, 197, 94, .38);
+    background: rgba(22, 101, 52, .2);
+}
+
+.db-quality-cockpit[data-tier="usable"] .db-quality-badge {
+    border-color: rgba(59, 130, 246, .38);
+    background: rgba(30, 64, 175, .2);
+}
+
+.db-quality-cockpit[data-tier="fragile"] .db-quality-badge {
+    border-color: rgba(245, 158, 11, .4);
+    background: rgba(146, 64, 14, .22);
+}
+
+.db-quality-cockpit[data-tier="danger"] .db-quality-badge {
+    border-color: rgba(244, 63, 94, .4);
+    background: rgba(136, 19, 55, .22);
+}
+
+@media (max-width: 900px) {
+    .db-quality-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 620px) {
+    .db-quality-cockpit {
+        padding: 16px;
+        border-radius: 20px;
+    }
+
+    .db-quality-head,
+    .db-quality-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .db-quality-badge {
+        align-self: flex-start;
+    }
+
+    .db-quality-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .db-quality-actions .db-secondary-button,
+    .db-quality-actions .db-link-button {
+        width: 100%;
+    }
+}
+

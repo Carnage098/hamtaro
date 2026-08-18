@@ -319,11 +319,12 @@
         const frequentSlots = Number(mainProfile.frequent_slots || 0);
         const flexSlots = Number(mainProfile.flex_slots_estimate || 0);
         const sampleCount = Number(a.samples_analyzed || 0);
+        const hasStructure = !a.degraded && sampleCount > 0 && (coreSlots > 0 || frequentSlots > 0 || flexSlots > 0 || Number(mainProfile.observed_unique_cards || 0) > 0);
         const tournamentCount = Number(a.tournament_samples || 0);
         const coverage = sampleCount ? Math.round((tournamentCount / sampleCount) * 100) : 0;
         if (els.overviewNote) {
-            els.overviewNote.textContent = a.degraded
-                ? 'Reconstruction TCG partielle : les cartes résolues sont visibles, mais Hamtaro n’invente pas de statistiques.'
+            els.overviewNote.textContent = !hasStructure
+                ? 'Structure Main non déterminée : Hamtaro masque les slots plutôt que d’afficher un faux 0.'
                 : `${sampleCount} listes TCG uniques · ${coreSlots + frequentSlots} slots Main plutôt stables · ${flexSlots} slots flex estimés.`;
         }
         if (els.overviewPills) {
@@ -331,8 +332,8 @@
             els.overviewPills.innerHTML = [
                 `<span><b>${sampleCount}</b> listes</span>`,
                 `<span><b>${coverage}%</b> tournoi</span>`,
-                `<span><b>${coreSlots}</b> slots Core</span>`,
-                `<span><b>${flexSlots}</b> slots Flex</span>`,
+                `<span><b>${hasStructure ? coreSlots : '—'}</b> slots Core</span>`,
+                `<span><b>${hasStructure ? flexSlots : '—'}</b> slots Flex</span>`,
                 `<span><b>${base === null || base === undefined ? '—' : esc(money(base))}</b> base TCG</span>`,
             ].join('');
         }
@@ -343,8 +344,8 @@
             let action = '<button type="button" data-db-next-generate>Générer maintenant</button>';
             if (a.degraded) {
                 title = 'Données encore partielles';
-                note = 'Explore le pool TCG retrouvé et relance plus tard : la base Hamtaro s’enrichit au fil des recherches.';
-                action = '<button type="button" data-db-next-cards>Voir les cartes retrouvées</button>';
+                note = 'Hamtaro peut tenter une recherche plus large avant de te laisser sur une base de secours.';
+                action = '<button type="button" data-db-max-coverage>Relancer en couverture maximale</button>';
             } else if (variants > 1 && !state.variant) {
                 title = `${variants} variantes trouvées`;
                 note = 'Choisir une variante rend les ratios, le core et les moteurs beaucoup plus précis.';
@@ -885,6 +886,101 @@
         }).join('');
     };
 
+    // --- HAMTARO DECK LAB V10: quality cockpit ---
+    const renderQualityCockpit = () => {
+      const cockpit = $('[data-db-quality-cockpit]');
+      if (!cockpit) return;
+
+      const a = state.analysis;
+      if (!a) {
+        cockpit.hidden = true;
+        return;
+      }
+
+      cockpit.hidden = false;
+
+      const samples = Number(a.samples_analyzed || 0);
+      const confidence = Number(a.confidence?.score || 0);
+      const zoneCards = ['main', 'extra', 'side'].reduce((total, zone) => {
+        const cards = a.zones?.[zone];
+        return total + (Array.isArray(cards) ? cards.length : 0);
+      }, 0);
+      const fallbackCards = Array.isArray(a.fallback_archetype_cards) ? a.fallback_archetype_cards.length : 0;
+      const coverage = Math.max(zoneCards, fallbackCards);
+
+      const mainProfile = a.deck_profile?.main || {};
+      const coreSlots = Number(mainProfile.core_slots || 0);
+      const frequentSlots = Number(mainProfile.frequent_slots || 0);
+      const flexSlots = Number(mainProfile.flex_slots_estimate || 0);
+      const structureKnown = !a.degraded && samples > 0 && (
+        coreSlots > 0 || frequentSlots > 0 || flexSlots > 0 || Number(mainProfile.observed_unique_cards || 0) > 0
+      );
+
+      let tier = 'solid';
+      let badge = 'Solide';
+      let note = `${samples} decklist${samples > 1 ? 's' : ''} exploitable${samples > 1 ? 's' : ''} · confiance ${confidence} %.`;
+
+      if (a.degraded || samples === 0) {
+        tier = 'danger';
+        badge = 'Secours';
+        note = "Pas assez de decklists fiables : Hamtaro affiche une base de secours sans inventer de ratios.";
+      } else if (samples < 5 || confidence < 45) {
+        tier = 'fragile';
+        badge = 'Fragile';
+        note = `Seulement ${samples} decklist${samples > 1 ? 's' : ''} exploitable${samples > 1 ? 's' : ''}. Utilise cette base comme piste, pas comme liste de référence.`;
+      } else if (samples < 12 || confidence < 70) {
+        tier = 'usable';
+        badge = 'Utilisable';
+        note = `${samples} decklists analysées · confiance ${confidence} %. La structure est utile mais certains slots peuvent encore bouger.`;
+      }
+
+      cockpit.dataset.tier = tier;
+
+      const badgeEl = $('[data-db-quality-badge]');
+      const noteEl = $('[data-db-quality-note]');
+      const samplesEl = $('[data-db-quality-samples]');
+      const cardsEl = $('[data-db-quality-cards]');
+      const mainEl = $('[data-db-quality-main]');
+      const recoveryEl = $('[data-db-quality-recovery]');
+
+      if (badgeEl) badgeEl.textContent = badge;
+      if (noteEl) noteEl.textContent = note;
+      if (samplesEl) samplesEl.textContent = samples ? String(samples) : '0';
+      if (cardsEl) cardsEl.textContent = coverage ? String(coverage) : '—';
+      if (mainEl) mainEl.textContent = structureKnown ? `${coreSlots} · ${frequentSlots} · ${flexSlots}` : '—';
+
+      const recovery = a.recovery || {};
+      if (recoveryEl) {
+        if (recovery.attempted && recovery.chosen === 'expanded') {
+          recoveryEl.textContent = `${Number(recovery.initial_samples || 0)} → ${Number(recovery.final_samples || 0)}`;
+        } else if (recovery.attempted && recovery.retry_failed) {
+          recoveryEl.textContent = 'Échec du retry';
+        } else if (recovery.attempted) {
+          recoveryEl.textContent = 'Aucun gain';
+        } else {
+          recoveryEl.textContent = 'Non nécessaire';
+        }
+      }
+    };
+
+    root.addEventListener('click', (event) => {
+      const maxCoverage = event.target.closest('[data-db-max-coverage]');
+      if (maxCoverage) {
+        if (els.days) els.days.value = '';
+        if (els.limit) els.limit.value = '96';
+        if (els.tournamentOnly) els.tournamentOnly.checked = false;
+        state.variant = '';
+        if (els.clearVariant) els.clearVariant.hidden = true;
+        analyze({ preserveVariant: false });
+        return;
+      }
+
+      const cardsJump = event.target.closest('[data-db-quality-cards-jump]');
+      if (cardsJump) {
+        jumpTo('db-library');
+      }
+    });
+
     const renderAnalysis = () => {
         const a = state.analysis;
         if (!a) return;
@@ -919,6 +1015,7 @@
         if (els.catalogSamples) els.catalogSamples.textContent = `${catalog.samples_saved || 0} decklist(s) TCG mémorisée(s) · ${catalog.confirmed || 0} base(s) confirmée(s)`;
         if (els.ruleset) els.ruleset.textContent = a.ruleset || 'TCG';
         renderWarnings(a.warnings);
+      renderQualityCockpit();
         renderVariants();
         renderEngines();
         renderPackages();
