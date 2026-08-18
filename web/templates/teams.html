@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Équipes 2v2 · Hamtaro{% endblock %}
+
+{% block content %}
+<section class="teams-hero">
+    <div>
+        <p class="teams-eyebrow">HAMTARO · 2V2</p>
+        <h1>Équipes</h1>
+        <p class="teams-lead">
+            Le classement officiel des duos. L'Elo 2v2 est totalement séparé
+            du classement individuel et suit l'équipe d'un tournoi à l'autre.
+        </p>
+    </div>
+    <div class="teams-session-card">
+        {% if user %}
+            <span class="teams-session-dot" aria-hidden="true"></span>
+            <div>
+                <small>Connecté avec Discord</small>
+                <strong>{{ user.username }}</strong>
+            </div>
+            <a href="/equipes/logout" class="teams-link-button teams-link-button-muted">Déconnexion</a>
+        {% else %}
+            <div>
+                <small>Personnalisation</small>
+                <strong>Gère l'image de ton équipe</strong>
+            </div>
+            <a href="/equipes/login?next=/equipes" class="teams-link-button">Connexion Discord</a>
+        {% endif %}
+    </div>
+</section>
+
+{% if not teams %}
+<section class="teams-empty">
+    <span class="teams-empty-icon">2V2</span>
+    <h2>Aucune équipe enregistrée pour le moment</h2>
+    <p>
+        Dès qu'une équipe est créée par Hamtaro dans le système 2v2,
+        elle apparaîtra automatiquement ici.
+    </p>
+</section>
+{% else %}
+<section class="teams-section">
+    <div class="teams-section-heading">
+        <div>
+            <p class="teams-eyebrow">CLASSEMENT INDÉPENDANT</p>
+            <h2>Classement Elo des équipes</h2>
+        </div>
+        <div class="teams-count">{{ teams|length }} équipe{% if teams|length > 1 %}s{% endif %}</div>
+    </div>
+
+    <div class="teams-ranking" role="table" aria-label="Classement Elo 2v2">
+        <div class="teams-ranking-row teams-ranking-head" role="row">
+            <span>Rang</span>
+            <span>Équipe</span>
+            <span>Elo</span>
+            <span>V</span>
+            <span>D</span>
+            <span>Ratio</span>
+        </div>
+        {% for team in teams %}
+        <a class="teams-ranking-row" href="/equipes/{{ team.id }}" role="row">
+            <span class="teams-rank {% if team.rank <= 3 %}teams-rank-top teams-rank-{{ team.rank }}{% endif %}">
+                #{{ team.rank }}
+            </span>
+            <span class="teams-ranking-team">
+                <span class="teams-mini-logo">
+                    {% if team.has_image %}
+                        <img src="/api/equipes/{{ team.id }}/image?v={{ team.image_sha256 }}" alt="Logo de {{ team.name }}">
+                    {% else %}
+                        <span>{{ team.name[:1]|upper }}</span>
+                    {% endif %}
+                </span>
+                <span>
+                    <strong>{{ team.name }}</strong>
+                    <small>{{ team.member1_display }} · {{ team.member2_display }}</small>
+                </span>
+            </span>
+            <span class="teams-elo"><strong>{{ team.elo }}</strong><small>ELO</small></span>
+            <span>{{ team.wins }}</span>
+            <span>{{ team.losses }}</span>
+            <span>{{ team.win_rate }}%</span>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="teams-section">
+    <div class="teams-section-heading">
+        <div>
+            <p class="teams-eyebrow">IDENTITÉS 2V2</p>
+            <h2>Toutes les équipes</h2>
+        </div>
+    </div>
+
+    <div class="teams-grid">
+        {% for team in teams %}
+        <article class="team-card">
+            <a class="team-card-media" href="/equipes/{{ team.id }}" aria-label="Voir {{ team.name }}">
+                {% if team.has_image %}
+                    <img src="/api/equipes/{{ team.id }}/image?v={{ team.image_sha256 }}" alt="Image de l'équipe {{ team.name }}">
+                {% else %}
+                    <span class="team-card-placeholder">{{ team.name[:2]|upper }}</span>
+                {% endif %}
+                <span class="team-card-rank">#{{ team.rank }}</span>
+                <span class="team-card-elo">{{ team.elo }} Elo</span>
+            </a>
+            <div class="team-card-body">
+                <div>
+                    <h3>{{ team.name }}</h3>
+                    <p>{{ team.member1_display }} <span>×</span> {{ team.member2_display }}</p>
+                </div>
+                <div class="team-card-stats">
+                    <span><strong>{{ team.wins }}</strong><small>Victoires</small></span>
+                    <span><strong>{{ team.losses }}</strong><small>Défaites</small></span>
+                    <span><strong>{{ team.peak_elo }}</strong><small>Meilleur Elo</small></span>
+                </div>
+                <a class="teams-link-button teams-link-button-full" href="/equipes/{{ team.id }}">Voir l'équipe</a>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+{% endblock %}

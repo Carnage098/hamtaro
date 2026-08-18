@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}{{ team.name }} · Équipes 2v2 · Hamtaro{% endblock %}
+
+{% block content %}
+<nav class="team-detail-back" aria-label="Fil d'Ariane">
+    <a href="/equipes">← Toutes les équipes</a>
+</nav>
+
+{% if saved %}
+<div class="team-alert team-alert-success">✓ L'image de l'équipe a bien été mise à jour.</div>
+{% endif %}
+
+<section class="team-profile-hero">
+    <div class="team-profile-image">
+        {% if team.has_image %}
+            <img src="/api/equipes/{{ team.id }}/image?v={{ team.image_sha256 }}" alt="Image de {{ team.name }}">
+        {% else %}
+            <span>{{ team.name[:2]|upper }}</span>
+        {% endif %}
+    </div>
+    <div class="team-profile-main">
+        <p class="teams-eyebrow">ÉQUIPE 2V2 · {% if rank %}RANG #{{ rank }}{% else %}NON CLASSÉE{% endif %}</p>
+        <h1>{{ team.name }}</h1>
+        <div class="team-members-line">
+            <span class="team-member-chip">{{ team.member1_display }}</span>
+            <span class="team-members-cross">×</span>
+            <span class="team-member-chip">{{ team.member2_display }}</span>
+        </div>
+        <div class="team-profile-record">
+            <span><strong>{{ team.elo }}</strong><small>Elo actuel</small></span>
+            <span><strong>{{ team.peak_elo }}</strong><small>Meilleur Elo</small></span>
+            <span><strong>{{ team.wins }}-{{ team.losses }}{% if team.draws %}-{{ team.draws }}{% endif %}</strong><small>Bilan</small></span>
+            <span><strong>{{ team.win_rate }}%</strong><small>Victoires</small></span>
+        </div>
+    </div>
+</section>
+
+<div class="team-detail-layout">
+    <section class="team-panel">
+        <div class="team-panel-heading">
+            <div>
+                <p class="teams-eyebrow">PROGRESSION</p>
+                <h2>Historique Elo</h2>
+            </div>
+            <span class="team-panel-badge">Elo 2v2 uniquement</span>
+        </div>
+        {% if team.elo_history %}
+        <div class="team-elo-history">
+            {% for event in team.elo_history %}
+            <div class="team-elo-event">
+                <span class="team-elo-result team-elo-result-{{ event.result }}">
+                    {% if event.result == 'win' %}V{% elif event.result == 'loss' %}D{% else %}N{% endif %}
+                </span>
+                <div class="team-elo-opponent">
+                    <small>contre</small>
+                    <strong>{{ event.opponent_name }}</strong>
+                </div>
+                <div class="team-elo-movement {% if event.delta > 0 %}is-positive{% elif event.delta < 0 %}is-negative{% endif %}">
+                    <strong>{% if event.delta > 0 %}+{% endif %}{{ event.delta }}</strong>
+                    <small>{{ event.old_elo }} → {{ event.new_elo }}</small>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="team-panel-empty">
+            Aucun résultat 2v2 validé n'a encore modifié l'Elo de cette équipe.
+        </div>
+        {% endif %}
+    </section>
+
+    <aside class="team-panel team-edit-panel">
+        <div class="team-panel-heading">
+            <div>
+                <p class="teams-eyebrow">IDENTITÉ</p>
+                <h2>Image de l'équipe</h2>
+            </div>
+        </div>
+
+        {% if user and team.can_edit %}
+            <p class="team-edit-authorized">
+                ✓ Tu es autorisé à modifier l'image de cette équipe.
+            </p>
+            <form class="team-image-form" action="/equipes/{{ team.id }}/image" method="post" enctype="multipart/form-data">
+                <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                <label for="team-image-upload">Nouvelle image</label>
+                <input
+                    id="team-image-upload"
+                    name="image"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    required
+                >
+                <small>PNG, JPEG ou WebP · 5 Mo maximum</small>
+                <button type="submit" class="teams-link-button teams-link-button-full">Enregistrer l'image</button>
+            </form>
+        {% elif user %}
+            <div class="team-edit-denied">
+                <strong>Modification verrouillée</strong>
+                <p>
+                    Ton compte Discord ne fait pas partie de {{ team.name }}.
+                    Tu ne peux donc pas remplacer son image.
+                </p>
+            </div>
+        {% else %}
+            <p>
+                Connecte ton compte Discord. Hamtaro vérifiera automatiquement
+                si tu fais partie des deux membres enregistrés dans cette équipe.
+            </p>
+            <a class="teams-link-button teams-link-button-full" href="/equipes/login?next=/equipes/{{ team.id }}">Connexion Discord</a>
+        {% endif %}
+    </aside>
+</div>
+{% endblock %}

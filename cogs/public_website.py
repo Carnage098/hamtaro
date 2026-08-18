@@ -27,6 +27,7 @@ from services.deck_builder_routes import register_deck_builder_routes
 from services.format_routes import register_format_routes
 from services.site_experience_routes import register_site_experience_routes
 from services.trophy_routes import register_trophy_routes
+from services.team_routes import register_team_routes
 
 
 LOGGER = logging.getLogger(__name__)
@@ -212,6 +213,7 @@ class PublicWebsiteCog(commands.Cog):
             return
 
         application = web.Application(
+            client_max_size=6 * 1024 * 1024,
             middlewares=[
                 self._security_headers_middleware,
                 self._error_middleware,
@@ -276,6 +278,10 @@ class PublicWebsiteCog(commands.Cog):
             self,
         )
         register_deck_builder_routes(application, self)
+        register_team_routes(application, self)
+        LOGGER.info(
+            "Routes Équipes 2v2 enregistrées : /equipes, /api/equipes"
+        )
         application.router.add_get("/favicon.ico", self.favicon)
         # HAMTARO FORMAT ARAIGNEE: routes publiques et API.
         register_format_routes(application, self)
