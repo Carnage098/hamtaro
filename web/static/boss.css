@@ -606,3 +606,80 @@
         grid-column: 1 / -1;
     }
 }
+
+/* HAMTARO BOSS VISIBILITY V1.2 */
+
+.boss-backdrop {
+    background:
+        linear-gradient(
+            90deg,
+            rgba(6, 6, 8, .48) 0%,
+            rgba(8, 7, 8, .30) 44%,
+            rgba(8, 7, 8, .13) 100%
+        ),
+        linear-gradient(
+            180deg,
+            rgba(5, 5, 7, .04) 0%,
+            rgba(6, 6, 8, .38) 58%,
+            rgba(6, 6, 8, .82) 100%
+        ),
+        url("/static/boss-radagon-wolf.jpg")
+        center 12% / cover no-repeat;
+    filter:
+        saturate(1.08)
+        contrast(1.04)
+        brightness(1.10);
+}
+
+.boss-page::before {
+    background:
+        radial-gradient(
+            circle at 72% 22%,
+            rgba(255, 112, 20, .10),
+            transparent 34%
+        ),
+        radial-gradient(
+            circle at 52% 72%,
+            rgba(255, 72, 0, .05),
+            transparent 34%
+        );
+}
+
+.boss-hero.boss-glass {
+    background:
+        linear-gradient(
+            145deg,
+            rgba(18, 15, 15, .65),
+            rgba(9, 9, 11, .48)
+        );
+    border-color: rgba(255, 154, 61, .28);
+}
+
+.boss-identity {
+    background: rgba(0, 0, 0, .38);
+}
+
+@media (max-width: 860px) {
+    .boss-backdrop {
+        background-position: 48% 10%;
+        filter:
+            saturate(1.06)
+            contrast(1.03)
+            brightness(1.08);
+    }
+}
+
+@media (max-width: 560px) {
+    .boss-backdrop {
+        background-position: 43% 8%;
+    }
+
+    .boss-hero.boss-glass {
+        background:
+            linear-gradient(
+                180deg,
+                rgba(14, 12, 12, .62),
+                rgba(8, 8, 10, .46)
+            );
+    }
+}
