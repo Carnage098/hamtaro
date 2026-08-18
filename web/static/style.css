@@ -3255,3 +3255,133 @@ td a {
 .spiderman-dialog-loading{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:.6rem;pointer-events:none;background:rgba(16,17,22,.72)}.spiderman-dialog-loading[hidden]{display:none}
 @media(max-width:680px){.format-trophy-preview{min-height:260px;grid-template-rows:minmax(180px,1fr) auto}.format-trophy-preview-viewer,.format-trophy-preview model-viewer{min-height:180px}.format-trophy-preview-copy{align-items:flex-start;flex-direction:column}.spiderman-trophy-dialog-body{height:75vh}}
 /* ===== HAMTARO SPIDERMAN TROPHY END ===== */
+
+/* HAMTARO FORMAT TROPHY INTEGRATION V1 */
+.format-card-trophy {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.7rem;
+    margin-top: 0.9rem;
+    padding: 0.72rem 0.8rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.format-card-trophy-icon {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 11px;
+    background: rgba(255, 196, 0, 0.12);
+    font-size: 1.12rem;
+}
+
+.format-card-trophy-copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.12rem;
+}
+
+.format-card-trophy-copy small {
+    opacity: 0.68;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+}
+
+.format-card-trophy-copy strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.92rem;
+}
+
+.format-card-trophy-status {
+    padding: 0.28rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 0.72rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.format-tournament-trophy {
+    display: grid;
+    gap: 0.85rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.format-tournament-trophy-main {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 0.8rem;
+}
+
+.format-tournament-trophy-icon {
+    display: grid;
+    place-items: center;
+    width: 2.7rem;
+    height: 2.7rem;
+    border-radius: 13px;
+    background: rgba(255, 196, 0, 0.12);
+    font-size: 1.3rem;
+}
+
+.format-tournament-trophy-kicker {
+    display: block;
+    margin-bottom: 0.18rem;
+    opacity: 0.68;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.065em;
+}
+
+.format-tournament-trophy-main strong {
+    display: block;
+    font-size: 1rem;
+}
+
+.format-tournament-trophy-main p {
+    margin: 0.28rem 0 0;
+    opacity: 0.78;
+    line-height: 1.45;
+}
+
+.format-tournament-trophy-link {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.35rem;
+    padding: 0.52rem 0.76rem;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.055);
+    color: inherit;
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.format-tournament-trophy-link:hover {
+    background: rgba(255, 255, 255, 0.09);
+    transform: translateY(-1px);
+}
+
+@media (max-width: 620px) {
+    .format-card-trophy {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .format-card-trophy-status {
+        grid-column: 2;
+        justify-self: start;
+    }
+}
+
