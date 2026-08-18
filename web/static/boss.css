@@ -683,3 +683,49 @@
             );
     }
 }
+
+/* HAMTARO BOSS HEADER FIX V1.3 */
+
+/*
+ * IMPORTANT :
+ * Le fond Boss reste limité à la page /formats/boss.
+ * Il ne remonte plus derrière le header global Hamtaro / Jjetgames.
+ */
+.boss-page {
+    position: relative;
+    isolation: isolate;
+    margin-top: 0;
+}
+
+.boss-backdrop {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: -3;
+    pointer-events: none;
+}
+
+/*
+ * Même correction pour la couche de lumière du format Boss :
+ * elle ne doit jamais recouvrir le header global.
+ */
+.boss-page::before {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: -2;
+    pointer-events: none;
+}
+
+/*
+ * Le fond est attaché au contenu Boss, pas à toute la fenêtre.
+ */
+.boss-backdrop {
+    background-attachment: scroll !important;
+}
+
+/*
+ * Évite que le fond du Boss dépasse visuellement dans les zones
+ * appartenant au layout principal.
+ */
+.boss-page {
+    overflow: hidden;
+}
