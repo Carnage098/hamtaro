@@ -102,11 +102,90 @@ class DeckBuilderRoutes:
             "variant": str(request.query.get("variant") or "").strip() or None,
         }
 
+    # --- HAMTARO DECK LAB V10: resilient analysis ---
+    @staticmethod
+    def _analysis_strength(payload: Any) -> tuple[int, int, int, int]:
+        """Compare two analyses without pretending that an empty fallback is reliable."""
+        if not isinstance(payload, dict):
+            return (-1, 0, 0, 0)
+
+        zones = payload.get("zones") or {}
+        zone_cards = 0
+        if isinstance(zones, dict):
+            for zone_name in ("main", "extra", "side"):
+                zone = zones.get(zone_name) or []
+                if isinstance(zone, list):
+                    zone_cards += len(zone)
+
+        try:
+            samples = int(payload.get("samples_analyzed") or 0)
+        except (TypeError, ValueError):
+            samples = 0
+
+        confidence = payload.get("confidence") or {}
+        try:
+            confidence_score = int(confidence.get("score") or 0) if isinstance(confidence, dict) else 0
+        except (TypeError, ValueError):
+            confidence_score = 0
+
+        healthy = 0 if payload.get("degraded") else 1
+        return (healthy, samples, zone_cards, confidence_score)
+
+    async def _analyze_resilient(self, query: str, options: dict[str, Any]) -> dict[str, Any]:
+        """Retry weak analyses with a larger sample while preserving explicit user filters."""
+        primary = await self.service.analyze(query, **options)
+        if not isinstance(primary, dict):
+            return primary
+
+        primary_strength = self._analysis_strength(primary)
+        requested_max = int(options.get("max_decks") or 48)
+        weak = bool(primary.get("degraded")) or primary_strength[1] < 8 or primary_strength[2] < 18
+
+        if not weak or requested_max >= 96:
+            return primary
+
+        retry_options = dict(options)
+        retry_options["max_decks"] = 96
+
+        try:
+            expanded = await self.service.analyze(query, **retry_options)
+        except Exception:
+            primary["recovery"] = {
+                "attempted": True,
+                "chosen": "initial",
+                "strategy": "expanded-sample",
+                "initial_samples": primary_strength[1],
+                "final_samples": primary_strength[1],
+                "retry_failed": True,
+            }
+            return primary
+
+        expanded_strength = self._analysis_strength(expanded)
+        chosen = expanded if expanded_strength > primary_strength else primary
+        final_strength = self._analysis_strength(chosen)
+        chosen["recovery"] = {
+            "attempted": True,
+            "chosen": "expanded" if chosen is expanded else "initial",
+            "strategy": "expanded-sample",
+            "initial_samples": primary_strength[1],
+            "final_samples": final_strength[1],
+            "initial_cards": primary_strength[2],
+            "final_cards": final_strength[2],
+        }
+
+        if chosen is expanded:
+            warnings = list(chosen.get("warnings") or [])
+            warnings.insert(0, "Hamtaro a automatiquement élargi l'échantillon car l'analyse initiale était trop faible.")
+            chosen["warnings"] = warnings
+
+        return chosen
+
     async def analyze(self, request: web.Request) -> web.Response:
         self._rate_limit(request)
         query = str(request.query.get("q") or "").strip()
         try:
-            payload = await self.service.analyze(query, **self._common_options(request))
+            options = self._common_options(request)
+            payload = await self._analyze_resilient(query, options)
         except ValueError as exc:
             return web.json_response({"error": str(exc)}, status=400)
         return web.json_response(payload, headers={"Cache-Control": "no-store"})
@@ -389,7 +468,7 @@ class DeckBuilderRoutes:
             {
                 "status": "ok",
                 "service": "hamtaro-deck-builder",
-                "version": "8.3",
+                "version": "10.0",
                 "page": "/deck-builder",
                 "price_source": "Cardmarket data via YGOPRODeck · TCG only",
                 "catalog": await self.service.catalog_stats(),
@@ -434,6 +513,8 @@ class DeckBuilderRoutes:
                     "tcg-only-card-filtering",
                     "self-enriching-deck-catalog",
                     "persistent-learned-decklists",
+                    "adaptive-analysis-retry",
+                    "analysis-quality-cockpit",
                     "punctuation-tolerant-archetype-aliases",
                 ],
             },

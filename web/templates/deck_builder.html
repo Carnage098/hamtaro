@@ -6,7 +6,7 @@
 <section class="deck-builder-page" data-deck-builder-root>
     <header class="db-hero">
         <div class="db-hero-copy">
-            <p class="db-eyebrow">HAMTARO DECK LAB · V9.0</p>
+            <p class="db-eyebrow">HAMTARO DECK LAB · V10.0</p>
             <h1>Construis un deck solide, comprends chaque choix.</h1>
             <p>
                 Recherche un archétype ou une variante. Hamtaro analyse des decklists publiques,
@@ -153,6 +153,49 @@
         </div>
 
         <div class="db-warning-list" data-db-warnings hidden></div>
+        <!-- HAMTARO DECK LAB V10: quality cockpit -->
+        <section class="db-quality-cockpit" data-db-quality-cockpit hidden>
+            <div class="db-quality-head">
+                <div>
+                    <span class="db-kicker">Qualité de l'analyse</span>
+                    <h3>Cette base est-elle vraiment exploitable ?</h3>
+                    <p data-db-quality-note>Hamtaro vérifie l'échantillon avant de présenter les ratios comme fiables.</p>
+                </div>
+                <span class="db-quality-badge" data-db-quality-badge>Analyse</span>
+            </div>
+
+            <div class="db-quality-grid">
+                <article>
+                    <span>Échantillon</span>
+                    <strong data-db-quality-samples>—</strong>
+                    <small>decklists réellement analysées</small>
+                </article>
+                <article>
+                    <span>Couverture</span>
+                    <strong data-db-quality-cards>—</strong>
+                    <small>cartes observées dans les zones</small>
+                </article>
+                <article>
+                    <span>Structure Main</span>
+                    <strong data-db-quality-main>—</strong>
+                    <small>Core · fréquentes · flex</small>
+                </article>
+                <article>
+                    <span>Récupération auto</span>
+                    <strong data-db-quality-recovery>—</strong>
+                    <small>élargissement si les données sont faibles</small>
+                </article>
+            </div>
+
+            <div class="db-quality-actions">
+                <button class="db-secondary-button" type="button" data-db-max-coverage>
+                    Relancer en couverture maximale
+                </button>
+                <button class="db-link-button" type="button" data-db-quality-cards-jump>
+                    Voir les cartes observées
+                </button>
+            </div>
+        </section>
 
         <nav class="db-workspace-nav" data-db-workspace-nav aria-label="Navigation dans l'analyse">
             <button type="button" class="is-active" data-db-jump="db-overview">Vue d'ensemble</button>
