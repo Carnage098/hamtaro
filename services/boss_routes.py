@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import time
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
@@ -198,6 +199,16 @@ class BossRoutes:
         state = await self.service.state(guild_id)
         challengers = await self.service.challengers(guild_id)
         history = await self.service.history(guild_id, limit=20)
+        radagon_model_url = None
+        static_root = Path(__file__).resolve().parents[1] / "web" / "static"
+        model_dir = static_root / "models"
+        if model_dir.exists():
+            preferred = model_dir / "radagon-boss.glb"
+            candidates = [preferred] if preferred.exists() else sorted(model_dir.glob("*radagon*.glb"))
+            if candidates:
+                model_path = candidates[0]
+                radagon_model_url = "/static/" + model_path.relative_to(static_root).as_posix()
+
         is_staff = False
         is_registered = False
 
@@ -222,6 +233,7 @@ class BossRoutes:
             is_registered=is_registered,
             saved=request.query.get("saved") == "1",
             error=request.query.get("error"),
+            radagon_model_url=radagon_model_url,
         )
 
     async def login(self, request: web.Request) -> web.Response:
