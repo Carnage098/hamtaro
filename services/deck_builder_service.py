@@ -115,12 +115,12 @@ class DeckBuilderService:
         self.image_cache_path = Path(os.getenv("DECK_BUILDER_IMAGE_CACHE_PATH", str(default_images)))
         self.image_cache_path.mkdir(parents=True, exist_ok=True)
         self._last_card_fetch_dates: list[str] = []
-        self.cache_namespace = "v101"
+        self.cache_namespace = "v102"
         self._last_discovery_debug: dict[str, Any] = {}
         self._last_card_lookup_debug: dict[str, Any] = {}
         self.user_agent = os.getenv(
             "DECK_BUILDER_USER_AGENT",
-            "HamtaroDeckBuilder/10.1 (+public Yu-Gi-Oh TCG deck assistant)",
+            "HamtaroDeckBuilder/10.2 (+public Yu-Gi-Oh TCG deck assistant)",
         )
         self._init_db()
 
@@ -1409,17 +1409,25 @@ class DeckBuilderService:
 
     @staticmethod
     def _detect_sample_format(body: str, title: str = "") -> str:
-        # Les champs structurés font foi. Sans eux, on ne regarde jamais
-        # arbitrairement les premiers caractères de la page.
+        # V10.2 : un bouton "Master Duel View" n'est jamais une preuve de ruleset.
         ctx = DeckBuilderService._deck_primer_context(body)
         category = ctx.get("category", "").casefold()
         tournament = ctx.get("tournament", "").casefold()
         structured = " ".join(part for part in (category, tournament) if part).strip()
 
+        local = ctx.get("local", "").casefold()
+        for marker in (
+            "toggle master duel view",
+            "master duel view",
+            "export to master duel",
+            "download for master duel",
+        ):
+            local = local.replace(marker, " ")
+
         if structured:
             scoped = structured
         elif ctx.get("anchor_kind") == "primer":
-            scoped = f"{title} {ctx.get('local', '')}".casefold()
+            scoped = f"{title} {local}".casefold()
         else:
             scoped = str(title or "").casefold()
 
@@ -1427,7 +1435,8 @@ class DeckBuilderService:
             ("genesys ocg", "genesys_ocg"),
             ("tournament meta decks (genesys ocg)", "genesys_ocg"),
             ("tournament meta decks (genesys)", "genesys"),
-            ("genesys", "genesys"),
+            ("genesys tournament", "genesys"),
+            ("genesys deck", "genesys"),
             ("asian-english ocg", "ocg_ae"),
             ("ocg-ae", "ocg_ae"),
             ("tournament meta decks (china)", "ocg_china"),
@@ -1437,7 +1446,9 @@ class DeckBuilderService:
             ("ocg tournament", "ocg"),
             ("japan championship", "ocg"),
             ("asia championship", "ocg"),
-            ("master duel", "master_duel"),
+            ("master duel decks", "master_duel"),
+            ("master duel meta", "master_duel"),
+            ("master duel tournament", "master_duel"),
             ("rush duel", "rush"),
             ("speed duel", "speed"),
             ("edison format", "legacy"),
@@ -1447,17 +1458,28 @@ class DeckBuilderService:
             if marker in scoped:
                 return value
 
+        if category.startswith("master duel"):
+            return "master_duel"
+        if category.startswith("genesys"):
+            return "genesys"
+        if category.startswith("ocg"):
+            return "ocg"
+
         tcg_markers = (
             "tournament meta decks (tcg)",
-            "tournament meta decks",
             "wcq regional",
             "regional qualifier",
             "national championship",
             "world championship qualifier",
             "ycs ",
+            "tcg tournament",
         )
         if any(marker in scoped for marker in tcg_markers):
             return "tcg"
+
+        if "tournament meta decks" in scoped:
+            return "tcg"
+
         return "unknown"
 
     async def _deck_sample_from_url(self, url: str) -> DeckSample | None:
@@ -1737,9 +1759,7 @@ class DeckBuilderService:
                 continue
             live.append(sample)
 
-        # V10.1 : validation TCG robuste.
-        # Format inconnu = validation stricte.
-        # Page explicitement TCG = tolérance d'un seul passcode non résolu.
+        # V10.2 : validation TCG + pertinence réelle de la requête.
         live_ids = [cid for sample in live for cid in [*sample.main, *sample.extra, *sample.side]]
         tcg_cards = await self.card_data_by_ids(live_ids) if live_ids else {}
         known_tcg_ids = set(tcg_cards)
@@ -1766,6 +1786,87 @@ class DeckBuilderService:
                 continue
 
             card_incompatible += 1
+
+        def _relevance_norm(value: object) -> str:
+            return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
+
+        relevance_aliases_raw = [str(query or "")]
+        for value in locals().get("query_variants", []) or []:
+            if value:
+                relevance_aliases_raw.append(str(value))
+
+        query_norm = _relevance_norm(query)
+        relevance_aliases = {
+            _relevance_norm(value)
+            for value in relevance_aliases_raw
+            if len(_relevance_norm(value)) >= 4
+        }
+        if len(query_norm) >= 4:
+            relevance_aliases.add(query_norm)
+
+        # Les mots trop génériques ne doivent jamais suffire seuls.
+        noise_aliases = {
+            "blue", "eyes", "eye", "white", "dragon", "dark", "red",
+            "the", "with", "primite",
+        }
+        relevance_aliases = {
+            alias for alias in relevance_aliases
+            if alias not in noise_aliases
+        }
+
+        def _sample_text(sample: DeckSample) -> str:
+            bits: list[str] = []
+            for attr in ("title", "name", "variant", "url", "source_url"):
+                value = getattr(sample, attr, "")
+                if value:
+                    bits.append(str(value))
+            return _relevance_norm(" ".join(bits))
+
+        def _card_name(card_id: int) -> str:
+            card = tcg_cards.get(card_id)
+            if isinstance(card, dict):
+                return str(
+                    card.get("name")
+                    or card.get("name_en")
+                    or card.get("source_name")
+                    or ""
+                )
+            return str(getattr(card, "name", "") or "")
+
+        relevance_kept: list[DeckSample] = []
+        irrelevant_to_query = 0
+        relevance_title_matches = 0
+        relevance_card_matches = 0
+
+        for sample in tcg_compatible:
+            if not relevance_aliases:
+                relevance_kept.append(sample)
+                continue
+
+            sample_text = _sample_text(sample)
+            title_match = any(alias in sample_text for alias in relevance_aliases)
+
+            related_card_ids: set[int] = set()
+            for card_id in set(sample.main + sample.extra + sample.side):
+                card_norm = _relevance_norm(_card_name(card_id))
+                if card_norm and any(alias in card_norm for alias in relevance_aliases):
+                    related_card_ids.add(card_id)
+
+            if title_match:
+                relevance_kept.append(sample)
+                relevance_title_matches += 1
+                continue
+
+            # Sans titre correspondant, deux cartes distinctes de la famille
+            # sont exigées : un splash isolé ne suffit plus.
+            if len(related_card_ids) >= 2:
+                relevance_kept.append(sample)
+                relevance_card_matches += 1
+                continue
+
+            irrelevant_to_query += 1
+
+        tcg_compatible = relevance_kept
 
         deduped: dict[str, DeckSample] = {}
         for sample in [*tcg_compatible, *stored]:
@@ -1807,7 +1908,7 @@ class DeckBuilderService:
             "primary_parsed": primary_parsed,
             "primary_potential_tcg": primary_potential_tcg,
             "post_signature_potential_tcg": post_signature_potential_tcg,
-            "format_scope_version": "v101-local",
+            "format_scope_version": "v102-explicit",
             "signature_fallback_used": bool(signature_urls),
             "signature_cards": signature_names,
             "signature_pages_requested": len(signature_urls),
@@ -1824,11 +1925,16 @@ class DeckBuilderService:
             "explicit_non_tcg_ignored": explicit_non_tcg,
             "tcg_incompatible_ignored": card_incompatible,
             "tcg_soft_accepted": tcg_soft_accepted,
+            "irrelevant_to_query_ignored": irrelevant_to_query,
+            "relevance_title_matches": relevance_title_matches,
+            "relevance_card_matches": relevance_card_matches,
+            "relevance_filter_version": "v102-query-family",
             "missing_tcg_ids_top": [
                 {"card_id": card_id, "occurrences": count}
                 for card_id, count in missing_tcg_ids.most_common(12)
             ],
             "live_tcg_decks": len(tcg_compatible),
+            "relevant_tcg_decks": len(tcg_compatible),
             "stored_tcg_decks_reused": len(stored),
             "unique_decks_before_limit": unique_before_limit,
             "unique_decks": len(valid),
