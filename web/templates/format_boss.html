@@ -85,7 +85,7 @@
 id="radagonModel"
 data-radagon-model
                             class="boss-model-viewer"
-                            src="/static/models/radagon/radagon_wolf_animated.glb"
+                            src="/static/models/radagon/radagon_wolf_animated.glb?v=20260819-robust"
                             alt="Modèle 3D du Boss Radagon"
                             camera-controls
 autoplay
@@ -100,68 +100,183 @@ animation-name="Radagon_Idle"
                         <small>VIEWER 3D</small>
                         <strong>Radagon</strong>
                     </div>
-<!-- HAMTARO RADAGON ACTIONS START -->
-<div class="radagon-boss-controls" data-radagon-controller>
-  <div class="radagon-boss-controls-head">
+<!-- HAMTARO RADAGON FINAL START -->
+<style>
+.radagon-animation-console{
+  margin-top:12px;padding:12px;border-radius:16px;
+  border:1px solid rgba(245,177,92,.24);
+  background:radial-gradient(circle at top left,rgba(211,91,40,.12),transparent 45%),rgba(12,10,15,.84);
+  box-shadow:0 12px 28px rgba(0,0,0,.2)
+}
+.radagon-animation-title{
+  display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:10px
+}
+.radagon-animation-title small{
+  display:block;color:#e8a75e;font-size:9px;font-weight:800;letter-spacing:.16em
+}
+.radagon-animation-title strong{
+  display:block;margin-top:2px;color:#fff7ee;font-size:14px
+}
+.radagon-animation-current{color:rgba(255,255,255,.46);font-size:10px}
+.radagon-animation-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px
+}
+.radagon-animation-btn{
+  display:flex;align-items:center;gap:8px;min-height:52px;padding:8px 10px;
+  border:1px solid rgba(255,255,255,.08);border-radius:12px;
+  background:rgba(255,255,255,.035);color:#f7eadc;text-align:left;cursor:pointer;
+  transition:.15s ease
+}
+.radagon-animation-btn:hover{
+  transform:translateY(-1px);border-color:rgba(232,167,94,.42);
+  background:rgba(232,167,94,.08)
+}
+.radagon-animation-btn.is-active{
+  border-color:rgba(232,167,94,.65);background:rgba(211,91,40,.14)
+}
+.radagon-animation-btn:disabled{cursor:not-allowed;opacity:.35}
+.radagon-animation-btn .ico{
+  display:grid;place-items:center;width:28px;height:28px;flex:0 0 28px;
+  border-radius:9px;background:rgba(232,167,94,.1);color:#efb36d
+}
+.radagon-animation-btn strong{display:block;font-size:11px}
+.radagon-animation-btn small{
+  display:block;margin-top:2px;color:rgba(255,255,255,.45);font-size:8px
+}
+@media(max-width:640px){
+  .radagon-animation-grid{grid-template-columns:1fr}
+}
+</style>
+
+<div class="radagon-animation-console" id="radagonAnimationConsole">
+  <div class="radagon-animation-title">
     <div>
       <small>ANIMATIONS DE RADAGON</small>
-      <strong data-radagon-status>Radagon prêt</strong>
-      <span data-radagon-current>Radagon_Idle</span>
-      <i data-radagon-status-dot class="radagon-boss-status-dot is-ready"></i>
+      <strong>Choisir une action</strong>
     </div>
-    <button type="button" class="radagon-icon-button" data-radagon-pause title="Pause / Reprendre">⏯</button>
+    <span class="radagon-animation-current" id="radagonAnimationCurrent">Repos</span>
   </div>
 
-  <div class="radagon-action-grid">
-    <button type="button" class="radagon-action is-active" data-radagon-action="Radagon_Idle">
-      <span class="radagon-action-icon">◉</span>
+  <div class="radagon-animation-grid">
+    <button type="button" class="radagon-animation-btn is-active"
+      data-radagon-animation="Radagon_Idle" data-label="Repos">
+      <span class="ico">◉</span>
       <span><strong>Repos</strong><small>Respiration calme</small></span>
     </button>
 
-    <button type="button" class="radagon-action" data-radagon-action="Radagon_Observe">
-      <span class="radagon-action-icon">◌</span>
+    <button type="button" class="radagon-animation-btn"
+      data-radagon-animation="Radagon_Observe" data-label="Observation">
+      <span class="ico">◌</span>
       <span><strong>Observation</strong><small>Il regarde autour de lui</small></span>
     </button>
 
-    <button type="button" class="radagon-action" data-radagon-action="Radagon_Intro">
-      <span class="radagon-action-icon">◆</span>
-      <span><strong>Entrée</strong><small>Il se réveille et s'impose</small></span>
+    <button type="button" class="radagon-animation-btn"
+      data-radagon-animation="Radagon_Intro" data-label="Entrée">
+      <span class="ico">◆</span>
+      <span><strong>Entrée</strong><small>Le Boss s'éveille</small></span>
     </button>
 
-    <button type="button" class="radagon-action" data-radagon-action="Radagon_Ready">
-      <span class="radagon-action-icon">⚔</span>
+    <button type="button" class="radagon-animation-btn"
+      data-radagon-animation="Radagon_Ready" data-label="Prêt au combat">
+      <span class="ico">⚔</span>
       <span><strong>Prêt au combat</strong><small>Il se met en position</small></span>
     </button>
 
-    <button type="button" class="radagon-action" data-radagon-action="Radagon_Victory">
-      <span class="radagon-action-icon">▲</span>
-      <span><strong>Victoire</strong><small>Radagon domine son adversaire</small></span>
+    <button type="button" class="radagon-animation-btn"
+      data-radagon-animation="Radagon_Victory" data-label="Victoire">
+      <span class="ico">▲</span>
+      <span><strong>Victoire</strong><small>Radagon célèbre sa victoire</small></span>
     </button>
 
-    <button type="button" class="radagon-action radagon-action-danger" data-radagon-action="Radagon_Defeat">
-      <span class="radagon-action-icon">▼</span>
+    <button type="button" class="radagon-animation-btn"
+      data-radagon-animation="Radagon_Defeat" data-label="Défaite">
+      <span class="ico">▼</span>
       <span><strong>Défaite</strong><small>Radagon s'affaisse</small></span>
     </button>
   </div>
-
-  <div class="radagon-boss-settings">
-    <label class="radagon-speed-control">
-      <span>Vitesse</span>
-      <select data-radagon-speed>
-        <option value="0.5">0,5×</option>
-        <option value="0.75">0,75×</option>
-        <option value="1" selected>1×</option>
-        <option value="1.25">1,25×</option>
-        <option value="1.5">1,5×</option>
-      </select>
-    </label>
-    <label class="radagon-toggle">
-      <input type="checkbox" data-radagon-auto-observe checked>
-      <span>Observation aléatoire au repos</span>
-    </label>
-  </div>
 </div>
-<!-- HAMTARO RADAGON ACTIONS END -->
+
+<script>
+(function(){
+  function initRadagonAnimations(){
+    const model=document.getElementById("radagonModel");
+    const root=document.getElementById("radagonAnimationConsole");
+    const current=document.getElementById("radagonAnimationCurrent");
+    if(!model||!root){
+      console.warn("[Radagon] viewer/console introuvable");
+      return;
+    }
+
+    const buttons=[...root.querySelectorAll("[data-radagon-animation]")];
+    let currentName="Radagon_Idle";
+
+    function active(name,label){
+      currentName=name;
+      buttons.forEach(btn=>{
+        btn.classList.toggle("is-active",btn.dataset.radagonAnimation===name);
+      });
+      if(current) current.textContent=label||name;
+    }
+
+    function play(name,label){
+      try{model.pause()}catch(e){}
+      model.animationName=name;
+      model.loop=name==="Radagon_Idle";
+      model.currentTime=0;
+      try{
+        const p=model.play();
+        if(p&&typeof p.catch==="function") p.catch(()=>{});
+      }catch(e){
+        console.warn("[Radagon] play",e);
+      }
+      active(name,label);
+    }
+
+    buttons.forEach(btn=>{
+      btn.addEventListener("click",()=>{
+        play(btn.dataset.radagonAnimation,btn.dataset.label);
+      });
+    });
+
+    model.addEventListener("load",()=>{
+      const available=Array.isArray(model.availableAnimations)?model.availableAnimations:[];
+      console.log("[Radagon] animations disponibles:",available);
+
+      if(available.length){
+        buttons.forEach(btn=>{
+          const ok=available.includes(btn.dataset.radagonAnimation);
+          btn.disabled=!ok;
+          if(!ok) btn.title="Animation absente du GLB";
+        });
+      }
+
+      play("Radagon_Idle","Repos");
+    });
+
+    model.addEventListener("finished",()=>{
+      if(currentName!=="Radagon_Idle"){
+        play("Radagon_Idle","Repos");
+      }
+    });
+
+    window.radagonController={
+      repos:()=>play("Radagon_Idle","Repos"),
+      observation:()=>play("Radagon_Observe","Observation"),
+      entree:()=>play("Radagon_Intro","Entrée"),
+      pret:()=>play("Radagon_Ready","Prêt au combat"),
+      victoire:()=>play("Radagon_Victory","Victoire"),
+      defaite:()=>play("Radagon_Defeat","Défaite")
+    };
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",initRadagonAnimations,{once:true});
+  }else{
+    initRadagonAnimations();
+  }
+})();
+</script>
+<!-- HAMTARO RADAGON FINAL END -->
                     {% else %}
                     <div class="boss-model-unavailable">
                         <span class="boss-model-unavailable-icon">👑</span>
