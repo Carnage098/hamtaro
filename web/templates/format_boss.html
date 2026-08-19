@@ -1,15 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Format Boss · Hamtaro<script src="/static/boss.js?v=20260818-2" defer></script>
-
-{% if radagon_model_url %}
-<script
-    type="module"
-    src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.3.1/model-viewer.min.js"
-></script>
-{% endif %}
-<script src="/static/boss_media.js?v=20260819-4" defer></script>
-
-{% endblock %}
+{% block title %}Format Boss · Hamtaro{% endblock %}
 
 {% block content %}
 <link rel="stylesheet" href="/static/boss.css?v=20260818-5">
@@ -447,4 +437,13 @@
         </section>
     </div>
 </section>
+
+{% if radagon_model_url %}
+<script
+    type="module"
+    src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.3.1/model-viewer.min.js"
+></script>
+{% endif %}
+<script src="/static/boss.js?v=20260819-6" defer></script>
+<script src="/static/boss_media.js?v=20260819-6" defer></script>
 {% endblock %}
