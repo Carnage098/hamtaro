@@ -1,3 +1,4 @@
+<link rel="stylesheet" href="/static/css/radagon-boss.css">
 {% extends "base.html" %}
 {% block title %}Format Boss · Hamtaro{% endblock %}
 
@@ -457,3 +458,136 @@
 <script src="/static/boss.js?v=20260819-6" defer></script>
 <script src="/static/boss_media.js?v=20260819-6" defer></script>
 {% endblock %}
+
+<!-- HAMTARO RADAGON BOSS INTEGRATION START -->
+<!-- HAMTARO RADAGON BOSS CONTROLLER START -->
+<section
+  class="radagon-boss-panel"
+  data-radagon-controller
+  data-model-src="/static/models/radagon/radagon_wolf_animated.glb"
+  aria-label="Contrôleur d'animations de Radagon"
+>
+  <div class="radagon-boss-stage">
+    <model-viewer
+      id="radagonModel"
+      class="radagon-boss-model"
+      src="/static/models/radagon/radagon_wolf_animated.glb"
+      alt="Red Wolf of Radagon"
+      camera-controls
+      autoplay
+      animation-name="Radagon_Idle"
+      shadow-intensity="1"
+      exposure="1"
+      interaction-prompt="none"
+      disable-pan
+      touch-action="pan-y"
+    ></model-viewer>
+
+    <div class="radagon-boss-status" aria-live="polite">
+      <span class="radagon-boss-status-dot" data-radagon-status-dot></span>
+      <strong data-radagon-status>Chargement de Radagon…</strong>
+      <span data-radagon-current>—</span>
+    </div>
+  </div>
+
+  <div class="radagon-boss-console">
+    <div class="radagon-boss-console-head">
+      <div>
+        <span class="radagon-boss-kicker">BOSS CONTROL</span>
+        <h3>Actions de Radagon</h3>
+      </div>
+
+      <button
+        type="button"
+        class="radagon-icon-button"
+        data-radagon-pause
+        aria-label="Pause ou reprise de l'animation"
+        title="Pause / Reprendre"
+      >
+        ⏯
+      </button>
+    </div>
+
+    <div class="radagon-action-grid" role="group" aria-label="Animations de Radagon">
+      <button type="button" class="radagon-action is-active" data-radagon-action="Radagon_Idle">
+        <span class="radagon-action-icon">◉</span>
+        <span>
+          <strong>Idle</strong>
+          <small>Respiration</small>
+        </span>
+      </button>
+
+      <button type="button" class="radagon-action" data-radagon-action="Radagon_Observe">
+        <span class="radagon-action-icon">◌</span>
+        <span>
+          <strong>Observe</strong>
+          <small>Regard</small>
+        </span>
+      </button>
+
+      <button type="button" class="radagon-action" data-radagon-action="Radagon_Intro">
+        <span class="radagon-action-icon">◆</span>
+        <span>
+          <strong>Intro</strong>
+          <small>Éveil du Boss</small>
+        </span>
+      </button>
+
+      <button type="button" class="radagon-action" data-radagon-action="Radagon_Ready">
+        <span class="radagon-action-icon">⚔</span>
+        <span>
+          <strong>Ready</strong>
+          <small>Début de manche</small>
+        </span>
+      </button>
+
+      <button type="button" class="radagon-action" data-radagon-action="Radagon_Victory">
+        <span class="radagon-action-icon">▲</span>
+        <span>
+          <strong>Victory</strong>
+          <small>Victoire du Boss</small>
+        </span>
+      </button>
+
+      <button type="button" class="radagon-action radagon-action-danger" data-radagon-action="Radagon_Defeat">
+        <span class="radagon-action-icon">▼</span>
+        <span>
+          <strong>Defeat</strong>
+          <small>Défaite du Boss</small>
+        </span>
+      </button>
+    </div>
+
+    <div class="radagon-boss-settings">
+      <label class="radagon-speed-control">
+        <span>Vitesse</span>
+        <select data-radagon-speed>
+          <option value="0.5">0,5×</option>
+          <option value="0.75">0,75×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.25">1,25×</option>
+          <option value="1.5">1,5×</option>
+        </select>
+      </label>
+
+      <label class="radagon-toggle">
+        <input type="checkbox" data-radagon-auto-observe checked>
+        <span>Observe aléatoire en Idle</span>
+      </label>
+    </div>
+
+    <div class="radagon-boss-shortcuts">
+      <span>Raccourcis :</span>
+      <kbd>1</kbd><span>Idle</span>
+      <kbd>2</kbd><span>Observe</span>
+      <kbd>3</kbd><span>Intro</span>
+      <kbd>4</kbd><span>Ready</span>
+      <kbd>5</kbd><span>Victory</span>
+      <kbd>6</kbd><span>Defeat</span>
+    </div>
+  </div>
+</section>
+<!-- HAMTARO RADAGON BOSS CONTROLLER END -->
+<!-- HAMTARO RADAGON BOSS INTEGRATION END -->
+
+<script defer src="/static/js/radagon-boss.js"></script>
