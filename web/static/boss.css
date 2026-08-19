@@ -1024,3 +1024,27 @@
         aspect-ratio: 1 / 1;
     }
 }
+
+
+/* HAMTARO BOSS MUSIC SAFE FIX V1.5.1 */
+.boss-youtube-wrap {
+    width: min(520px, 100%) !important;
+    aspect-ratio: 16 / 9 !important;
+    height: auto !important;
+    margin-top: .8rem;
+}
+
+.boss-youtube-wrap[hidden] {
+    display: none !important;
+}
+
+.boss-youtube-player,
+.boss-youtube-player iframe {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 180px;
+    border: 0;
+    border-radius: 12px;
+    background: #050507;
+}
