@@ -62,6 +62,7 @@ REQUIRED_COGS = (
     "cogs.bracket",
     "cogs.results",
     "cogs.profile",
+    "cogs.role_panel",
     "cogs.admin",
     "cogs.swiss",
     "cogs.team_2v2",
