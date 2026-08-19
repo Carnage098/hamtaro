@@ -11,12 +11,18 @@ from discord.ext import commands
 LOGGER = logging.getLogger(__name__)
 
 ROLE_NAME = os.getenv("DUELLISTE_ROLE_NAME", "Duelliste").strip() or "Duelliste"
-CATEGORY_NAME = os.getenv("HAMTARO_CUP_CATEGORY_NAME", "Hamtaro Cup").strip() or "Hamtaro Cup"
+CATEGORY_NAME = (
+    os.getenv("HAMTARO_CUP_CATEGORY_NAME", "🐹 ~HAMTARO CUP~").strip()
+    or "🐹 ~HAMTARO CUP~"
+)
 
-ROLE_ID = int(os.getenv("DUELLISTE_ROLE_ID", "0") or 0) or None
-CATEGORY_ID = int(os.getenv("HAMTARO_CUP_CATEGORY_ID", "0") or 0) or None
+ROLE_ID_RAW = os.getenv("DUELLISTE_ROLE_ID", "").strip()
+CATEGORY_ID_RAW = os.getenv("HAMTARO_CUP_CATEGORY_ID", "").strip()
 
-SELECT_CUSTOM_ID = "hamtaro:roles:duelliste:v2"
+ROLE_ID = int(ROLE_ID_RAW) if ROLE_ID_RAW.isdigit() else None
+CATEGORY_ID = int(CATEGORY_ID_RAW) if CATEGORY_ID_RAW.isdigit() else None
+
+SELECT_CUSTOM_ID = "hamtaro:roles:duelliste:v3"
 
 
 def find_role(guild: discord.Guild) -> Optional[discord.Role]:
@@ -32,6 +38,7 @@ def find_category(guild: discord.Guild) -> Optional[discord.CategoryChannel]:
         channel = guild.get_channel(CATEGORY_ID)
         if isinstance(channel, discord.CategoryChannel):
             return channel
+
     return discord.utils.get(guild.categories, name=CATEGORY_NAME)
 
 
@@ -40,47 +47,60 @@ async def ensure_role(guild: discord.Guild) -> discord.Role:
     if role:
         return role
 
-    return await guild.create_role(
+    role = await guild.create_role(
         name=ROLE_NAME,
         permissions=discord.Permissions.none(),
         hoist=False,
         mentionable=False,
         reason="Hamtaro - création du rôle auto-attribuable Duelliste",
     )
+    LOGGER.info("Rôle Duelliste créé : %s", role.id)
+    return role
 
 
-async def configure_hamtaro_cup(
+async def configure_category_access(
     guild: discord.Guild,
     role: discord.Role,
 ) -> tuple[bool, str]:
     category = find_category(guild)
     if category is None:
-        return False, f"Catégorie « {CATEGORY_NAME} » introuvable."
+        return (
+            False,
+            f"Catégorie « {CATEGORY_NAME} » introuvable. "
+            "Vérifie son nom ou configure HAMTARO_CUP_CATEGORY_ID.",
+        )
 
     me = guild.me
     if me is None:
         return False, "Impossible de retrouver Hamtaro dans le serveur."
 
-    if not (me.guild_permissions.manage_channels or me.guild_permissions.administrator):
-        return False, "Hamtaro n'a pas la permission « Gérer les salons »."
+    if not (
+        me.guild_permissions.manage_channels
+        or me.guild_permissions.administrator
+    ):
+        return (
+            False,
+            "Hamtaro n'a pas la permission « Gérer les salons ».",
+        )
 
-    everyone_ow = category.overwrites_for(guild.default_role)
-    everyone_ow.view_channel = False
+    # On ne touche qu'à "Voir le salon" pour préserver les autres permissions.
+    everyone_overwrite = category.overwrites_for(guild.default_role)
+    everyone_overwrite.view_channel = False
     await category.set_permissions(
         guild.default_role,
-        overwrite=everyone_ow,
-        reason="Hamtaro - masquer la catégorie Hamtaro Cup sans rôle",
+        overwrite=everyone_overwrite,
+        reason="Hamtaro - masquer HAMTARO CUP aux membres sans rôle",
     )
 
-    role_ow = category.overwrites_for(role)
-    role_ow.view_channel = True
+    role_overwrite = category.overwrites_for(role)
+    role_overwrite.view_channel = True
     await category.set_permissions(
         role,
-        overwrite=role_ow,
-        reason="Hamtaro - accès Hamtaro Cup pour Duelliste",
+        overwrite=role_overwrite,
+        reason="Hamtaro - accès HAMTARO CUP pour Duelliste",
     )
 
-    return True, f"Accès à « {category.name} » configuré."
+    return True, f"Accès à « {category.name} » configuré pour @{role.name}."
 
 
 class DuellisteSelect(discord.ui.Select):
@@ -121,7 +141,10 @@ class DuellisteSelect(discord.ui.Select):
             )
             return
 
-        if not (me.guild_permissions.manage_roles or me.guild_permissions.administrator):
+        if not (
+            me.guild_permissions.manage_roles
+            or me.guild_permissions.administrator
+        ):
             await interaction.followup.send(
                 "❌ Hamtaro doit avoir la permission **Gérer les rôles**.",
                 ephemeral=True,
@@ -145,7 +168,7 @@ class DuellisteSelect(discord.ui.Select):
                 )
                 await interaction.followup.send(
                     "✅ Rôle **Duelliste** retiré. "
-                    "Tu n'as plus accès à **Hamtaro Cup**.",
+                    "La catégorie **🐹 ~HAMTARO CUP~** n'est plus accessible.",
                     ephemeral=True,
                 )
             else:
@@ -155,14 +178,14 @@ class DuellisteSelect(discord.ui.Select):
                 )
                 await interaction.followup.send(
                     "✅ Rôle **Duelliste** ajouté. "
-                    "Tu as maintenant accès à **Hamtaro Cup**.",
+                    "Tu as maintenant accès à **🐹 ~HAMTARO CUP~**.",
                     ephemeral=True,
                 )
 
         except discord.Forbidden:
             LOGGER.exception("Permission refusée pour le rôle Duelliste")
             await interaction.followup.send(
-                "❌ Hamtaro n'a pas les permissions suffisantes pour modifier ce rôle.",
+                "❌ Hamtaro n'a pas les permissions suffisantes pour gérer ce rôle.",
                 ephemeral=True,
             )
         except discord.HTTPException:
@@ -225,7 +248,10 @@ class DuellisteRolePanel(commands.Cog):
             )
             return
 
-        if not (me.guild_permissions.manage_roles or me.guild_permissions.administrator):
+        if not (
+            me.guild_permissions.manage_roles
+            or me.guild_permissions.administrator
+        ):
             await interaction.followup.send(
                 "❌ Donne à Hamtaro la permission **Gérer les rôles**.",
                 ephemeral=True,
@@ -242,14 +268,14 @@ class DuellisteRolePanel(commands.Cog):
                 )
                 return
 
-            category_ok, category_msg = await configure_hamtaro_cup(guild, role)
+            category_ok, category_msg = await configure_category_access(guild, role)
 
             embed = discord.Embed(
                 title="Choisissez un rôle",
                 description=(
                     "Sélectionnez votre rôle avec le menu ci-dessous.\n\n"
                     "⚔️ **Duelliste**\n"
-                    "Donne accès à la catégorie **Hamtaro Cup**.\n\n"
+                    "Donne accès à la catégorie **🐹 ~HAMTARO CUP~**.\n\n"
                     "Sélectionnez à nouveau **Duelliste** pour retirer le rôle."
                 ),
             )
@@ -267,19 +293,25 @@ class DuellisteRolePanel(commands.Cog):
                 view=DuellisteRoleView(),
             )
 
-            message = "✅ Panneau publié."
+            result = "✅ Panneau publié."
             if category_ok:
-                message += f"\n✅ {category_msg}"
+                result += f"\n✅ {category_msg}"
             else:
-                message += f"\n⚠️ {category_msg}"
+                result += f"\n⚠️ {category_msg}"
 
-            await interaction.followup.send(message, ephemeral=True)
+            await interaction.followup.send(result, ephemeral=True)
 
         except discord.Forbidden:
             LOGGER.exception("Permissions insuffisantes pendant /roles_panel")
             await interaction.followup.send(
                 "❌ Permissions insuffisantes. "
-                "Hamtaro doit avoir **Gérer les rôles** et idéalement **Gérer les salons**.",
+                "Hamtaro doit avoir **Gérer les rôles** et **Gérer les salons**.",
+                ephemeral=True,
+            )
+        except discord.HTTPException:
+            LOGGER.exception("Erreur HTTP pendant /roles_panel")
+            await interaction.followup.send(
+                "❌ Discord a refusé une modification pendant la configuration.",
                 ephemeral=True,
             )
         except Exception:
@@ -293,4 +325,4 @@ class DuellisteRolePanel(commands.Cog):
 async def setup(bot: commands.Bot):
     await bot.add_cog(DuellisteRolePanel(bot))
     bot.add_view(DuellisteRoleView())
-    LOGGER.info("Panneau persistant Duelliste enregistré.")
+    LOGGER.info("Panneau persistant Duelliste v3 enregistré.")
