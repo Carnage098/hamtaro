@@ -203,7 +203,7 @@
                 <div class="boss-rules-mini">
                     <span>1. Inscription</span>
                     <span>2. Programme du staff</span>
-                    <span>3. Duel contre le Boss</span>
+                    <span>3. Duel en BO3 · premier à 2 manches</span>
                     <span>4. Le vainqueur prend le trône la semaine suivante</span>
                 </div>
             </article>
@@ -251,11 +251,14 @@
                     <h2>📅 Ordre des duels</h2>
                 </div>
 
-                {% if is_staff %}
-                <span class="boss-pill boss-pill-staff">
-                    MODE STAFF
-                </span>
-                {% endif %}
+                <div class="boss-program-badges">
+                    <span class="boss-bo3-pill">⚔️ BO3 · 2 manches gagnantes</span>
+                    {% if is_staff %}
+                    <span class="boss-pill boss-pill-staff">
+                        MODE STAFF
+                    </span>
+                    {% endif %}
+                </div>
             </div>
 
             {% if challengers %}
@@ -289,7 +292,10 @@
                     </div>
 
                     <div class="boss-program-player">
-                        <strong>{{ row.username }}</strong>
+                        <div class="boss-program-player-title">
+                            <strong>{{ row.username }}</strong>
+                            <span class="boss-match-format">BO3</span>
+                        </div>
                         <small>
                             {% if row.status == "defeated" %}
                             ✅ battu par le Boss
@@ -375,6 +381,10 @@
                         ou avec <code>/boss inscription</code>.
                     </li>
                     <li>Le staff choisit l'ordre et les horaires des duels.</li>
+                    <li>
+                        Tous les matchs Boss se jouent en <strong>BO3</strong> :
+                        le premier joueur à gagner <strong>2 manches</strong> remporte le match.
+                    </li>
                     <li>Chaque victoire prolonge la série du Boss.</li>
                     <li>
                         Le premier challenger qui le bat devient son successeur.

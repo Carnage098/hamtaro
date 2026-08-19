@@ -1048,3 +1048,43 @@
     border-radius: 12px;
     background: #050507;
 }
+
+
+/* HAMTARO BOSS BO3 V1 */
+.boss-program-badges {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: .55rem;
+}
+.boss-bo3-pill, .boss-match-format {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255,166,70,.32);
+    background: rgba(255,126,34,.10);
+    color: #ffd0a0;
+    font-weight: 900;
+    letter-spacing: .045em;
+}
+.boss-bo3-pill {
+    padding: .38rem .65rem;
+    border-radius: 999px;
+    font-size: .72rem;
+}
+.boss-program-player-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .45rem;
+}
+.boss-match-format {
+    min-width: 42px;
+    padding: .18rem .38rem;
+    border-radius: 7px;
+    font-size: .64rem;
+}
+@media (max-width: 620px) {
+    .boss-program-badges { justify-content: flex-start; }
+}
