@@ -207,7 +207,7 @@ class BossRoutes:
             candidates = [preferred] if preferred.exists() else sorted(model_dir.glob("*radagon*.glb"))
             if candidates:
                 model_path = candidates[0]
-                radagon_model_url = "/static/" + model_path.relative_to(static_root).as_posix()
+                radagon_model_url = "/formats/boss/model/radagon-boss.glb"
 
         is_staff = False
         is_registered = False
@@ -510,6 +510,20 @@ class BossRoutes:
             location="/formats/boss?saved=1"
         )
 
+    async def radagon_model(self, request: web.Request) -> web.StreamResponse:
+        static_root = Path(__file__).resolve().parents[1] / "web" / "static"
+        model_path = static_root / "models" / "radagon-boss.glb"
+        if not model_path.exists():
+            raise web.HTTPNotFound(text="Modèle Radagon indisponible.")
+        return web.FileResponse(
+            path=model_path,
+            headers={
+                "Content-Type": "model/gltf-binary",
+                "Cache-Control": "public, max-age=3600",
+                "Content-Disposition": "inline; filename=radagon-boss.glb",
+            },
+        )
+
     async def api(self, request: web.Request) -> web.Response:
         guild_id = self.guild_id(request)
         return web.json_response(
@@ -526,6 +540,10 @@ def register_boss_routes(
     application.router.add_get(
         "/formats/boss",
         routes.page,
+    )
+    application.router.add_get(
+        "/formats/boss/model/radagon-boss.glb",
+        routes.radagon_model,
     )
     application.router.add_get(
         "/formats/boss/login",
