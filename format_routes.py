@@ -6,6 +6,7 @@ from typing import Any
 from aiohttp import web
 
 from services.araignee_format_service import AraigneeFormatService
+from services.halloween_format_service import HalloweenFormatService
 
 
 MAX_REQUEST_BYTES = 32_000
@@ -41,12 +42,48 @@ def register_format_routes(
     website_cog: Any,
 ) -> None:
     service = AraigneeFormatService()
+    halloween_service = HalloweenFormatService()
 
     async def formats_page(request: web.Request) -> web.Response:
         return website_cog.render(
             "formats.html",
             request=request,
-            formats=[_format_page_data(service)],
+            formats=[_format_page_data(service), halloween_service.public_data()],
+        )
+
+    async def halloween_page(request: web.Request) -> web.Response:
+        return website_cog.render(
+            "format_halloween.html",
+            request=request,
+            format_data=halloween_service.public_data(),
+        )
+
+    async def halloween_api(request: web.Request) -> web.Response:
+        return web.json_response(
+            halloween_service.public_data(),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def halloween_whitelist_txt(request: web.Request) -> web.Response:
+        return web.Response(
+            text=halloween_service.whitelist_text(),
+            content_type="text/plain",
+            charset="utf-8",
+            headers={
+                "Cache-Control": "no-store",
+                "Content-Disposition": 'attachment; filename="whitelist_format_halloween.txt"',
+            },
+        )
+
+    async def halloween_banlist_txt(request: web.Request) -> web.Response:
+        return web.Response(
+            text=halloween_service.banlist_text(),
+            content_type="text/plain",
+            charset="utf-8",
+            headers={
+                "Cache-Control": "no-store",
+                "Content-Disposition": 'attachment; filename="banlist_format_halloween.txt"',
+            },
         )
 
     async def araignee_page(request: web.Request) -> web.Response:
@@ -123,6 +160,10 @@ def register_format_routes(
         )
 
     application.router.add_get("/formats", formats_page)
+    application.router.add_get("/formats/halloween", halloween_page)
+    application.router.add_get("/api/formats/halloween", halloween_api)
+    application.router.add_get("/api/formats/halloween/whitelist.txt", halloween_whitelist_txt)
+    application.router.add_get("/api/formats/halloween/banlist.txt", halloween_banlist_txt)
     application.router.add_get("/formats/araignee", araignee_page)
     application.router.add_get("/api/formats/araignee", araignee_api)
     application.router.add_get(
