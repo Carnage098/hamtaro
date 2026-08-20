@@ -94,23 +94,63 @@ animation-name="Radagon_Idle"
                             exposure="1.05"
                             interaction-prompt="none"
                             loading="eager"
-                        ></model-viewer>
+                        
+  camera-target="auto auto auto"
+  camera-orbit="0deg 75deg auto"
+  field-of-view="32deg"
+></model-viewer>
                     </div>
                     <div class="boss-model-caption">
                         <small>VIEWER 3D</small>
                         <strong>Radagon</strong>
                     </div>
 <!-- HAMTARO RADAGON ANIMATIONS V2 START -->
-<style id="radagonClickableHotfix">
+<style id="radagonLayoutFix">
+/* --- Placement propre de Radagon --- */
+
+.boss-model-card {
+  overflow: hidden !important;
+}
+
+.boss-model-stage {
+  position: relative !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+}
+
+#radagonModel,
+.boss-model-viewer {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  position: relative !important;
+  z-index: 1 !important;
+  margin: 0 !important;
+  inset: auto !important;
+}
+
+/* La légende reste au-dessus du viewer sans modifier sa géométrie. */
+.boss-model-caption {
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+/* Les commandes sont dans le flux normal, juste sous le modèle. */
 #radagonActionsV2,
 .radagon-actions-v2,
 #radagonAnimationConsole,
 .radagon-animation-console {
   position: relative !important;
-  z-index: 99999 !important;
+  z-index: 3 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
   pointer-events: auto !important;
-  isolation: isolate !important;
-  overflow: visible !important;
+  overflow: hidden !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  transform: none !important;
 }
 
 #radagonActionsV2 *,
@@ -122,26 +162,37 @@ animation-name="Radagon_Idle"
 
 [data-radagon-action],
 [data-radagon-animation] {
-  position: relative !important;
-  z-index: 100000 !important;
   pointer-events: auto !important;
   cursor: pointer !important;
-  opacity: 1 !important;
-}
-
-.boss-model-stage,
-.boss-model-card,
-.boss-model-shell,
-.boss-model-panel {
-  overflow: visible !important;
-}
-
-#radagonModel,
-.boss-model-viewer {
   position: relative !important;
-  z-index: 1 !important;
+  z-index: 4 !important;
+}
+
+/* Évite qu'une ancienne règle fasse flotter le panneau au-dessus du loup. */
+#radagonActionsV2,
+#radagonAnimationConsole {
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  #radagonModel,
+  .boss-model-viewer {
+    width: 100% !important;
+  }
+
+  #radagonActionsV2,
+  .radagon-actions-v2,
+  #radagonAnimationConsole,
+  .radagon-animation-console {
+    border-radius: 12px !important;
+  }
 }
 </style>
+
 <style>
 .radagon-actions-v2{
   margin-top:12px;padding:12px;border-radius:15px;
