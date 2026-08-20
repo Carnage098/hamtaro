@@ -101,6 +101,47 @@ animation-name="Radagon_Idle"
                         <strong>Radagon</strong>
                     </div>
 <!-- HAMTARO RADAGON ANIMATIONS V2 START -->
+<style id="radagonClickableHotfix">
+#radagonActionsV2,
+.radagon-actions-v2,
+#radagonAnimationConsole,
+.radagon-animation-console {
+  position: relative !important;
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+  isolation: isolate !important;
+  overflow: visible !important;
+}
+
+#radagonActionsV2 *,
+.radagon-actions-v2 *,
+#radagonAnimationConsole *,
+.radagon-animation-console * {
+  pointer-events: auto !important;
+}
+
+[data-radagon-action],
+[data-radagon-animation] {
+  position: relative !important;
+  z-index: 100000 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  opacity: 1 !important;
+}
+
+.boss-model-stage,
+.boss-model-card,
+.boss-model-shell,
+.boss-model-panel {
+  overflow: visible !important;
+}
+
+#radagonModel,
+.boss-model-viewer {
+  position: relative !important;
+  z-index: 1 !important;
+}
+</style>
 <style>
 .radagon-actions-v2{
   margin-top:12px;padding:12px;border-radius:15px;
@@ -161,37 +202,37 @@ animation-name="Radagon_Idle"
 
   <div class="radagon-actions-v2__grid">
     <button class="radagon-action-v2 is-active" type="button"
-      data-radagon-action="Radagon_Idle" data-label="Repos" disabled>
+      data-radagon-action="Radagon_Idle" data-label="Repos">
       <span class="radagon-action-v2__icon">◉</span>
       <span><strong>Repos</strong><small>Respiration calme</small></span>
     </button>
 
     <button class="radagon-action-v2" type="button"
-      data-radagon-action="Radagon_Observe" data-label="Observation" disabled>
+      data-radagon-action="Radagon_Observe" data-label="Observation">
       <span class="radagon-action-v2__icon">◌</span>
       <span><strong>Observation</strong><small>Il regarde autour de lui</small></span>
     </button>
 
     <button class="radagon-action-v2" type="button"
-      data-radagon-action="Radagon_Intro" data-label="Entrée" disabled>
+      data-radagon-action="Radagon_Intro" data-label="Entrée">
       <span class="radagon-action-v2__icon">◆</span>
       <span><strong>Entrée</strong><small>Le Boss s'éveille</small></span>
     </button>
 
     <button class="radagon-action-v2" type="button"
-      data-radagon-action="Radagon_Ready" data-label="Prêt au combat" disabled>
+      data-radagon-action="Radagon_Ready" data-label="Prêt au combat">
       <span class="radagon-action-v2__icon">⚔</span>
       <span><strong>Prêt au combat</strong><small>Il se met en position</small></span>
     </button>
 
     <button class="radagon-action-v2" type="button"
-      data-radagon-action="Radagon_Victory" data-label="Victoire" disabled>
+      data-radagon-action="Radagon_Victory" data-label="Victoire">
       <span class="radagon-action-v2__icon">▲</span>
       <span><strong>Victoire</strong><small>Radagon s'impose</small></span>
     </button>
 
     <button class="radagon-action-v2" type="button"
-      data-radagon-action="Radagon_Defeat" data-label="Défaite" disabled>
+      data-radagon-action="Radagon_Defeat" data-label="Défaite">
       <span class="radagon-action-v2__icon">▼</span>
       <span><strong>Défaite</strong><small>Radagon s'affaisse</small></span>
     </button>
@@ -335,6 +376,36 @@ animation-name="Radagon_Idle"
   }else{
     initRadagonActionsV2();
   }
+})();
+</script>
+<script id="radagonButtonUnlockHotfix">
+(function () {
+  function unlockRadagonButtons() {
+    document.querySelectorAll(
+      '[data-radagon-action], [data-radagon-animation]'
+    ).forEach(function (button) {
+      button.disabled = false;
+      button.removeAttribute('disabled');
+      button.style.pointerEvents = 'auto';
+      button.style.cursor = 'pointer';
+      button.style.opacity = '1';
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      unlockRadagonButtons,
+      { once: true }
+    );
+  } else {
+    unlockRadagonButtons();
+  }
+
+  window.addEventListener('load', unlockRadagonButtons, { once: true });
+  setTimeout(unlockRadagonButtons, 1000);
+  setTimeout(unlockRadagonButtons, 3000);
+  setTimeout(unlockRadagonButtons, 6000);
 })();
 </script>
 <!-- HAMTARO RADAGON ANIMATIONS V2 END -->
