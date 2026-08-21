@@ -227,7 +227,9 @@
     card._halloween_preview = true;
     card._halloween_release_date = meta.release_date || "";
     card._halloween_set = meta.set || "";
-    card._halloween_release_reached = releaseReached(meta.release_date);
+    card._halloween_tcg_legal = meta.tcg_legal !== false;
+    card._halloween_ocg_release_date = meta.ocg_release_date || "";
+    card._halloween_release_reached = card._halloween_tcg_legal && releaseReached(meta.release_date);
     return card;
   };
 
@@ -267,6 +269,9 @@
   };
 
   const permissionFor = (deckName, card) => {
+    if (card?._halloween_preview && card?._halloween_tcg_legal === false) {
+      return {limit: 0, special: true, previewLocked: true, ocgOnly: true, label: "OCG seulement"};
+    }
     if (card?._halloween_preview && !card?._halloween_release_reached) {
       const date = card._halloween_release_date ? new Date(`${card._halloween_release_date}T00:00:00`).toLocaleDateString("fr-FR") : "bientôt";
       return {limit: 3, special: true, previewLocked: true, label: `Dès ${date}`};
@@ -380,7 +385,7 @@
               const image = card.card_images?.[0]?.image_url_small || card.card_images?.[0]?.image_url || "";
               const specialClass = permission.previewLocked ? "is-preview" : permission.contextOnly ? "is-context" : permission.special ? "is-special" : "";
               const users = permission.users?.length ? ` · ${permission.users.join(", ")}` : "";
-              const releaseInfo = card._halloween_preview ? `<small class="halloween-preview-info">${card._halloween_set || "Sortie TCG annoncée"}${card._halloween_release_date ? ` · ${new Date(`${card._halloween_release_date}T00:00:00`).toLocaleDateString("fr-FR")}` : ""}</small>` : "";
+              const releaseInfo = card._halloween_preview ? `<small class="halloween-preview-info">${card._halloween_set || "Carte annoncée"}${card._halloween_tcg_legal === false ? " · non annoncée en TCG" : (card._halloween_release_date ? ` · ${new Date(`${card._halloween_release_date}T00:00:00`).toLocaleDateString("fr-FR")}` : "")}</small>` : "";
               return `
                 <button type="button" class="halloween-card-tile" data-card-id="${card.id || ""}" data-card-name="${card.name.replaceAll('"', '&quot;')}" data-group-kind="${group.key}">
                   <span class="halloween-card-image">
