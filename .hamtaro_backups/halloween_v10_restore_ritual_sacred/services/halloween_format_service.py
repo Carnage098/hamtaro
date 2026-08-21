@@ -6,10 +6,11 @@ import unicodedata
 from copy import deepcopy
 from typing import Any
 
-HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'S', 'label': 'S', 'decks': ['Rituel de la Lumière et des Ténèbres', 'Mitsurugi', 'Memento', 'Darklord', 'Invoked']},
+HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'light-and-darkness-ritual', 'label': 'Rituel de la Lumière et des Ténèbres', 'decks': ['light-and-darkness-ritual', 'Memento', 'Darklord', 'Invoked']},
+HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'S', 'label': 'S', 'decks': ['Mitsurugi', 'Memento', 'Darklord', 'Invoked']},
  {'id': 'A',
   'label': 'A',
-  'decks': ['Sacred Beast', 'D/D/D', 'Archfiend', 'Fiendsmith', 'Unchained', 'Apophis', 'Yubel', 'Hecahands', 'Azamina', 'Ashtra']},
+  'decks': ['D/D/D', 'Archfiend', 'Fiendsmith', 'Unchained', 'Apophis', 'Yubel', 'Hecahands', 'Azamina', 'Ashtra']},
  {'id': 'B',
   'label': 'B',
   'decks': ['K9',
@@ -209,45 +210,6 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
              'core_title': 'Archétype Memento',
              'expected_count': 18,
              'note': 'Catalogue figé à 18 cartes pour éviter qu’une requête d’API incomplète en masque deux.'},
- 'Rituel de la Lumière et des Ténèbres': {
-     'core_exact': [
-         'Light and Darkness Ritual',
-         'Black Chaos',
-         'Black Luster Soldier - Soldier of Light and Darkness',
-         'Celtic Mystic',
-         'Chaos Magical Hats',
-         'Chaos Mystic Box',
-         'Griffoh',
-         'Magician of Dark Chaos - Black Chaos',
-         'Mind Shuffle',
-         'Skull Archfiend of Chaos',
-     ],
-     'related_exact': ['Ragged Records of Rites', 'Phara the Primordial Goddess'],
-     'core_title': 'Light and Darkness Ritual / Chaos Origins',
-     'note': 'Noyau TCG du Rituel de la Lumière et des Ténèbres. Deck classé S Tier et placé devant Mitsurugi.'
- },
- 'Sacred Beast': {
-     'archetypes': ['Sacred Beast'],
-     'core_exact': [
-         'Uria, Lord of Searing Flames',
-         'Hamon, Lord of Striking Thunder',
-         'Raviel, Lord of Phantasms',
-         'Raviel, Lord of Phantasms - Shimmering Scraper',
-         'Dark Beckoning Beast',
-         'Dark Summoning Beast',
-         'Chaos Summoning Beast',
-         'Opening of the Spirit Gates',
-         'Fallen Paradise',
-         'Cerulean Skyfire',
-         'Hyper Blaze',
-         'Awakening of the Sacred Beasts',
-         'Dimension Fusion Destruction',
-         'Armityle the Chaos Phantasm',
-         'Armityle the Chaos Phantasm - Phantom of Fury',
-     ],
-     'core_title': 'Sacred Beast / Three Sacred Beasts',
-     'note': 'Uria, Hamon et Raviel avec leur moteur dédié. Sacred Beast est placé en première position du A Tier.'
- },
  'Darklord': {'archetypes': ['Darklord'], 'staples': ['Forbidden Crown']},
  'Invoked': {'archetypes': ['Invoked'],
              'core_exact': ['Aleister the Invoker', 'Invocation', 'Magical Meltdown'],
@@ -1002,9 +964,7 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
                     'staple_overview': True,
                     'note': 'Pool Zombie élargi : starters, extenders, moteurs Cimetière, boss et cartes de '
                             'résurrection.'}}
-HALLOWEEN_REPRESENTATIVE_CARDS: dict[str, str | None] = {'Rituel de la Lumière et des Ténèbres': 'Light and Darkness Ritual',
- 'Sacred Beast': 'Raviel, Lord of Phantasms',
- 'Mitsurugi': 'Ame no Habakiri no Mitsurugi',
+HALLOWEEN_REPRESENTATIVE_CARDS: dict[str, str | None] = {'Mitsurugi': 'Ame no Habakiri no Mitsurugi',
  'Memento': 'Mementoal Tecuhtlica - Combined Creation',
  'Darklord': 'The First Darklord',
  'Invoked': 'Aleister the Invoker',
@@ -1114,7 +1074,7 @@ class HalloweenFormatService:
         catalog_payload={"catalog":HALLOWEEN_CARD_CATALOG,"overrides":HALLOWEEN_BANLIST_OVERRIDES,"global_bans":HALLOWEEN_GLOBAL_BANS,"representative_cards":HALLOWEEN_REPRESENTATIVE_CARDS,"tiers":HALLOWEEN_TIERS,"staples":HALLOWEEN_STAPLES,"preview_releases":HALLOWEEN_PREVIEW_RELEASES}
         return {
             "id":"halloween","name":"Halloween","emoji":"🎃","format_version":"6.0",
-            "description":"Format Halloween Hamtaro V10 : Rituel de la Lumière et des Ténèbres restauré en tête du S Tier, Sacred Beast restauré en tête du A Tier, export PNG HD et artworks personnalisés conservés.",
+            "description":"Format Halloween Hamtaro V8 : Invoked en S Tier, Magical Musket ajouté, artworks personnalisés verrouillés, banlist spéciale et mécanique Bonbon / Sort.",
             "meta_left":"Whitelist Halloween V6","meta_right":f"{sum(len(t['decks']) for t in HALLOWEEN_TIERS)} decks + {len(HALLOWEEN_STAPLES)} groupes de staples",
             "tiers":tiers,"staples":staples,"global_bans":list(HALLOWEEN_GLOBAL_BANS),"banlist_overrides":deepcopy(HALLOWEEN_BANLIST_OVERRIDES),
             "candies":list(HALLOWEEN_CANDIES),"spells":list(HALLOWEEN_SPELLS),"card_catalog_json":json.dumps(catalog_payload,ensure_ascii=False),
