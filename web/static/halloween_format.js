@@ -211,12 +211,26 @@
     return uniqueCards(results).filter(isTCGCard);
   };
 
-  const fetchArchetypeList = async (archetypes, nameContains) => {
+  const isArchfiendByTreatmentText = (card) => {
+    const text = normalize(card?.desc || "");
+    return (
+      text.includes("always treated as an archfiend card") ||
+      text.includes("still treated as an archfiend card") ||
+      text.includes("treated as an archfiend card")
+    );
+  };
+
+  const fetchArchetypeList = async (archetypes, nameContains, includeArchfiendTreatedAs = false) => {
     const chunks = await Promise.all((archetypes || []).map(fetchByArchetype));
     let cards = uniqueCards(chunks.flat()).filter(isTCGCard);
+
     if (nameContains?.length) {
-      cards = cards.filter((card) => nameContains.some((needle) => normalize(card.name).includes(normalize(needle))));
+      cards = cards.filter((card) =>
+        nameContains.some((needle) => normalize(card.name).includes(normalize(needle))) ||
+        (includeArchfiendTreatedAs && isArchfiendByTreatmentText(card))
+      );
     }
+
     return cards;
   };
 
@@ -224,7 +238,11 @@
     const rule = config.catalog?.[deckName];
     if (!rule) return {rule: {}, groups: []};
 
-    const archetypeCards = await fetchArchetypeList(rule.archetypes || [], rule.name_contains || []);
+    const archetypeCards = await fetchArchetypeList(
+      rule.archetypes || [],
+      rule.name_contains || [],
+      Boolean(rule.include_archfiend_treated_as),
+    );
     const exactCore = await fetchExactList(rule.core_exact || []);
     const core = uniqueCards([...archetypeCards, ...exactCore]);
     const related = await fetchExactList(rule.related_exact || []);

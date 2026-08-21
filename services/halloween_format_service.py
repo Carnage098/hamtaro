@@ -206,8 +206,17 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {
     "D/D": {"archetypes": ["D/D", "D/D/D"]},
     "Archfiend": {
         "archetypes": ["Archfiend"],
-        "name_contains": ["Archfiend"],
-        "note": "Filtre strict : seules les cartes portant réellement « Archfiend » dans leur nom sont retenues dans le cœur du deck.",
+        "related_exact": [
+            "Summoned Skull",
+            "Toon Summoned Skull",
+            "Beast of Talwar",
+            "A Deal with Dark Ruler",
+        ],
+        "include_archfiend_treated_as": True,
+        "note": (
+            "Le cœur Archfiend inclut les cartes taguées Archfiend ainsi que les cartes "
+            "dont le texte précise qu'elles sont toujours/encore traitées comme une carte Archfiend."
+        ),
     },
     "Fiendsmith": {"archetypes": ["Fiendsmith"]},
     "Unchained": {"archetypes": ["Unchained"]},
