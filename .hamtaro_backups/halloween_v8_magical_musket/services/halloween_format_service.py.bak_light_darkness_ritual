@@ -6,8 +6,7 @@ import unicodedata
 from copy import deepcopy
 from typing import Any
 
-HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'light-and-darkness-ritual', 'label': 'Rituel de la Lumière et des Ténèbres', 'decks': ['light-and-darkness-ritual', 'Memento', 'Darklord']},
-HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'S', 'label': 'S', 'decks': ['Mitsurugi', 'Memento', 'Darklord']},
+HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'S', 'label': 'S', 'decks': ['Mitsurugi', 'Memento', 'Darklord', 'Invoked']},
  {'id': 'A',
   'label': 'A',
   'decks': ['D/D/D', 'Archfiend', 'Fiendsmith', 'Unchained', 'Apophis', 'Yubel', 'Hecahands', 'Azamina', 'Ashtra']},
@@ -211,6 +210,10 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
              'expected_count': 18,
              'note': 'Catalogue figé à 18 cartes pour éviter qu’une requête d’API incomplète en masque deux.'},
  'Darklord': {'archetypes': ['Darklord'], 'staples': ['Forbidden Crown']},
+ 'Invoked': {'archetypes': ['Invoked'],
+             'core_exact': ['Aleister the Invoker', 'Invocation', 'Magical Meltdown'],
+             'related_exact': ['Invoked Mechaba', 'Invoked Purgatrio', 'Invoked Augoeides', 'Invoked Caliga', 'Invoked Raidjin', 'Invoked Cocytus', 'Invoked Elysium'],
+             'note': 'Invoked rejoint le format Halloween comme branche occultisme / invocation et est classé S Tier.'},
  'D/D/D': {'archetypes': ['D/D', 'D/D/D']},
  'D/D': {'archetypes': ['D/D', 'D/D/D']},
  'Archfiend': {'archetypes': ['Archfiend'],
@@ -827,7 +830,7 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
                                       'The Duke of Demise',
                                       'Zoma the Spirit',
                                       'Zoma the Earthbound Spirit'],
-                    'core_title': 'Destiny Board / Spirit Messages',
+                    'core_title': 'Destiny Board / Spirit Messages (F I N A L)',
                     'staples': ['Mystic Mine', 'One Day of Peace', 'Card of Demise'],
                     'note': 'Spirit Message inclut davantage de supports Bakura / Destiny Board et sépare les staples '
                             'Halloween.'},
@@ -959,6 +962,7 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
 HALLOWEEN_REPRESENTATIVE_CARDS: dict[str, str | None] = {'Mitsurugi': 'Ame no Habakiri no Mitsurugi',
  'Memento': 'Mementoal Tecuhtlica - Combined Creation',
  'Darklord': 'The First Darklord',
+ 'Invoked': 'Aleister the Invoker',
  'D/D/D': 'D/D/D Deviser King Deus Machinex',
  'D/D': 'D/D Savant Kepler',
  'Archfiend': 'Red Dragon Archfiend',
@@ -1064,7 +1068,7 @@ class HalloweenFormatService:
         catalog_payload={"catalog":HALLOWEEN_CARD_CATALOG,"overrides":HALLOWEEN_BANLIST_OVERRIDES,"global_bans":HALLOWEEN_GLOBAL_BANS,"representative_cards":HALLOWEEN_REPRESENTATIVE_CARDS,"tiers":HALLOWEEN_TIERS,"staples":HALLOWEEN_STAPLES,"preview_releases":HALLOWEEN_PREVIEW_RELEASES}
         return {
             "id":"halloween","name":"Halloween","emoji":"🎃","format_version":"6.0",
-            "description":"Format Halloween Hamtaro V6 : Clown Crew, supports Predaplant / Archfiend, artworks fournis par l'utilisateur, recadrage visuel harmonisé, banlist spéciale et mécanique Bonbon / Sort.",
+            "description":"Format Halloween Hamtaro V7 : Invoked ajouté en S Tier, artworks personnalisés verrouillés, D/D/D recadré, banlist spéciale et mécanique Bonbon / Sort.",
             "meta_left":"Whitelist Halloween V6","meta_right":f"{sum(len(t['decks']) for t in HALLOWEEN_TIERS)} decks + {len(HALLOWEEN_STAPLES)} groupes de staples",
             "tiers":tiers,"staples":staples,"global_bans":list(HALLOWEEN_GLOBAL_BANS),"banlist_overrides":deepcopy(HALLOWEEN_BANLIST_OVERRIDES),
             "candies":list(HALLOWEEN_CANDIES),"spells":list(HALLOWEEN_SPELLS),"card_catalog_json":json.dumps(catalog_payload,ensure_ascii=False),

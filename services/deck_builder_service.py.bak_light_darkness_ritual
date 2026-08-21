@@ -4654,7 +4654,6 @@ class DeckBuilderService:
     async def suggestions(self, query: str) -> list[str]:
         clean = re.sub(r"\s+", " ", str(query or "")).strip()
         defaults = [
-            "Blue-Eyes", "Yummy", "Sky Striker", "X-Saber", "Rituel de la Lumière et des Ténèbres", "Cyber Dragon",
             "Blue-Eyes", "Yummy", "Sky Striker", "X-Saber", "Mitsurugi", "Cyber Dragon",
             "Branded", "Traptrix", "Fire King", "Ryzeal", "Maliss", "Primite Blue-Eyes",
             "D/D/D", "P.U.N.K.", "Rose Dragon", "Radiant Typhoon", "Vanquish Soul K9",

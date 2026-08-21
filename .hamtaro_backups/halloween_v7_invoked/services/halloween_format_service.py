@@ -6,6 +6,7 @@ import unicodedata
 from copy import deepcopy
 from typing import Any
 
+HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'light-and-darkness-ritual', 'label': 'Rituel de la Lumière et des Ténèbres', 'decks': ['light-and-darkness-ritual', 'Memento', 'Darklord']},
 HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'S', 'label': 'S', 'decks': ['Mitsurugi', 'Memento', 'Darklord']},
  {'id': 'A',
   'label': 'A',

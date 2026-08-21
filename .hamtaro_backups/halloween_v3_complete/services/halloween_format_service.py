@@ -8,6 +8,7 @@ from typing import Any
 
 
 HALLOWEEN_TIERS: list[dict[str, Any]] = [
+    {"id": "light-and-darkness-ritual", "label": "Rituel de la Lumière et des Ténèbres", "decks": ["light-and-darkness-ritual", "Memento", "Darklord"]},
     {"id": "S", "label": "S", "decks": ["Mitsurugi", "Memento", "Darklord"]},
     {"id": "A", "label": "A", "decks": ["D/D/D", "D/D", "Archfiend", "Fiendsmith", "Unchained", "Apophis", "Yubel", "Hecahands", "Azamina"]},
     {"id": "B", "label": "B", "decks": ["K9", "Snake-Eye", "Phantom Knights", "Mimighoul", "Thunder Dragon", "Goblin Biker", "Eldlich", "Zombie", "Wight"]},
