@@ -253,7 +253,6 @@
   const CARD_API = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
 
   const deckQueries = {
-    "Rituel de la Lumière et des Ténèbres": [{type:"archetype", value:"Rituel de la Lumière et des Ténèbres"}],
     "Mitsurugi": [{type:"archetype", value:"Mitsurugi"}],
     "Memento": [{type:"archetype", value:"Memento"}],
     "Darklord": [{type:"archetype", value:"Darklord"}],

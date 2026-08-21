@@ -6,7 +6,6 @@ import unicodedata
 from copy import deepcopy
 from typing import Any
 
-HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'light-and-darkness-ritual', 'label': 'Rituel de la Lumière et des Ténèbres', 'decks': ['light-and-darkness-ritual', 'Memento', 'Darklord']},
 HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'S', 'label': 'S', 'decks': ['Mitsurugi', 'Memento', 'Darklord']},
  {'id': 'A',
   'label': 'A',
@@ -827,7 +826,7 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
                                       'The Duke of Demise',
                                       'Zoma the Spirit',
                                       'Zoma the Earthbound Spirit'],
-                    'core_title': 'Destiny Board / Spirit Messages',
+                    'core_title': 'Destiny Board / Spirit Messages (F I N A L)',
                     'staples': ['Mystic Mine', 'One Day of Peace', 'Card of Demise'],
                     'note': 'Spirit Message inclut davantage de supports Bakura / Destiny Board et sépare les staples '
                             'Halloween.'},

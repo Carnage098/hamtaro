@@ -6,24 +6,22 @@ import unicodedata
 from copy import deepcopy
 from typing import Any
 
-HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'light-and-darkness-ritual', 'label': 'Rituel de la Lumière et des Ténèbres', 'decks': ['light-and-darkness-ritual', 'Memento', 'Darklord']},
 HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'S', 'label': 'S', 'decks': ['Mitsurugi', 'Memento', 'Darklord']},
  {'id': 'A',
   'label': 'A',
-  'decks': ['D/D/D', 'Archfiend', 'Fiendsmith', 'Unchained', 'Apophis', 'Yubel', 'Hecahands', 'Azamina', 'Ashtra']},
+  'decks': ['D/D/D', 'D/D', 'Archfiend', 'Fiendsmith', 'Unchained', 'Apophis', 'Yubel', 'Hecahands', 'Azamina']},
  {'id': 'B',
   'label': 'B',
   'decks': ['K9',
             'Snake-Eye',
             'Phantom Knights',
             'Mimighoul',
-            'Clown Crew',
             'Thunder Dragon',
             'Goblin Biker',
             'Eldlich',
             'Zombie',
             'Wight']},
- {'id': 'B-', 'label': 'B-', 'decks': ['Gimmick Puppet', 'Shaddoll', 'Ogdoadic', 'Nemleria', 'Regenesis', 'Fabled', 'Umbral Horror']},
+ {'id': 'B-', 'label': 'B-', 'decks': ['Gimmick Puppet', 'Shaddoll', 'Ogdoadic', 'Nemleria', 'Regenesis', 'Fabled']},
  {'id': 'C+',
   'label': 'C+',
   'decks': ['Generaider', 'Dark World', 'Mayakashi', 'Shiranui', 'Call of the Haunted / Pumpking']},
@@ -178,16 +176,6 @@ ZOMBIE_STAPLES: list[str] = ['Doomking Balerdroch',
  'Reasoning',
  'Monster Gate',
  'One for One']
-HALLOWEEN_PREVIEW_RELEASES: dict[str, dict[str, str]] = {
-    "Magnificent Monsters": {"release_date": "2026-09-03", "label": "03/09/2026"},
-    "Beyond the Brave": {"release_date": "2026-10-08", "label": "08/10/2026"},
-}
-
-HALLOWEEN_PREVIEW_DECKS: dict[str, dict[str, str]] = {
-    "Ashtra": {"set": "Beyond the Brave", "release_date": "2026-10-08", "label": "Nouveau 2026"},
-    "Umbral Horror": {"set": "Beyond the Brave", "release_date": "2026-10-08", "label": "Support 2026"},
-}
-
 HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes': ['Mitsurugi']},
  'Memento': {'core_exact': ['Mementoal Tecuhtlica - Combined Creation',
                             'Mementomictlan',
@@ -220,11 +208,8 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
                                  'A Deal with Dark Ruler',
                                  'Matador Archfiend',
                                  'Ritual of the Matador'],
-               'preview_exact': [{'name': "Archfiend's Origin",
-                                  'set': "30th Anniversary Demon's Pack (OCG)",
-                                  'tcg_legal': False,
-                                  'ocg_release_date': '2026-05-28'}],
-               'note': "Le catalogue ne se limite pas aux noms contenant Archfiend : le tag officiel de l'archétype est utilisé. Archfiend's Origin est affiché comme support annoncé OCG mais reste interdit tant qu'aucune sortie TCG n'est annoncée."},
+               'note': "Le catalogue ne se limite pas aux noms contenant Archfiend : le tag officiel de l'archétype "
+                       'est utilisé et les anciennes cartes traitées comme Archfiend sont ajoutées en fallback.'},
  'Fiendsmith': {'archetypes': ['Fiendsmith']},
  'Unchained': {'archetypes': ['Unchained']},
  'Apophis': {'core_exact': ['Apophis the Serpent',
@@ -291,24 +276,6 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
              'note': 'Le cœur Azamina reste séparé. White Forest, Sinful Spoils et Diabellstar associés apparaissent '
                      'dans Staples compatibles.',
              'staple_archetypes': ['White Forest']},
- 'Ashtra': {'archetypes': ['Ashtra'],
-            'preview_exact': [
-                {'name': 'Akasuna the Battle Ashtra', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                {'name': 'Kuzuha the Bewitching Deity Ashtra', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                {'name': 'Yoa the Plague Deity Ashtra', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                {'name': 'Mikumari the Sealing Deity Ashtra', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                {'name': 'Ashtraja Susanoo', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                {'name': 'Ashtraya Mikumari-no-Mikoto', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                {'name': 'Ashtrashen - Gateway to the Worlds Beyond', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                {'name': 'Ashtra Cursed Roar', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                {'name': 'Ashtra Divine Domain', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                {'name': 'Ashtra Insect Poison', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-            ],
-            'related_preview_exact': [
-                {'name': 'Audhumla, Progenitor of the Frozen Expanse', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-            ],
-            'expected_count': 10,
-            'note': 'Nouvel archétype Halloween 2026. Les 10 cartes Ashtra sont affichées dès maintenant comme annoncées et deviennent légales automatiquement à partir du 08/10/2026. Audhumla apparaît en support lié.'},
  'K9': {'archetypes': ['K9']},
  'Snake-Eye': {'core_exact': ['Snake-Eye Ash',
                               'Snake-Eye Birch',
@@ -526,26 +493,6 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
  'Regenesis': {'archetypes': ['Regenesis']},
  'Fabled': {'archetypes': ['Fabled'],
             'staples': ['Card Destruction', 'T.G. Hyper Librarian', 'Borreload Savage Dragon']},
- 'Umbral Horror': {'archetypes': ['Umbral Horror'],
-                    'preview_exact': [
-                        {'name': 'Shining Umbral Horror', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                        {'name': 'V Umbral Horror', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                        {'name': 'Gorgonic Umbral Horror', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                        {'name': 'Thousand Umbral Horror', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                        {'name': 'Number 104: Masquerade Vain', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                        {'name': 'Number C104: Masquerade Umbral Horror Victory', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                        {'name': 'CXyz Chaos Barian Hope Dragon', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                        {'name': "Seventh Barian's", 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                        {'name': "Barian's Hope", 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                    ],
-                    'related_exact': ['Number 104: Masquerade', 'Number C104: Umbral Horror Masquerade', "Rank-Up-Magic Limited Barian's Force"],
-                    'expected_new_count': 9,
-                    'note': 'Archétype Umbral Horror complet + vague de 9 cartes annoncée pour Beyond the Brave. Les nouvelles cartes sont visibles avant leur sortie et activées à partir du 08/10/2026.'},
- 'Clown Crew': {'archetypes': ['Clown Crew'],
-                'preview_exact': [{'name': 'Clown Crew Cappello',
-                                   'set': 'Beyond the Brave',
-                                   'release_date': '2026-10-08'}],
-                'note': 'Archétype Clown Crew complet. Clown Crew Cappello est préchargé et devient légal automatiquement à la sortie TCG européenne de Beyond the Brave le 08/10/2026.'},
  'Generaider': {'archetypes': ['Generaider']},
  'Dark World': {'archetypes': ['Dark World'], 'staples': ['Card Destruction']},
  'Mayakashi': {'archetypes': ['Mayakashi'],
@@ -744,10 +691,9 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
                                                  'Golden-Eyes Idol',
                                                  'Illusionist Faceless Magician',
                                                  'Thousand-Eyes Idol'],
-                                  'preview_exact': [
-                                      {'name': 'Nightmare-Eyes Restrict', 'set': 'Magnificent Monsters', 'release_date': '2026-09-03'},
-                                  ],
-                                  'note': 'Nightmare-Eyes Restrict est affiché comme carte annoncée puis devient légal automatiquement à partir du 03/09/2026.'},
+                                  'exclude_exact': ['Nightmare-Eyes Restrict'],
+                                  'note': "Catalogue TCG explicite : Nightmare-Eyes Restrict est exclu tant qu'il "
+                                          'reste OCG-only.'},
  'Evil HERO': {'archetypes': ['Evil HERO'], 'staples': ['Predaplant Verte Anaconda']},
  'Vampire': {'archetypes': ['Vampire'],
              'staples': ['Card of Safe Return',
@@ -841,11 +787,7 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
  'Knightmare': {'archetypes': ['Knightmare']},
  'Danger!': {'archetypes': ['Danger!']},
  'Paleozoic': {'archetypes': ['Paleozoic']},
- 'Predaplant': {'archetypes': ['Predaplant'],
-                 'preview_exact': [{'name': 'Predaplant Daredevil',
-                                    'set': 'Beyond the Brave',
-                                    'release_date': '2026-10-08'}],
-                 'note': 'Predaplant Daredevil est préchargé et devient légal automatiquement le 08/10/2026 avec Beyond the Brave.'},
+ 'Predaplant': {'archetypes': ['Predaplant']},
  'Entity': {'archetypes': ['Entity']},
  'Evilswarm': {'archetypes': ['Evilswarm']},
  'True King': {'archetypes': ['True King']},
@@ -883,21 +825,6 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
                        'note': "Vue d'ensemble des cartes génériques. Leur limite peut dépendre du deck autorisé qui "
                                'les utilise.',
                        'staple_overview': True},
- 'Halloween 2026 — Cartes annoncées': {'preview_exact': [
-                                         {'name': 'Foolish Graverobber', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                                         {'name': 'Destiny HERO - Doom Overlord', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                                         {'name': 'Destiny HERO - Destro-Dogma', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                                         {'name': 'Destiny HERO - Dreadnought Master', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                                         {'name': 'Dark City at Midnight', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                                         {'name': 'Orichalcos Sword of Sealing', 'set': 'Magnificent Monsters', 'release_date': '2026-09-03'},
-                                     ],
-                                     'preview_archetypes': [
-                                         {'archetype': 'Ars Magna', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                                         {'archetype': 'Theorealize', 'set': 'Beyond the Brave', 'release_date': '2026-10-08'},
-                                     ],
-                                     'core_title': 'Cartes annoncées compatibles Halloween',
-                                     'staple_overview': True,
-                                     'note': 'Pool 2026 : cartes occultes / macabres annoncées avant Halloween. Elles restent visibles avant leur sortie mais ne sont considérées légales qu’à partir de la date TCG indiquée.'},
  'Zombie Staples': {'core_exact': ['Doomking Balerdroch',
                                    'Uni-Zombie',
                                    'Mezuki',
@@ -968,7 +895,6 @@ HALLOWEEN_REPRESENTATIVE_CARDS: dict[str, str | None] = {'Mitsurugi': 'Ame no Ha
  'Yubel': 'Yubel - The Loving Defender Forever',
  'Hecahands': None,
  'Azamina': 'Queen Azamina',
- 'Ashtra': 'Ashtraja Susanoo',
  'K9': None,
  'Snake-Eye': 'Snake-Eyes Flamberge Dragon',
  'Phantom Knights': 'The Phantom Knights of Rusty Bardiche',
@@ -984,8 +910,6 @@ HALLOWEEN_REPRESENTATIVE_CARDS: dict[str, str | None] = {'Mitsurugi': 'Ame no Ha
  'Nemleria': 'Dreaming Nemleria',
  'Regenesis': None,
  'Fabled': 'Fabled Leviathan',
- 'Umbral Horror': 'Number C104: Masquerade Umbral Horror Victory',
- 'Clown Crew': 'Clown Crew Biancaviso',
  'Generaider': 'Jormungandr, Generaider Boss of Eternity',
  'Dark World': 'Grapha, Dragon Overlord of Dark World',
  'Mayakashi': 'Yuki-Onna, the Absolute Zero Mayakashi',
@@ -1012,8 +936,7 @@ HALLOWEEN_REPRESENTATIVE_CARDS: dict[str, str | None] = {'Mitsurugi': 'Ame no Ha
  'Evilswarm': 'Evilswarm Exciton Knight',
  'True King': 'True King of All Calamities',
  'Zombie Staples': 'Doomking Balerdroch',
- 'Halloween Staples': 'Dark Hole',
- 'Halloween 2026 — Cartes annoncées': 'Foolish Graverobber'}
+ 'Halloween Staples': 'Dark Hole'}
 HALLOWEEN_CANDIES: list[str] = ['Pot of Duality',
  'One Day of Peace',
  'Book of Moon',
@@ -1047,13 +970,7 @@ def _image_slug(name: str) -> str:
 
 
 def _entry(name: str, tier: str) -> dict[str, Any]:
-    entry = {"name":name,"slug":_slug(name),"image_url":f"/static/halloween/decks/{_image_slug(name)}.jpg","tier":tier,"overrides":deepcopy(HALLOWEEN_BANLIST_OVERRIDES.get(name,[]))}
-    preview = HALLOWEEN_PREVIEW_DECKS.get(name)
-    if preview:
-        entry["release_label"] = preview.get("label", "2026")
-        entry["release_date"] = preview.get("release_date")
-        entry["release_set"] = preview.get("set")
-    return entry
+    return {"name":name,"slug":_slug(name),"image_url":f"/static/halloween/decks/{_image_slug(name)}.jpg","tier":tier,"overrides":deepcopy(HALLOWEEN_BANLIST_OVERRIDES.get(name,[]))}
 
 
 class HalloweenFormatService:
@@ -1061,11 +978,11 @@ class HalloweenFormatService:
         tiers=deepcopy(HALLOWEEN_TIERS)
         for tier in tiers: tier["entries"]=[_entry(name,tier["id"]) for name in tier["decks"]]
         staples=[_entry(name,"STAPLE") for name in HALLOWEEN_STAPLES]
-        catalog_payload={"catalog":HALLOWEEN_CARD_CATALOG,"overrides":HALLOWEEN_BANLIST_OVERRIDES,"global_bans":HALLOWEEN_GLOBAL_BANS,"representative_cards":HALLOWEEN_REPRESENTATIVE_CARDS,"tiers":HALLOWEEN_TIERS,"staples":HALLOWEEN_STAPLES,"preview_releases":HALLOWEEN_PREVIEW_RELEASES}
+        catalog_payload={"catalog":HALLOWEEN_CARD_CATALOG,"overrides":HALLOWEEN_BANLIST_OVERRIDES,"global_bans":HALLOWEEN_GLOBAL_BANS,"representative_cards":HALLOWEEN_REPRESENTATIVE_CARDS,"tiers":HALLOWEEN_TIERS,"staples":HALLOWEEN_STAPLES}
         return {
-            "id":"halloween","name":"Halloween","emoji":"🎃","format_version":"6.0",
-            "description":"Format Halloween Hamtaro V6 : Clown Crew, supports Predaplant / Archfiend, artworks fournis par l'utilisateur, recadrage visuel harmonisé, banlist spéciale et mécanique Bonbon / Sort.",
-            "meta_left":"Whitelist Halloween V6","meta_right":f"{sum(len(t['decks']) for t in HALLOWEEN_TIERS)} decks + {len(HALLOWEEN_STAPLES)} groupes de staples",
+            "id":"halloween","name":"Halloween","emoji":"🎃","format_version":"4.0",
+            "description":"Format Halloween Hamtaro : whitelist enrichie, artworks HD, tier list temporaire, banlist spéciale et mécanique Bonbon / Sort.",
+            "meta_left":"Whitelist Halloween V4","meta_right":f"{sum(len(t['decks']) for t in HALLOWEEN_TIERS)} decks + {len(HALLOWEEN_STAPLES)} groupes de staples",
             "tiers":tiers,"staples":staples,"global_bans":list(HALLOWEEN_GLOBAL_BANS),"banlist_overrides":deepcopy(HALLOWEEN_BANLIST_OVERRIDES),
             "candies":list(HALLOWEEN_CANDIES),"spells":list(HALLOWEEN_SPELLS),"card_catalog_json":json.dumps(catalog_payload,ensure_ascii=False),
         }
@@ -1078,7 +995,7 @@ class HalloweenFormatService:
         return "\n".join(lines).rstrip()+"\n"
 
     def banlist_text(self) -> str:
-        lines=["FORMAT HALLOWEEN V6 - BANLIST SPÉCIALE","Toute carte absente suit la banlist TCG normale.","","[INTERDITES GLOBALEMENT]"]
+        lines=["FORMAT HALLOWEEN V4 - BANLIST SPÉCIALE","Toute carte absente suit la banlist TCG normale.","","[INTERDITES GLOBALEMENT]"]
         lines.extend(f"- {card} : x0" for card in HALLOWEEN_GLOBAL_BANS); lines.append("")
         for deck,entries in HALLOWEEN_BANLIST_OVERRIDES.items():
             if not entries: continue
