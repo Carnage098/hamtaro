@@ -826,7 +826,7 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
                                       'The Duke of Demise',
                                       'Zoma the Spirit',
                                       'Zoma the Earthbound Spirit'],
-                    'core_title': 'Destiny Board / Spirit Messages (F I N A L)',
+                    'core_title': 'Destiny Board / Spirit Messages',
                     'staples': ['Mystic Mine', 'One Day of Peace', 'Card of Demise'],
                     'note': 'Spirit Message inclut davantage de supports Bakura / Destiny Board et sépare les staples '
                             'Halloween.'},

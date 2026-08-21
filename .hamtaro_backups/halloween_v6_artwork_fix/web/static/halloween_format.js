@@ -11,7 +11,6 @@
   const CARD_API = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
   const catalogNode = document.getElementById("halloween-card-data");
   let config = {catalog: {}, overrides: {}, global_bans: [], representative_cards: {}, tiers: [], staples: []};
-  const LOCKED_DECK_ARTWORKS = new Set(["Ashtra", "Umbral Horror", "Spirit Message", "Clown Crew", "Nemleria", "K9"]);
   try {
     config = JSON.parse(catalogNode?.textContent || "{}");
   } catch (error) {
@@ -113,8 +112,7 @@
     tierBoard.innerHTML = officialTierSnapshot;
     selectTierTile(null);
     wireTierBoard();
-    // Les decks au visuel personnalisé restent verrouillés sur les artworks locaux.
-  upgradeTierArtworks();
+    upgradeTierArtworks();
   });
 
   moveTierButton?.addEventListener("click", () => {
@@ -160,7 +158,6 @@
   };
 
   const upgradeDeckArtwork = async (deckName, representativeName) => {
-    if (LOCKED_DECK_ARTWORKS.has(deckName)) return;
     let card = representativeName ? await fetchByName(representativeName) : null;
     if (!card) {
       const archetype = config.catalog?.[deckName]?.archetypes?.[0];
