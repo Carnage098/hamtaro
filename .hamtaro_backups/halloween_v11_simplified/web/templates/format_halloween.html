@@ -25,78 +25,14 @@
 </section>
 
 <nav class="format-jump-nav halloween-nav" aria-label="Sections du Format Halloween">
-    <a href="#presentation">Présentation</a>
-    <a href="#regles">Règles</a>
     <a href="#tierlist">Tier list</a>
+    <a href="#regles">Règles</a>
     <a href="#whitelist">Whitelist</a>
     <a href="#cards">Cartes autorisées</a>
     <a href="#staples">Staples</a>
     <a href="#banlist">Banlist Halloween</a>
+    <a href="#bonbons-sorts">Bonbons & Sorts</a>
 </nav>
-
-
-<section id="presentation" class="format-panel halloween-panel halloween-intro">
-    <div class="format-section-heading">
-        <div>
-            <p class="format-kicker">BIENVENUE DANS LE FORMAT</p>
-            <h2>🎃 Qu’est-ce que le Format Halloween ?</h2>
-            <p class="format-muted halloween-intro-lead">
-                Le Format Halloween est un format Yu-Gi-Oh! alternatif construit autour d’archétypes à l’univers
-                sombre, monstrueux, occulte, macabre ou directement lié à Halloween. Tous les decks du TCG ne sont
-                pas disponibles : Hamtaro utilise une <strong>whitelist officielle</strong> spécialement créée pour cet environnement.
-            </p>
-        </div>
-        <span class="halloween-chip">Format communautaire</span>
-    </div>
-
-    <div class="halloween-intro-grid">
-        <article class="halloween-intro-card">
-            <span class="halloween-intro-icon">🃏</span>
-            <div><strong>Decks sélectionnés</strong><p>Tu construis ton deck à partir d’un archétype présent dans la whitelist Halloween et de ses supports autorisés.</p></div>
-        </article>
-        <article class="halloween-intro-card">
-            <span class="halloween-intro-icon">🏆</span>
-            <div><strong>Tier list S → D</strong><p>Les decks sont classés selon leur puissance estimée dans le format. Le classement sert de repère de méta, pas de restriction supplémentaire.</p></div>
-        </article>
-        <article class="halloween-intro-card">
-            <span class="halloween-intro-icon">🚫</span>
-            <div><strong>Banlist dédiée</strong><p>La banlist TCG reste la base, puis les exceptions propres au Format Halloween s’appliquent en priorité.</p></div>
-        </article>
-        <article class="halloween-intro-card">
-            <span class="halloween-intro-icon">📸</span>
-            <div><strong>Tier list personnalisable</strong><p>Tu peux déplacer les decks sur la page et enregistrer ton classement en PNG sans modifier la tier list officielle.</p></div>
-        </article>
-    </div>
-</section>
-
-<section id="regles" class="format-rules-grid halloween-rules-first">
-    <article class="format-panel halloween-panel">
-        <h2>Construction</h2>
-        <ul>
-            <li>Main Deck : <strong>40–60 cartes</strong>.</li>
-            <li>Extra Deck : <strong>0–15 cartes</strong>.</li>
-            <li>Side Deck : <strong>0–15 cartes</strong>.</li>
-            <li>Le deck principal doit appartenir à la <strong>whitelist Halloween</strong>.</li>
-        </ul>
-    </article>
-    <article class="format-panel halloween-panel">
-        <h2>Whitelist</h2>
-        <ul>
-            <li>Les archétypes autorisés sont listés directement sur cette page.</li>
-            <li>Les cartes génériques sont séparées dans les groupes <strong>Staples</strong>.</li>
-            <li>Les supports liés sont indiqués séparément afin d’éviter les faux positifs.</li>
-            <li>Une carte annoncée n’est légale qu’à partir de sa <strong>sortie TCG européenne</strong>.</li>
-        </ul>
-    </article>
-    <article class="format-panel halloween-panel">
-        <h2>Banlist spéciale</h2>
-        <ul>
-            <li>La <strong>banlist TCG</strong> reste la règle par défaut.</li>
-            <li>Les limitations et interdictions Halloween affichées ici ont <strong>priorité</strong>.</li>
-            <li>Une carte absente des exceptions Halloween suit simplement son statut TCG normal.</li>
-        </ul>
-    </article>
-</section>
 
 <section id="tierlist" class="format-panel halloween-panel">
     <div class="format-section-heading">
@@ -163,6 +99,34 @@
             </div>
         </section>
     </div>
+</section>
+
+<section id="regles" class="format-rules-grid">
+    <article class="format-panel halloween-panel">
+        <h2>Whitelist</h2>
+        <ul>
+            <li>Le deck doit utiliser les <strong>archétypes autorisés</strong> ci-dessous.</li>
+            <li>Les cartes génériques sont rangées sous <strong>Staples</strong> ou <strong>Staples compatibles</strong>.</li>
+            <li>Les supports officiellement liés peuvent apparaître dans une section <strong>Support lié</strong>.</li>
+            <li>Les cartes annoncées avant Halloween sont préchargées : elles sont visibles immédiatement mais ne deviennent <strong>légales qu’à leur date de sortie TCG européenne</strong>.</li>
+        </ul>
+    </article>
+    <article class="format-panel halloween-panel">
+        <h2>Banlist spéciale</h2>
+        <ul>
+            <li>La <strong>banlist TCG</strong> reste la base.</li>
+            <li>Les exceptions Halloween affichées ici ont <strong>priorité</strong>.</li>
+            <li>Les cartes génériques ne sont plus présentées comme si elles appartenaient à l'archétype.</li>
+        </ul>
+    </article>
+    <article class="format-panel halloween-panel">
+        <h2>Construction</h2>
+        <ul>
+            <li>Main Deck : <strong>40–60</strong>.</li>
+            <li>Extra Deck : <strong>0–15</strong>.</li>
+            <li>Side Deck Halloween : <strong>0–14 cartes normales + 1 Halloween Slot</strong>.</li>
+        </ul>
+    </article>
 </section>
 
 <section id="whitelist" class="format-panel halloween-panel">
@@ -297,6 +261,23 @@
         </details>
         {% endfor %}
     </div>
+</section>
+
+<section id="bonbons-sorts" class="format-panel halloween-panel">
+    <div class="format-section-heading"><div><p class="format-kicker">RÈGLE OFFICIELLE DU TOURNOI HALLOWEEN</p><h2>🍬 Bonbon ou 🪄 Sort ?</h2></div><span class="halloween-chip">1 slot dynamique</span></div>
+    <div class="halloween-candy-rules">
+        <article><strong>1 · À l'inscription</strong><span>Tu déclares <b>1 Bonbon</b> et <b>1 Sort</b> avec <code>/register</code>.</span></article>
+        <article><strong>2 · Ton Side normal</strong><span>Tu prépares au maximum <b>14 cartes</b>. La 15e place est le Halloween Slot.</span></article>
+        <article><strong>3 · Avant chaque BO3</strong><span>Chacun fait <code>/halloween offer</code> sur son adversaire. Il choisit uniquement <b>Bonbon</b> ou <b>Sort</b>.</span></article>
+        <article><strong>4 · La carte révélée</strong><span>La carte pré-déclarée de cette catégorie devient ta <b>15e carte de Side pour ce BO3</b> et se side entre les games.</span></article>
+    </div>
+    <div class="halloween-warning"><strong>🎭 Le bluff</strong><span>L'adversaire choisit la catégorie sans connaître la carte. Les deux cartes ont été déclarées à l'avance et le staff peut les vérifier avec <code>/halloween roster</code>.</span></div>
+    <div class="halloween-choice-grid">
+        <article class="halloween-choice-panel"><h3>🍬 Bonbons</h3><p>Cartes plutôt avantageuses / polyvalentes.</p><div class="halloween-choice-list" data-choice-group="candy">{% for card in format_data.candies %}<button type="button" class="halloween-choice" data-choice="{{ card }}">{{ card }}</button>{% endfor %}</div></article>
+        <article class="halloween-choice-panel"><h3>🪄 Sorts</h3><p>Cartes plus agressives, perturbatrices ou risquées.</p><div class="halloween-choice-list" data-choice-group="spell">{% for card in format_data.spells %}<button type="button" class="halloween-choice" data-choice="{{ card }}">{{ card }}</button>{% endfor %}</div></article>
+    </div>
+    <p class="format-muted halloween-choice-hint">Le site simule les choix. En tournoi, le choix officiel est enregistré par Discord avec <code>/register</code> ou <code>/halloween set_choices</code>.</p>
+    <div class="halloween-selection-summary"><div><small>Bonbon simulé</small><strong id="halloween-candy-choice">Aucun</strong></div><div><small>Sort simulé</small><strong id="halloween-spell-choice">Aucun</strong></div><button id="halloween-copy-choice" class="format-button" type="button">Copier mes choix</button></div>
 </section>
 
 <div class="halloween-card-modal" id="halloween-card-modal" hidden aria-hidden="true">

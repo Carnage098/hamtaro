@@ -89,15 +89,3 @@ body.halloween-modal-open{overflow:hidden}
 .halloween-tier-export{font-weight:800;white-space:nowrap}
 .halloween-tier-export.is-exporting{opacity:.7;cursor:progress;pointer-events:none}
 @media(max-width:760px){.halloween-tier-actions{width:100%;justify-content:flex-start}.halloween-tier-actions .format-button{flex:1 1 auto}}
-
-
-/* HALLOWEEN V11 — introduction du format */
-.halloween-intro{scroll-margin-top:1rem;background:linear-gradient(145deg,rgba(255,126,43,.075),rgba(117,62,166,.055))}
-.halloween-intro-lead{max-width:920px;line-height:1.65}
-.halloween-intro-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem;margin-top:1.1rem}
-.halloween-intro-card{display:flex;gap:.8rem;align-items:flex-start;padding:1rem;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:rgba(255,255,255,.03)}
-.halloween-intro-icon{display:grid;place-items:center;flex:0 0 2.35rem;width:2.35rem;height:2.35rem;border-radius:11px;background:rgba(255,129,47,.12);font-size:1.15rem}
-.halloween-intro-card strong{display:block;margin-bottom:.28rem;font-size:.92rem}
-.halloween-intro-card p{margin:0;font-size:.8rem;line-height:1.5;opacity:.74}
-.halloween-rules-first{scroll-margin-top:1rem}
-@media(max-width:760px){.halloween-intro-grid{grid-template-columns:1fr}}

@@ -6,7 +6,7 @@ import unicodedata
 from copy import deepcopy
 from typing import Any
 
-HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'S', 'label': 'S', 'decks': ['Light and Darkness Ritual', 'Mitsurugi', 'Memento', 'Darklord', 'Invoked']},
+HALLOWEEN_TIERS: list[dict[str, Any]] = [{'id': 'S', 'label': 'S', 'decks': ['Rituel de la Lumière et des Ténèbres', 'Mitsurugi', 'Memento', 'Darklord', 'Invoked']},
  {'id': 'A',
   'label': 'A',
   'decks': ['Sacred Beast', 'D/D/D', 'Archfiend', 'Fiendsmith', 'Unchained', 'Apophis', 'Yubel', 'Hecahands', 'Azamina', 'Ashtra']},
@@ -209,7 +209,7 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
              'core_title': 'Archétype Memento',
              'expected_count': 18,
              'note': 'Catalogue figé à 18 cartes pour éviter qu’une requête d’API incomplète en masque deux.'},
- 'Light and Darkness Ritual': {
+ 'Rituel de la Lumière et des Ténèbres': {
      'core_exact': [
          'Light and Darkness Ritual',
          'Black Chaos',
@@ -224,7 +224,7 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
      ],
      'related_exact': ['Ragged Records of Rites', 'Phara the Primordial Goddess'],
      'core_title': 'Light and Darkness Ritual / Chaos Origins',
-     'note': 'Noyau TCG de Light and Darkness Ritual. Deck classé S Tier et placé devant Mitsurugi.'
+     'note': 'Noyau TCG du Rituel de la Lumière et des Ténèbres. Deck classé S Tier et placé devant Mitsurugi.'
  },
  'Sacred Beast': {
      'archetypes': ['Sacred Beast'],
@@ -1002,7 +1002,7 @@ HALLOWEEN_CARD_CATALOG: dict[str, dict[str, Any]] = {'Mitsurugi': {'archetypes':
                     'staple_overview': True,
                     'note': 'Pool Zombie élargi : starters, extenders, moteurs Cimetière, boss et cartes de '
                             'résurrection.'}}
-HALLOWEEN_REPRESENTATIVE_CARDS: dict[str, str | None] = {'Light and Darkness Ritual': 'Light and Darkness Ritual',
+HALLOWEEN_REPRESENTATIVE_CARDS: dict[str, str | None] = {'Rituel de la Lumière et des Ténèbres': 'Light and Darkness Ritual',
  'Sacred Beast': 'Raviel, Lord of Phantasms',
  'Mitsurugi': 'Ame no Habakiri no Mitsurugi',
  'Memento': 'Mementoal Tecuhtlica - Combined Creation',
@@ -1064,9 +1064,6 @@ HALLOWEEN_REPRESENTATIVE_CARDS: dict[str, str | None] = {'Light and Darkness Rit
  'Zombie Staples': 'Doomking Balerdroch',
  'Halloween Staples': 'Dark Hole',
  'Halloween 2026 — Cartes annoncées': 'Foolish Graverobber'}
-HALLOWEEN_BONBON_SORT_ENABLED = False
-
-# Conservé pour une future réactivation du système Bonbon / Sort.
 HALLOWEEN_CANDIES: list[str] = ['Pot of Duality',
  'One Day of Peace',
  'Book of Moon',
@@ -1116,11 +1113,11 @@ class HalloweenFormatService:
         staples=[_entry(name,"STAPLE") for name in HALLOWEEN_STAPLES]
         catalog_payload={"catalog":HALLOWEEN_CARD_CATALOG,"overrides":HALLOWEEN_BANLIST_OVERRIDES,"global_bans":HALLOWEEN_GLOBAL_BANS,"representative_cards":HALLOWEEN_REPRESENTATIVE_CARDS,"tiers":HALLOWEEN_TIERS,"staples":HALLOWEEN_STAPLES,"preview_releases":HALLOWEEN_PREVIEW_RELEASES}
         return {
-            "id":"halloween","name":"Halloween","emoji":"🎃","format_version":"11.0",
-            "description":"Format Halloween Hamtaro V11 : whitelist thématique, tier list officielle modulable, banlist spéciale et export PNG HD. Light and Darkness Ritual est en tête du S Tier et Sacred Beast en tête du A Tier.",
-            "meta_left":"Whitelist Halloween V11","meta_right":f"{sum(len(t['decks']) for t in HALLOWEEN_TIERS)} decks + {len(HALLOWEEN_STAPLES)} groupes de staples",
+            "id":"halloween","name":"Halloween","emoji":"🎃","format_version":"6.0",
+            "description":"Format Halloween Hamtaro V10 : Rituel de la Lumière et des Ténèbres restauré en tête du S Tier, Sacred Beast restauré en tête du A Tier, export PNG HD et artworks personnalisés conservés.",
+            "meta_left":"Whitelist Halloween V6","meta_right":f"{sum(len(t['decks']) for t in HALLOWEEN_TIERS)} decks + {len(HALLOWEEN_STAPLES)} groupes de staples",
             "tiers":tiers,"staples":staples,"global_bans":list(HALLOWEEN_GLOBAL_BANS),"banlist_overrides":deepcopy(HALLOWEEN_BANLIST_OVERRIDES),
-            "bonbon_sort_enabled":HALLOWEEN_BONBON_SORT_ENABLED,"candies":list(HALLOWEEN_CANDIES) if HALLOWEEN_BONBON_SORT_ENABLED else [],"spells":list(HALLOWEEN_SPELLS) if HALLOWEEN_BONBON_SORT_ENABLED else [],"card_catalog_json":json.dumps(catalog_payload,ensure_ascii=False),
+            "candies":list(HALLOWEEN_CANDIES),"spells":list(HALLOWEEN_SPELLS),"card_catalog_json":json.dumps(catalog_payload,ensure_ascii=False),
         }
 
     def whitelist_text(self) -> str:
@@ -1131,7 +1128,7 @@ class HalloweenFormatService:
         return "\n".join(lines).rstrip()+"\n"
 
     def banlist_text(self) -> str:
-        lines=["FORMAT HALLOWEEN V11 - BANLIST SPÉCIALE","Toute carte absente suit la banlist TCG normale.","","[INTERDITES GLOBALEMENT]"]
+        lines=["FORMAT HALLOWEEN V6 - BANLIST SPÉCIALE","Toute carte absente suit la banlist TCG normale.","","[INTERDITES GLOBALEMENT]"]
         lines.extend(f"- {card} : x0" for card in HALLOWEEN_GLOBAL_BANS); lines.append("")
         for deck,entries in HALLOWEEN_BANLIST_OVERRIDES.items():
             if not entries: continue
