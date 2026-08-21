@@ -70,3 +70,11 @@ body.halloween-modal-open{overflow:hidden}
 @media(max-width:760px){.halloween-deck-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.halloween-live-tier-row{grid-template-columns:58px 1fr}.halloween-live-tier-tile{width:92px}.halloween-choice-grid,.halloween-selection-summary{grid-template-columns:1fr}.halloween-card-gallery{grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem}.halloween-card-modal-dialog{grid-template-columns:1fr;max-width:520px}.halloween-card-modal-image{display:flex;justify-content:center}.halloween-card-modal-image img{width:min(270px,80vw)}}
 @media(max-width:480px){.halloween-card-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}.halloween-live-tier-tile{width:82px}.halloween-live-tier-tile strong{font-size:.61rem}}
 /* ===== /HAMTARO HALLOWEEN V2 VERIFIED ===== */
+
+/* ===== HAMTARO HALLOWEEN V4 FINAL ===== */
+.halloween-live-tier-art img,.halloween-deck-art img{image-rendering:auto;transform:translateZ(0)}
+.halloween-global-ban{display:flex;flex-wrap:wrap;gap:.55rem;align-items:center;margin:1rem 0;padding:.9rem 1rem;border:1px solid rgba(255,70,70,.32);border-radius:13px;background:rgba(180,30,30,.10)}
+.halloween-global-ban strong{color:#ff9a9a}.halloween-global-ban span{padding:.35rem .55rem;border-radius:8px;background:rgba(0,0,0,.22);font-size:.78rem;font-weight:850}
+.halloween-candy-rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:1rem 0}.halloween-candy-rules article{display:grid;gap:.3rem;padding:.9rem;border:1px solid rgba(255,255,255,.09);border-radius:12px;background:rgba(255,255,255,.03)}.halloween-candy-rules article strong{color:#ffc18e}.halloween-candy-rules article span{font-size:.82rem;line-height:1.42;opacity:.84}.halloween-choice-hint{margin-top:1rem}
+@media(max-width:700px){.halloween-candy-rules{grid-template-columns:1fr}}
+/* ===== /HAMTARO HALLOWEEN V4 FINAL ===== */

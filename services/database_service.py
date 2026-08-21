@@ -773,6 +773,7 @@ class DatabaseService:
             "TeleDAD": "TD",
             "Rush Duel": "RD",
             "Speed Duel": "SD",
+            "Halloween": "HAL",
         }
 
         return prefixes.get(

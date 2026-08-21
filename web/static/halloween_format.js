@@ -10,7 +10,7 @@
 
   const CARD_API = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
   const catalogNode = document.getElementById("halloween-card-data");
-  let config = {catalog: {}, overrides: {}, tiers: [], staples: []};
+  let config = {catalog: {}, overrides: {}, global_bans: [], representative_cards: {}, tiers: [], staples: []};
   try {
     config = JSON.parse(catalogNode?.textContent || "{}");
   } catch (error) {
@@ -112,6 +112,7 @@
     tierBoard.innerHTML = officialTierSnapshot;
     selectTierTile(null);
     wireTierBoard();
+    upgradeTierArtworks();
   });
 
   moveTierButton?.addEventListener("click", () => {
@@ -156,6 +157,32 @@
     return fetchData(url);
   };
 
+  const upgradeDeckArtwork = async (deckName, representativeName) => {
+    let card = representativeName ? await fetchByName(representativeName) : null;
+    if (!card) {
+      const archetype = config.catalog?.[deckName]?.archetypes?.[0];
+      if (archetype) {
+        const cards = await fetchByArchetype(archetype);
+        card = cards.find(isTCGCard) || cards[0] || null;
+      }
+    }
+    if (!card) return;
+    const image = card.card_images?.[0]?.image_url_cropped || card.card_images?.[0]?.image_url || card.card_images?.[0]?.image_url_small || "";
+    if (!image) return;
+    document.querySelectorAll(`.halloween-live-tier-tile[data-deck-name="${CSS.escape(deckName)}"] img, .halloween-deck-card[data-deck-name="${CSS.escape(deckName)}"] img`).forEach((img) => {
+      img.src = image; img.decoding = "async";
+    });
+  };
+
+  const upgradeTierArtworks = () => {
+    Object.entries(config.representative_cards || {}).forEach(([deckName, representativeName]) => {
+      if (deckName === "Call of the Haunted / Pumpking") return;
+      upgradeDeckArtwork(deckName, representativeName);
+    });
+  };
+
+  upgradeTierArtworks();
+
   const uniqueCards = (cards) => {
     const seen = new Map();
     cards.filter(Boolean).forEach((card) => {
@@ -196,6 +223,11 @@
   };
 
   const permissionFor = (deckName, card) => {
+    const globallyBanned = new Set((config.global_bans || []).map(normalize));
+    if (globallyBanned.has(normalize(card.name))) {
+      return {limit: 0, special: true, globalBan: true, label: "INTERDITE"};
+    }
+
     const special = overrideForDeck(deckName, card.name);
     if (special) return {limit: Number(special.limit), special: true, label: `Halloween x${special.limit}`};
 
@@ -243,7 +275,9 @@
     const extra = applyRuleExclusions(rule, await fetchExactList(rule.extra_exact || []));
     const support = applyRuleExclusions(rule, await fetchExactList(rule.support_exact || []));
     const related = applyRuleExclusions(rule, await fetchExactList(rule.related_exact || []));
-    const staples = applyRuleExclusions(rule, await fetchExactList(rule.staples || []));
+    const stapleArchetypeChunks = await Promise.all((rule.staple_archetypes || []).map(fetchByArchetype));
+    const stapleArchetypeCards = uniqueCards(stapleArchetypeChunks.flat()).filter(isTCGCard);
+    const staples = applyRuleExclusions(rule, [...stapleArchetypeCards, ...(await fetchExactList(rule.staples || []))]);
 
     const makeGroup = (key, title, cards) => {
       const decorated = cards
