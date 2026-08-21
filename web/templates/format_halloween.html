@@ -118,7 +118,7 @@
         <ul>
             <li>Main Deck : <strong>40–60</strong>.</li>
             <li>Extra Deck : <strong>0–15</strong>.</li>
-            <li>Side Deck : <strong>0–15</strong>.</li>
+            <li>Side Deck Halloween : <strong>0–14 cartes normales + 1 Halloween Slot</strong>.</li>
         </ul>
     </article>
 </section>
@@ -237,6 +237,12 @@
         <strong>🎃 Des cartes interdites ont été réintroduites spécialement pour Halloween.</strong>
         <span>Une carte absente de cette liste suit la banlist TCG normale.</span>
     </div>
+    {% if format_data.global_bans %}
+    <div class="halloween-global-ban">
+        <strong>🚫 Interdite dans tout le Format Halloween</strong>
+        {% for card in format_data.global_bans %}<span>{{ card }} · x0</span>{% endfor %}
+    </div>
+    {% endif %}
     <div class="halloween-banlist-grid">
         {% for deck, entries in format_data.banlist_overrides.items() %}
         <details class="halloween-ban-card">
@@ -252,36 +258,20 @@
 </section>
 
 <section id="bonbons-sorts" class="format-panel halloween-panel">
-    <div class="format-section-heading">
-        <div>
-            <p class="format-kicker">MODULE OPTIONNEL DU TOURNOI</p>
-            <h2>🍬 Bonbons & 🪄 Sorts</h2>
-        </div>
-        <span class="halloween-chip">Choix avant le tournoi</span>
+    <div class="format-section-heading"><div><p class="format-kicker">RÈGLE OFFICIELLE DU TOURNOI HALLOWEEN</p><h2>🍬 Bonbon ou 🪄 Sort ?</h2></div><span class="halloween-chip">1 slot dynamique</span></div>
+    <div class="halloween-candy-rules">
+        <article><strong>1 · À l'inscription</strong><span>Tu déclares <b>1 Bonbon</b> et <b>1 Sort</b> avec <code>/register</code>.</span></article>
+        <article><strong>2 · Ton Side normal</strong><span>Tu prépares au maximum <b>14 cartes</b>. La 15e place est le Halloween Slot.</span></article>
+        <article><strong>3 · Avant chaque BO3</strong><span>Chacun fait <code>/halloween offer</code> sur son adversaire. Il choisit uniquement <b>Bonbon</b> ou <b>Sort</b>.</span></article>
+        <article><strong>4 · La carte révélée</strong><span>La carte pré-déclarée de cette catégorie devient ta <b>15e carte de Side pour ce BO3</b> et se side entre les games.</span></article>
     </div>
-    <p class="format-muted">
-        Chaque joueur choisit un Bonbon et un Sort uniquement dans les listes officielles,
-        puis signale ses deux choix au staff avant le tournoi.
-    </p>
+    <div class="halloween-warning"><strong>🎭 Le bluff</strong><span>L'adversaire choisit la catégorie sans connaître la carte. Les deux cartes ont été déclarées à l'avance et le staff peut les vérifier avec <code>/halloween roster</code>.</span></div>
     <div class="halloween-choice-grid">
-        <article class="halloween-choice-panel">
-            <h3>🍬 Bonbons</h3>
-            <div class="halloween-choice-list" data-choice-group="candy">
-                {% for card in format_data.candies %}<button type="button" class="halloween-choice" data-choice="{{ card }}">{{ card }}</button>{% endfor %}
-            </div>
-        </article>
-        <article class="halloween-choice-panel">
-            <h3>🪄 Sorts</h3>
-            <div class="halloween-choice-list" data-choice-group="spell">
-                {% for card in format_data.spells %}<button type="button" class="halloween-choice" data-choice="{{ card }}">{{ card }}</button>{% endfor %}
-            </div>
-        </article>
+        <article class="halloween-choice-panel"><h3>🍬 Bonbons</h3><p>Cartes plutôt avantageuses / polyvalentes.</p><div class="halloween-choice-list" data-choice-group="candy">{% for card in format_data.candies %}<button type="button" class="halloween-choice" data-choice="{{ card }}">{{ card }}</button>{% endfor %}</div></article>
+        <article class="halloween-choice-panel"><h3>🪄 Sorts</h3><p>Cartes plus agressives, perturbatrices ou risquées.</p><div class="halloween-choice-list" data-choice-group="spell">{% for card in format_data.spells %}<button type="button" class="halloween-choice" data-choice="{{ card }}">{{ card }}</button>{% endfor %}</div></article>
     </div>
-    <div class="halloween-selection-summary">
-        <div><small>Bonbon choisi</small><strong id="halloween-candy-choice">Aucun</strong></div>
-        <div><small>Sort choisi</small><strong id="halloween-spell-choice">Aucun</strong></div>
-        <button id="halloween-copy-choice" class="format-button" type="button">Copier mes choix</button>
-    </div>
+    <p class="format-muted halloween-choice-hint">Le site simule les choix. En tournoi, le choix officiel est enregistré par Discord avec <code>/register</code> ou <code>/halloween set_choices</code>.</p>
+    <div class="halloween-selection-summary"><div><small>Bonbon simulé</small><strong id="halloween-candy-choice">Aucun</strong></div><div><small>Sort simulé</small><strong id="halloween-spell-choice">Aucun</strong></div><button id="halloween-copy-choice" class="format-button" type="button">Copier mes choix</button></div>
 </section>
 
 <div class="halloween-card-modal" id="halloween-card-modal" hidden aria-hidden="true">

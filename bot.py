@@ -58,6 +58,7 @@ REQUIRED_COGS = (
     "cogs.registration",
     "cogs.tournament",
     "cogs.araignee_format",
+    "cogs.halloween_tournament",
     "cogs.boss",
     "cogs.bracket",
     "cogs.results",

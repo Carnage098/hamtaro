@@ -328,6 +328,23 @@ async def init_db() -> None:
         """)
 
         # ==========================================================
+        # CHOIX HALLOWEEN — BONBON / SORT
+        # ==========================================================
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS halloween_choices (
+            tournament_id INTEGER NOT NULL,
+            discord_id TEXT NOT NULL,
+            username TEXT NOT NULL,
+            halloween_candy TEXT NOT NULL,
+            halloween_spell TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (tournament_id, discord_id),
+            FOREIGN KEY (tournament_id)
+                REFERENCES tournaments(id)
+                ON DELETE CASCADE
+        )
+        """)
+        # ==========================================================
         # MATCHS BRACKET
         # ==========================================================
 

@@ -27,6 +27,7 @@ FORMATS = [
     "Speed Duel",
 
     "Araignée",
+    "Halloween",
 ]
 
 
@@ -291,6 +292,15 @@ class TournamentCog(commands.Cog):
             value="📋 Inscriptions ouvertes",
             inline=False,
         )
+        if str(tournament.format).strip().casefold() == "halloween":
+            embed.add_field(
+                name="🎃 Bonbon / Sort",
+                value=(
+                    "Side Deck : 14 cartes normales + 1 Halloween Slot. "
+                    "À l'inscription, chaque joueur déclare 1 Bonbon et 1 Sort."
+                ),
+                inline=False,
+            )
 
         embed.set_footer(
             text=(

@@ -4,6 +4,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from services.halloween_format_service import HALLOWEEN_CANDIES, HALLOWEEN_SPELLS
+
 from utils.embeds import error_embed, info_embed, success_embed
 from utils.tournament_resolver import (
     active_tournament_code_autocomplete,
@@ -79,6 +81,12 @@ class RegistrationCog(commands.Cog):
         deck="Deck que tu joues pour ce tournoi",
         code="Code facultatif du tournoi",
         team_id="ID de ton équipe 2v2 si tu en as plusieurs",
+        bonbon="Bonbon Halloween (obligatoire uniquement en Halloween)",
+        sortilege="Sort Halloween (obligatoire uniquement en Halloween)",
+    )
+    @app_commands.choices(
+        bonbon=[app_commands.Choice(name=value, value=value) for value in HALLOWEEN_CANDIES],
+        sortilege=[app_commands.Choice(name=value, value=value) for value in HALLOWEEN_SPELLS],
     )
     @app_commands.autocomplete(
         code=active_tournament_code_autocomplete,
@@ -89,6 +97,8 @@ class RegistrationCog(commands.Cog):
         deck: str | None = None,
         code: str | None = None,
         team_id: int | None = None,
+        bonbon: app_commands.Choice[str] | None = None,
+        sortilege: app_commands.Choice[str] | None = None,
     ) -> None:
         await interaction.response.defer(ephemeral=True)
 
@@ -109,10 +119,40 @@ class RegistrationCog(commands.Cog):
                 )
                 return
 
+            is_halloween = str(tournament.format).strip().casefold() == "halloween"
+            if is_halloween and (bonbon is None or sortilege is None):
+                await self._send_error(
+                    interaction=interaction,
+                    title="Choix Halloween requis",
+                    description=(
+                        "Pour ce tournoi, choisis **1 Bonbon** et **1 Sort** dans /register. "
+                        "Tu pourras les modifier pendant les inscriptions avec /halloween set_choices."
+                    ),
+                )
+                return
             # HAMTARO_2V2_V2:REGISTER
             duo_cog = self.bot.get_cog("Team2v2Cog")
             if duo_cog is not None and await duo_cog.is_duo_tournament(int(tournament.id)):
                 await duo_cog.register_from_native(interaction, tournament, team_id=team_id, deck=deck)
+                if is_halloween:
+                    await self.db.update(
+                        """
+                        INSERT INTO halloween_choices (
+                            tournament_id, discord_id, username,
+                            halloween_candy, halloween_spell, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        ON CONFLICT(tournament_id, discord_id)
+                        DO UPDATE SET
+                            username = excluded.username,
+                            halloween_candy = excluded.halloween_candy,
+                            halloween_spell = excluded.halloween_spell,
+                            updated_at = CURRENT_TIMESTAMP
+                        """,
+                        (
+                            int(tournament.id), str(interaction.user.id),
+                            self._display_name(interaction.user), bonbon.value, sortilege.value,
+                        ),
+                    )
                 return
             user = interaction.user
             username = self._display_name(user)
@@ -127,6 +167,22 @@ class RegistrationCog(commands.Cog):
                 display_name=username,
                 avatar_url=avatar_url,
             )
+            if is_halloween:
+                await self.db.update(
+                    """
+                    INSERT INTO halloween_choices (
+                        tournament_id, discord_id, username,
+                        halloween_candy, halloween_spell, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(tournament_id, discord_id)
+                    DO UPDATE SET
+                        username = excluded.username,
+                        halloween_candy = excluded.halloween_candy,
+                        halloween_spell = excluded.halloween_spell,
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (int(tournament.id), str(user.id), username, bonbon.value, sortilege.value),
+                )
             current = await self.db.count_registrations(
                 tournament.id
             )
@@ -156,6 +212,9 @@ class RegistrationCog(commands.Cog):
             value=f"`{registration.deck or 'Non renseigné'}`",
             inline=True,
         )
+        if str(tournament.format).strip().casefold() == "halloween":
+            embed.add_field(name="🍬 Bonbon", value=f"`{bonbon.value}`", inline=True)
+            embed.add_field(name="🪄 Sort", value=f"`{sortilege.value}`", inline=True)
         embed.add_field(
             name="📊 Inscrits",
             value=f"**{current}/{tournament.max_players}**",
