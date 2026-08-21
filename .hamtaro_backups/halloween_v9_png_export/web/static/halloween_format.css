@@ -83,9 +83,3 @@ body.halloween-modal-open{overflow:hidden}
 .halloween-release-badge { display:inline-flex; align-items:center; width:max-content; margin-top:.25rem; padding:.16rem .42rem; border:1px solid currentColor; border-radius:999px; font-size:.68rem; font-weight:800; letter-spacing:.02em; opacity:.9; }
 .halloween-card-limit.is-preview { border-style:dashed; }
 .halloween-preview-info { display:block; opacity:.72; margin-top:.18rem; }
-
-/* HALLOWEEN V9 — export PNG de la tier list */
-.halloween-tier-actions{display:flex;gap:.65rem;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-.halloween-tier-export{font-weight:800;white-space:nowrap}
-.halloween-tier-export.is-exporting{opacity:.7;cursor:progress;pointer-events:none}
-@media(max-width:760px){.halloween-tier-actions{width:100%;justify-content:flex-start}.halloween-tier-actions .format-button{flex:1 1 auto}}
