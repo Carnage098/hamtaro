@@ -280,33 +280,65 @@ class HamtaroBot(commands.Bot):
             )
 
     async def _load_extensions(self) -> None:
+        # HAMTARO_COMMAND_LIMIT_PRECOMPACT_V1
+        #
+        # Discord refuse d'ajouter une commande racine dès que l'arbre local
+        # dépasse 100 entrées. Avec les nouveaux modules Hamtaro, attendre la
+        # fin du chargement pour compacter est trop tard : archetype_catalog
+        # peut rencontrer CommandLimitReached avant que compact_command_tree()
+        # soit appelé.
+        #
+        # Ordre sécurisé :
+        #   1. noyau sauf catalogue ;
+        #   2. suppression des commandes retirées ;
+        #   3. catalogue d'archétypes ;
+        #   4. compaction immédiate ;
+        #   5. cogs optionnels ;
+        #   6. compaction finale déjà effectuée par setup_hook.
         required_failures: list[str] = []
+        catalog_extension = "cogs.archetype_catalog"
 
-        # 1) Charger d'abord le noyau.
         for extension in REQUIRED_COGS:
+            if extension == catalog_extension:
+                continue
             await self._load_one_extension(
                 extension,
                 required_failures=required_failures,
             )
 
-        # 2) Libérer immédiatement les anciennes commandes.
-        # Dans l'ancienne version cette étape arrivait seulement au moment du
-        # sync, donc après swiss_graphics : trop tard pour éviter le 100/100.
         self._drop_retired_application_commands()
-        self._log_application_command_budget("après noyau + nettoyage")
+        self._log_application_command_budget(
+            "avant archetype_catalog"
+        )
 
-        # 3) Charger les modules optionnels seulement après avoir récupéré les
-        # places occupées par les commandes retirées.
+        if catalog_extension in REQUIRED_COGS:
+            await self._load_one_extension(
+                catalog_extension,
+                required_failures=required_failures,
+            )
+
+        self._drop_retired_application_commands()
+        self._log_application_command_budget(
+            "après archetype_catalog"
+        )
+
+        compact_command_tree(self.tree, logger=LOGGER)
+        log_command_tree_summary(self.tree, logger=LOGGER)
+        self._log_application_command_budget(
+            "après compaction pré-optionnels"
+        )
+
         for extension in OPTIONAL_COGS:
             await self._load_one_extension(
                 extension,
                 required_failures=required_failures,
             )
-            self._log_application_command_budget(f"après {extension}")
+            self._log_application_command_budget(
+                f"après {extension}"
+            )
 
-        # Sécurité : un cog peut avoir recréé une ancienne commande.
         self._drop_retired_application_commands()
-        self._log_application_command_budget("final")
+        self._log_application_command_budget("final brut")
 
         if required_failures and FAIL_ON_COG_ERROR:
             raise RuntimeError(
@@ -316,31 +348,9 @@ class HamtaroBot(commands.Bot):
 
         if required_failures:
             LOGGER.error(
-                "Hamtaro démarre en mode dégradé. Modules essentiels absents : %s",
+                "Hamtaro démarre en mode dégradé. "
+                "Modules essentiels absents : %s",
                 ", ".join(required_failures),
-            )
-
-    async def _sync_application_commands_after_ready(self) -> None:
-        """Attend le Gateway puis lance une seule tentative de publication."""
-        try:
-            await self.wait_until_ready()
-
-            if self.is_closed():
-                return
-
-            LOGGER.info(
-                "Hamtaro est connecté : tentative ONE-SHOT de "
-                "synchronisation des commandes."
-            )
-
-            await self._sync_application_commands()
-
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            LOGGER.exception(
-                "Échec de la tentative ONE-SHOT des commandes. "
-                "Hamtaro reste connecté."
             )
 
     async def _sync_application_commands(self) -> None:
