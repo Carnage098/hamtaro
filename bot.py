@@ -353,6 +353,32 @@ class HamtaroBot(commands.Bot):
                 ", ".join(required_failures),
             )
 
+    async def _sync_application_commands_after_ready(self) -> None:
+        # HAMTARO_SYNC_AFTER_READY_RESTORE_V1
+        # Attend que le Gateway Discord soit réellement prêt avant de publier
+        # les commandes. Une erreur de synchronisation ne doit jamais faire
+        # tomber Hamtaro.
+        try:
+            await self.wait_until_ready()
+
+            if self.is_closed():
+                return
+
+            LOGGER.info(
+                "Hamtaro est connecté : synchronisation des commandes "
+                "lancée en arrière-plan."
+            )
+
+            await self._sync_application_commands()
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            LOGGER.exception(
+                "Échec de la synchronisation des commandes en arrière-plan. "
+                "Hamtaro reste connecté."
+            )
+
     async def _sync_application_commands(self) -> None:
         """Publie les commandes sans jamais entrer dans une boucle de retry."""
         self._drop_retired_application_commands()
