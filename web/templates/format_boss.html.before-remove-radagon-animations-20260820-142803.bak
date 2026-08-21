@@ -1,0 +1,1004 @@
+<link rel="stylesheet" href="/static/css/radagon-boss.css">
+{% extends "base.html" %}
+{% block title %}Format Boss · Hamtaro{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="/static/boss.css?v=20260818-5">
+<link rel="stylesheet" href="/static/radagon-boss.css?v=20260819-2">
+
+<section class="boss-page">
+    <div class="boss-backdrop" aria-hidden="true"></div>
+
+    <div class="boss-content">
+        <header class="boss-hero boss-glass">
+            <div>
+                <p class="boss-kicker">FORMAT COMMUNAUTAIRE · HAMTARO</p>
+                <h1>👑 FORMAT BOSS</h1>
+                <p class="boss-subtitle">
+                    Un joueur tient le trône. Les challengers s'inscrivent et
+                    l'affrontent dans l'ordre du programme jusqu'à ce que
+                    quelqu'un fasse tomber le Boss. Et rebelote.
+                </p>
+
+                <div
+                    class="boss-soundtrack"
+                    data-boss-soundtrack
+                    data-video-id="iyGoea560lU"
+                >
+                    <div class="boss-soundtrack-head">
+                        <div>
+                            <small>🎵 MUSIQUE DU BOSS</small>
+                            <strong>Red Wolf of Radagon</strong>
+                        </div>
+                        <button
+                            class="boss-music-toggle"
+                            type="button"
+                            data-boss-music-toggle
+                            aria-pressed="false"
+                        >
+                            ▶ Activer la musique
+                        </button>
+                    </div>
+
+                    <div class="boss-volume-row">
+                        <span>🔊</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value="35"
+                            step="1"
+                            data-boss-music-volume
+                            aria-label="Volume de la musique du Boss"
+                        >
+                    </div>
+
+                    <small
+                        class="boss-music-status"
+                        data-boss-music-status
+                    >
+                        La lecture démarre seulement après ton clic.
+                    </small>
+
+                    <div
+                        class="boss-youtube-wrap"
+                        data-boss-youtube-wrap
+                        hidden
+                    >
+                        <div
+                            class="boss-youtube-player"
+                            data-boss-youtube-player
+                        ></div>
+                    </div>
+                </div>
+
+            </div>
+
+
+            <div class="boss-hero-side">
+                <div class="boss-model-card">
+                    <div class="boss-model-crown" aria-hidden="true">👑</div>
+
+                    {% if radagon_model_url %}
+                    <div class="boss-model-stage">
+                        <model-viewer
+id="radagonModel"
+data-radagon-model
+                            class="boss-model-viewer"
+                            src="/static/models/radagon/radagon_wolf_animated.glb?v=20260819-a2"
+                            alt="Modèle 3D du Boss Radagon"
+                            camera-controls
+autoplay
+animation-name="Radagon_Idle"
+                            shadow-intensity="1"
+                            exposure="1.05"
+                            interaction-prompt="none"
+                            loading="eager"
+                        
+  camera-target="auto auto auto"
+  camera-orbit="0deg 75deg auto"
+  field-of-view="32deg"
+></model-viewer>
+                    </div>
+                    <div class="boss-model-caption">
+                        <small>VIEWER 3D</small>
+                        <strong>Radagon</strong>
+                    </div>
+<!-- HAMTARO RADAGON ANIMATIONS V2 START -->
+<style id="radagonLayoutFix">
+/* --- Placement propre de Radagon --- */
+
+.boss-model-card {
+  overflow: hidden !important;
+}
+
+.boss-model-stage {
+  position: relative !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+}
+
+#radagonModel,
+.boss-model-viewer {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  position: relative !important;
+  z-index: 1 !important;
+  margin: 0 !important;
+  inset: auto !important;
+}
+
+/* La légende reste au-dessus du viewer sans modifier sa géométrie. */
+.boss-model-caption {
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+/* Les commandes sont dans le flux normal, juste sous le modèle. */
+#radagonActionsV2,
+.radagon-actions-v2,
+#radagonAnimationConsole,
+.radagon-animation-console {
+  position: relative !important;
+  z-index: 3 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  pointer-events: auto !important;
+  overflow: hidden !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  transform: none !important;
+}
+
+#radagonActionsV2 *,
+.radagon-actions-v2 *,
+#radagonAnimationConsole *,
+.radagon-animation-console * {
+  pointer-events: auto !important;
+}
+
+[data-radagon-action],
+[data-radagon-animation] {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  position: relative !important;
+  z-index: 4 !important;
+}
+
+/* Évite qu'une ancienne règle fasse flotter le panneau au-dessus du loup. */
+#radagonActionsV2,
+#radagonAnimationConsole {
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  #radagonModel,
+  .boss-model-viewer {
+    width: 100% !important;
+  }
+
+  #radagonActionsV2,
+  .radagon-actions-v2,
+  #radagonAnimationConsole,
+  .radagon-animation-console {
+    border-radius: 12px !important;
+  }
+}
+</style>
+
+<style>
+.radagon-actions-v2{
+  margin-top:12px;padding:12px;border-radius:15px;
+  border:1px solid rgba(238,168,91,.22);
+  background:radial-gradient(circle at 15% 0%,rgba(204,91,42,.12),transparent 42%),rgba(10,9,13,.82)
+}
+.radagon-actions-v2__head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px
+}
+.radagon-actions-v2__head small{
+  display:block;color:#e8a75e;font-size:9px;font-weight:800;letter-spacing:.14em
+}
+.radagon-actions-v2__head strong{
+  display:block;margin-top:2px;color:#fff5e9;font-size:13px
+}
+.radagon-actions-v2__state{color:rgba(255,255,255,.52);font-size:10px}
+.radagon-actions-v2__grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px
+}
+.radagon-action-v2{
+  display:flex;align-items:center;gap:8px;min-height:50px;padding:8px 9px;
+  border:1px solid rgba(255,255,255,.075);border-radius:11px;
+  background:rgba(255,255,255,.035);color:#f5e7d7;text-align:left;cursor:pointer
+}
+.radagon-action-v2:hover:not(:disabled){
+  border-color:rgba(232,167,94,.42);background:rgba(232,167,94,.08)
+}
+.radagon-action-v2.is-active{
+  border-color:rgba(232,167,94,.62);background:rgba(196,77,35,.14)
+}
+.radagon-action-v2:disabled{opacity:.38;cursor:not-allowed}
+.radagon-action-v2__icon{
+  display:grid;place-items:center;width:27px;height:27px;flex:0 0 27px;
+  border-radius:8px;background:rgba(232,167,94,.1);color:#efb36d
+}
+.radagon-action-v2 strong,.radagon-action-v2 small{display:block}
+.radagon-action-v2 strong{font-size:10px}
+.radagon-action-v2 small{
+  margin-top:2px;color:rgba(255,255,255,.43);font-size:8px;line-height:1.25
+}
+.radagon-actions-v2__error{
+  display:none;margin-top:8px;color:#ff9c92;font-size:9px
+}
+.radagon-actions-v2.has-error .radagon-actions-v2__error{display:block}
+@media(max-width:640px){
+  .radagon-actions-v2__grid{grid-template-columns:1fr}
+}
+</style>
+
+<div class="radagon-actions-v2" id="radagonActionsV2">
+  <div class="radagon-actions-v2__head">
+    <div>
+      <small>ANIMATIONS DE RADAGON</small>
+      <strong>Choisir une action</strong>
+    </div>
+    <span class="radagon-actions-v2__state" id="radagonActionState">Chargement…</span>
+  </div>
+
+  <div class="radagon-actions-v2__grid">
+    <button class="radagon-action-v2 is-active" type="button"
+      data-radagon-action="Radagon_Idle" data-label="Repos">
+      <span class="radagon-action-v2__icon">◉</span>
+      <span><strong>Repos</strong><small>Respiration calme</small></span>
+    </button>
+
+    <button class="radagon-action-v2" type="button"
+      data-radagon-action="Radagon_Observe" data-label="Observation">
+      <span class="radagon-action-v2__icon">◌</span>
+      <span><strong>Observation</strong><small>Il regarde autour de lui</small></span>
+    </button>
+
+    <button class="radagon-action-v2" type="button"
+      data-radagon-action="Radagon_Intro" data-label="Entrée">
+      <span class="radagon-action-v2__icon">◆</span>
+      <span><strong>Entrée</strong><small>Le Boss s'éveille</small></span>
+    </button>
+
+    <button class="radagon-action-v2" type="button"
+      data-radagon-action="Radagon_Ready" data-label="Prêt au combat">
+      <span class="radagon-action-v2__icon">⚔</span>
+      <span><strong>Prêt au combat</strong><small>Il se met en position</small></span>
+    </button>
+
+    <button class="radagon-action-v2" type="button"
+      data-radagon-action="Radagon_Victory" data-label="Victoire">
+      <span class="radagon-action-v2__icon">▲</span>
+      <span><strong>Victoire</strong><small>Radagon s'impose</small></span>
+    </button>
+
+    <button class="radagon-action-v2" type="button"
+      data-radagon-action="Radagon_Defeat" data-label="Défaite">
+      <span class="radagon-action-v2__icon">▼</span>
+      <span><strong>Défaite</strong><small>Radagon s'affaisse</small></span>
+    </button>
+  </div>
+
+  <div class="radagon-actions-v2__error" id="radagonActionError"></div>
+</div>
+
+<script>
+(() => {
+  const IDLE = "Radagon_Idle";
+  const EXPECTED = [
+    "Radagon_Idle",
+    "Radagon_Observe",
+    "Radagon_Intro",
+    "Radagon_Ready",
+    "Radagon_Victory",
+    "Radagon_Defeat"
+  ];
+
+  function initRadagonActionsV2(){
+    const model = document.getElementById("radagonModel");
+    const panel = document.getElementById("radagonActionsV2");
+    const state = document.getElementById("radagonActionState");
+    const error = document.getElementById("radagonActionError");
+
+    if(!model || !panel) return;
+
+    const buttons = [...panel.querySelectorAll("[data-radagon-action]")];
+    let current = IDLE;
+    let fallbackTimer = null;
+
+    function clearFallback(){
+      if(fallbackTimer){
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+    }
+
+    function setActive(name,label){
+      current = name;
+      buttons.forEach((button)=>{
+        button.classList.toggle(
+          "is-active",
+          button.dataset.radagonAction === name
+        );
+      });
+      if(state) state.textContent = label || name;
+    }
+
+    function play(name,label){
+      clearFallback();
+
+      try{ model.pause(); }catch(_){}
+
+      model.animationName = name;
+      model.loop = name === IDLE;
+      model.currentTime = 0;
+
+      try{
+        const result = model.play();
+        if(result && typeof result.catch === "function"){
+          result.catch((err)=>console.warn("[Radagon]",err));
+        }
+      }catch(err){
+        console.warn("[Radagon] play error",err);
+      }
+
+      setActive(name,label);
+
+      if(name !== IDLE){
+        fallbackTimer = setTimeout(()=>{
+          if(current === name) play(IDLE,"Repos");
+        },6500);
+      }
+    }
+
+    buttons.forEach((button)=>{
+      button.addEventListener("click",()=>{
+        play(button.dataset.radagonAction,button.dataset.label);
+      });
+    });
+
+    model.addEventListener("load",()=>{
+      const available = Array.isArray(model.availableAnimations)
+        ? model.availableAnimations
+        : [];
+
+      console.log("[Radagon] animations disponibles:",available);
+
+      const missing = EXPECTED.filter(
+        (name)=>available.length && !available.includes(name)
+      );
+
+      buttons.forEach((button)=>{
+        const ok = !available.length ||
+          available.includes(button.dataset.radagonAction);
+        button.disabled = !ok;
+      });
+
+      if(missing.length){
+        panel.classList.add("has-error");
+        if(error){
+          error.textContent = "Animations absentes du GLB : " + missing.join(", ");
+        }
+      }else{
+        panel.classList.remove("has-error");
+      }
+
+      play(IDLE,"Repos");
+    });
+
+    model.addEventListener("finished",()=>{
+      if(current !== IDLE){
+        play(IDLE,"Repos");
+      }
+    });
+
+    model.addEventListener("error",()=>{
+      panel.classList.add("has-error");
+      if(state) state.textContent = "Erreur";
+      if(error) error.textContent = "Le GLB animé de Radagon n'a pas pu être chargé.";
+    });
+
+    window.radagonController = {
+      repos:()=>play("Radagon_Idle","Repos"),
+      observation:()=>play("Radagon_Observe","Observation"),
+      entree:()=>play("Radagon_Intro","Entrée"),
+      pret:()=>play("Radagon_Ready","Prêt au combat"),
+      victoire:()=>play("Radagon_Victory","Victoire"),
+      defaite:()=>play("Radagon_Defeat","Défaite")
+    };
+  }
+
+  if(document.readyState === "loading"){
+    document.addEventListener(
+      "DOMContentLoaded",
+      initRadagonActionsV2,
+      {once:true}
+    );
+  }else{
+    initRadagonActionsV2();
+  }
+})();
+</script>
+<script id="radagonButtonUnlockHotfix">
+(function () {
+  function unlockRadagonButtons() {
+    document.querySelectorAll(
+      '[data-radagon-action], [data-radagon-animation]'
+    ).forEach(function (button) {
+      button.disabled = false;
+      button.removeAttribute('disabled');
+      button.style.pointerEvents = 'auto';
+      button.style.cursor = 'pointer';
+      button.style.opacity = '1';
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      unlockRadagonButtons,
+      { once: true }
+    );
+  } else {
+    unlockRadagonButtons();
+  }
+
+  window.addEventListener('load', unlockRadagonButtons, { once: true });
+  setTimeout(unlockRadagonButtons, 1000);
+  setTimeout(unlockRadagonButtons, 3000);
+  setTimeout(unlockRadagonButtons, 6000);
+})();
+</script>
+<!-- HAMTARO RADAGON ANIMATIONS V2 END -->
+<!-- HAMTARO RADAGON FINAL START -->
+<style>
+.radagon-animation-console{
+  margin-top:12px;padding:12px;border-radius:16px;
+  border:1px solid rgba(245,177,92,.24);
+  background:radial-gradient(circle at top left,rgba(211,91,40,.12),transparent 45%),rgba(12,10,15,.84);
+  box-shadow:0 12px 28px rgba(0,0,0,.2)
+}
+.radagon-animation-title{
+  display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:10px
+}
+.radagon-animation-title small{
+  display:block;color:#e8a75e;font-size:9px;font-weight:800;letter-spacing:.16em
+}
+.radagon-animation-title strong{
+  display:block;margin-top:2px;color:#fff7ee;font-size:14px
+}
+.radagon-animation-current{color:rgba(255,255,255,.46);font-size:10px}
+.radagon-animation-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px
+}
+.radagon-animation-btn{
+  display:flex;align-items:center;gap:8px;min-height:52px;padding:8px 10px;
+  border:1px solid rgba(255,255,255,.08);border-radius:12px;
+  background:rgba(255,255,255,.035);color:#f7eadc;text-align:left;cursor:pointer;
+  transition:.15s ease
+}
+.radagon-animation-btn:hover{
+  transform:translateY(-1px);border-color:rgba(232,167,94,.42);
+  background:rgba(232,167,94,.08)
+}
+.radagon-animation-btn.is-active{
+  border-color:rgba(232,167,94,.65);background:rgba(211,91,40,.14)
+}
+.radagon-animation-btn:disabled{cursor:not-allowed;opacity:.35}
+.radagon-animation-btn .ico{
+  display:grid;place-items:center;width:28px;height:28px;flex:0 0 28px;
+  border-radius:9px;background:rgba(232,167,94,.1);color:#efb36d
+}
+.radagon-animation-btn strong{display:block;font-size:11px}
+.radagon-animation-btn small{
+  display:block;margin-top:2px;color:rgba(255,255,255,.45);font-size:8px
+}
+@media(max-width:640px){
+  .radagon-animation-grid{grid-template-columns:1fr}
+}
+</style>
+
+<div class="radagon-animation-console" id="radagonAnimationConsole">
+  <div class="radagon-animation-title">
+    <div>
+      <small>ANIMATIONS DE RADAGON</small>
+      <strong>Choisir une action</strong>
+    </div>
+    <span class="radagon-animation-current" id="radagonAnimationCurrent">Repos</span>
+  </div>
+
+  <div class="radagon-animation-grid">
+    <button type="button" class="radagon-animation-btn is-active"
+      data-radagon-animation="Radagon_Idle" data-label="Repos">
+      <span class="ico">◉</span>
+      <span><strong>Repos</strong><small>Respiration calme</small></span>
+    </button>
+
+    <button type="button" class="radagon-animation-btn"
+      data-radagon-animation="Radagon_Observe" data-label="Observation">
+      <span class="ico">◌</span>
+      <span><strong>Observation</strong><small>Il regarde autour de lui</small></span>
+    </button>
+
+    <button type="button" class="radagon-animation-btn"
+      data-radagon-animation="Radagon_Intro" data-label="Entrée">
+      <span class="ico">◆</span>
+      <span><strong>Entrée</strong><small>Le Boss s'éveille</small></span>
+    </button>
+
+    <button type="button" class="radagon-animation-btn"
+      data-radagon-animation="Radagon_Ready" data-label="Prêt au combat">
+      <span class="ico">⚔</span>
+      <span><strong>Prêt au combat</strong><small>Il se met en position</small></span>
+    </button>
+
+    <button type="button" class="radagon-animation-btn"
+      data-radagon-animation="Radagon_Victory" data-label="Victoire">
+      <span class="ico">▲</span>
+      <span><strong>Victoire</strong><small>Radagon célèbre sa victoire</small></span>
+    </button>
+
+    <button type="button" class="radagon-animation-btn"
+      data-radagon-animation="Radagon_Defeat" data-label="Défaite">
+      <span class="ico">▼</span>
+      <span><strong>Défaite</strong><small>Radagon s'affaisse</small></span>
+    </button>
+  </div>
+</div>
+
+<script>
+(function(){
+  function initRadagonAnimations(){
+    const model=document.getElementById("radagonModel");
+    const root=document.getElementById("radagonAnimationConsole");
+    const current=document.getElementById("radagonAnimationCurrent");
+    if(!model||!root){
+      console.warn("[Radagon] viewer/console introuvable");
+      return;
+    }
+
+    const buttons=[...root.querySelectorAll("[data-radagon-animation]")];
+    let currentName="Radagon_Idle";
+
+    function active(name,label){
+      currentName=name;
+      buttons.forEach(btn=>{
+        btn.classList.toggle("is-active",btn.dataset.radagonAnimation===name);
+      });
+      if(current) current.textContent=label||name;
+    }
+
+    function play(name,label){
+      try{model.pause()}catch(e){}
+      model.animationName=name;
+      model.loop=name==="Radagon_Idle";
+      model.currentTime=0;
+      try{
+        const p=model.play();
+        if(p&&typeof p.catch==="function") p.catch(()=>{});
+      }catch(e){
+        console.warn("[Radagon] play",e);
+      }
+      active(name,label);
+    }
+
+    buttons.forEach(btn=>{
+      btn.addEventListener("click",()=>{
+        play(btn.dataset.radagonAnimation,btn.dataset.label);
+      });
+    });
+
+    model.addEventListener("load",()=>{
+      const available=Array.isArray(model.availableAnimations)?model.availableAnimations:[];
+      console.log("[Radagon] animations disponibles:",available);
+
+      if(available.length){
+        buttons.forEach(btn=>{
+          const ok=available.includes(btn.dataset.radagonAnimation);
+          btn.disabled=!ok;
+          if(!ok) btn.title="Animation absente du GLB";
+        });
+      }
+
+      play("Radagon_Idle","Repos");
+    });
+
+    model.addEventListener("finished",()=>{
+      if(currentName!=="Radagon_Idle"){
+        play("Radagon_Idle","Repos");
+      }
+    });
+
+    window.radagonController={
+      repos:()=>play("Radagon_Idle","Repos"),
+      observation:()=>play("Radagon_Observe","Observation"),
+      entree:()=>play("Radagon_Intro","Entrée"),
+      pret:()=>play("Radagon_Ready","Prêt au combat"),
+      victoire:()=>play("Radagon_Victory","Victoire"),
+      defaite:()=>play("Radagon_Defeat","Défaite")
+    };
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",initRadagonAnimations,{once:true});
+  }else{
+    initRadagonAnimations();
+  }
+})();
+</script>
+<!-- HAMTARO RADAGON FINAL END -->
+                    {% else %}
+                    <div class="boss-model-unavailable">
+                        <span class="boss-model-unavailable-icon">👑</span>
+                        <strong>Viewer 3D indisponible</strong>
+                        <small>Le modèle de Radagon sera ajouté prochainement.</small>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="boss-identity">
+                {% if state.boss_id %}
+                <span class="boss-crown">👑</span>
+                <small>BOSS ACTUEL</small>
+                <strong>{{ state.boss_name or state.boss_id }}</strong>
+                <span>
+                    {{ state.wins_current }} victoire(s) · semaine {{ state.week_number }}
+                </span>
+                {% if state.successor_id %}
+                <div class="boss-fallen">
+                    💀 Boss tombé · prochain Boss :
+                    {{ state.successor_name or state.successor_id }}
+                </div>
+                {% endif %}
+                {% else %}
+                <span class="boss-crown">👑</span>
+                <strong>Trône vacant</strong>
+                <span>Le staff doit définir le premier Boss.</span>
+                {% endif %}
+                </div>
+            </div>
+        </header>
+
+        {% if saved %}
+        <div class="boss-flash boss-flash-ok">
+            ✅ Modification enregistrée.
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="boss-flash boss-flash-error">
+            ❌ {{ error }}
+        </div>
+        {% endif %}
+
+        <section class="boss-grid boss-grid-main">
+            <article class="boss-glass boss-panel">
+                <div class="boss-panel-title">
+                    <div>
+                        <p class="boss-kicker">CHALLENGERS</p>
+                        <h2>⚔️ S'inscrire contre le Boss</h2>
+                    </div>
+
+                    <span class="boss-pill {% if state.registrations_open %}is-open{% endif %}">
+                        {% if state.registrations_open %}OUVERT{% else %}FERMÉ{% endif %}
+                    </span>
+                </div>
+
+                {% if user %}
+                <div class="boss-session">
+                    Connecté : <strong>{{ user.username }}</strong>
+                    <a href="/formats/boss/logout">Déconnexion</a>
+                </div>
+
+                {% if state.registrations_open and not is_registered and state.status != "defeated" %}
+                <form method="post" action="/formats/boss/register">
+                    <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                    <button class="boss-button boss-button-primary" type="submit">
+                        ⚔️ M'inscrire pour affronter le Boss
+                    </button>
+                </form>
+
+                {% elif is_registered %}
+                <p class="boss-registered">
+                    ✅ Tu es inscrit dans la file de cette semaine.
+                </p>
+
+                <form method="post" action="/formats/boss/unregister">
+                    <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                    <button class="boss-button boss-button-ghost" type="submit">
+                        Me désinscrire
+                    </button>
+                </form>
+
+                {% elif state.status == "defeated" %}
+                <p>
+                    Le Boss est déjà tombé. Les nouvelles inscriptions ouvriront
+                    avec la prochaine semaine.
+                </p>
+
+                {% else %}
+                <p>Les inscriptions sont actuellement fermées.</p>
+                {% endif %}
+
+                {% else %}
+                <p>
+                    Connecte ton compte Discord pour que Hamtaro sache exactement
+                    quel joueur rejoint la file.
+                </p>
+
+                <a class="boss-button boss-button-primary" href="/formats/boss/login">
+                    Discord · Se connecter
+                </a>
+                {% endif %}
+
+                <div class="boss-rules-mini">
+                    <span>1. Inscription</span>
+                    <span>2. Programme du staff</span>
+                    <span>3. Duel en BO3 · premier à 2 manches</span>
+                    <span>4. Le vainqueur prend le trône la semaine suivante</span>
+                </div>
+            </article>
+
+            <article class="boss-glass boss-panel">
+                <p class="boss-kicker">RÈGNE EN COURS</p>
+                <h2>🔥 État du trône</h2>
+
+                <div class="boss-stat-grid">
+                    <div>
+                        <strong>{{ state.wins_current }}</strong>
+                        <span>Victoires</span>
+                    </div>
+
+                    <div>
+                        <strong>{{ challengers|length }}</strong>
+                        <span>Challengers</span>
+                    </div>
+
+                    <div>
+                        <strong>#{{ state.week_number }}</strong>
+                        <span>Semaine</span>
+                    </div>
+
+                    <div>
+                        <strong>
+                            {% if state.status == "defeated" %}
+                            TOMBÉ
+                            {% elif state.boss_id %}
+                            ACTIF
+                            {% else %}
+                            VIDE
+                            {% endif %}
+                        </strong>
+                        <span>Statut</span>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="boss-glass boss-panel boss-program">
+            <div class="boss-panel-title">
+                <div>
+                    <p class="boss-kicker">PROGRAMME LIVE</p>
+                    <h2>📅 Ordre des duels</h2>
+                </div>
+
+                <div class="boss-program-badges">
+                    <span class="boss-bo3-pill">⚔️ BO3 · 2 manches gagnantes</span>
+                    {% if is_staff %}
+                    <span class="boss-pill boss-pill-staff">
+                        MODE STAFF
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if challengers %}
+            <div
+                class="boss-program-list"
+                {% if is_staff and user %}
+                data-boss-sortable="1"
+                data-csrf="{{ user.csrf }}"
+                data-reorder-url="/formats/boss/staff/reorder"
+                {% endif %}
+            >
+                {% for row in challengers %}
+                <div
+                    class="boss-program-row status-{{ row.status }}"
+                    data-challenger-id="{{ row.id }}"
+                    {% if is_staff and user and row.status not in ["defeated", "boss_killer"] %}
+                    draggable="true"
+                    {% endif %}
+                >
+                    {% if is_staff and user and row.status not in ["defeated", "boss_killer"] %}
+                    <button
+                        class="boss-drag-handle"
+                        type="button"
+                        aria-label="Déplacer {{ row.username }}"
+                        title="Glisser pour changer l'ordre"
+                    >⋮⋮</button>
+                    {% endif %}
+
+                    <div class="boss-program-rank" data-boss-rank>
+                        #{{ row.position }}
+                    </div>
+
+                    <div class="boss-program-player">
+                        <div class="boss-program-player-title">
+                            <strong>{{ row.username }}</strong>
+                            <span class="boss-match-format">BO3</span>
+                        </div>
+                        <small>
+                            {% if row.status == "defeated" %}
+                            ✅ battu par le Boss
+                            {% elif row.status == "boss_killer" %}
+                            💀 a fait tomber le Boss
+                            {% elif row.scheduled_at %}
+                            🗓️ {{ row.scheduled_at }}
+                            {% else %}
+                            ⏳ en attente de programmation
+                            {% endif %}
+                        </small>
+                    </div>
+
+                    {% if is_staff and user and row.status not in ["defeated", "boss_killer"] %}
+                    <div class="boss-staff-actions">
+                        <form method="post" action="/formats/boss/staff/move">
+                            <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                            <input type="hidden" name="challenger_id" value="{{ row.id }}">
+                            <input
+                                type="number"
+                                min="1"
+                                max="200"
+                                name="position"
+                                value="{{ row.position }}"
+                                aria-label="Nouvelle position"
+                            >
+                            <button type="submit">Déplacer</button>
+                        </form>
+
+                        <form method="post" action="/formats/boss/staff/schedule">
+                            <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                            <input type="hidden" name="challenger_id" value="{{ row.id }}">
+                            <input
+                                type="text"
+                                name="scheduled_at"
+                                value="{{ row.scheduled_at or '' }}"
+                                placeholder="Vendredi 20h30"
+                                maxlength="120"
+                                aria-label="Horaire du duel"
+                            >
+                            <button type="submit">Horaire</button>
+                        </form>
+
+                        <form method="post" action="/formats/boss/staff/remove">
+                            <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                            <input type="hidden" name="challenger_id" value="{{ row.id }}">
+                            <button class="danger" type="submit">
+                                Retirer
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if is_staff and user %}
+            <div
+                class="boss-drag-status"
+                data-boss-drag-status
+                aria-live="polite"
+            >
+                ↕️ Mode staff : fais glisser un challenger pour changer l'ordre.
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div class="boss-empty">
+                Aucun challenger pour le moment.
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="boss-grid">
+            <article class="boss-glass boss-panel">
+                <p class="boss-kicker">RÈGLES</p>
+                <h2>👑 Comment fonctionne le Boss ?</h2>
+
+                <ol class="boss-rules">
+                    <li>Le staff désigne un Boss avec <code>/boss set</code>.</li>
+                    <li>
+                        Les joueurs s'inscrivent eux-mêmes sur le site
+                        ou avec <code>/boss inscription</code>.
+                    </li>
+                    <li>Le staff choisit l'ordre et les horaires des duels.</li>
+                    <li>
+                        Tous les matchs Boss se jouent en <strong>BO3</strong> :
+                        le premier joueur à gagner <strong>2 manches</strong> remporte le match.
+                    </li>
+                    <li>Chaque victoire prolonge la série du Boss.</li>
+                    <li>
+                        Le premier challenger qui le bat devient son successeur.
+                    </li>
+                    <li>
+                        Le successeur prend officiellement le trône
+                        avec la semaine suivante.
+                    </li>
+                </ol>
+            </article>
+
+            <article class="boss-glass boss-panel">
+                <p class="boss-kicker">HALL OF BOSSES</p>
+                <h2>🏆 Anciens règnes</h2>
+
+                {% if history %}
+                <div class="boss-history">
+                    {% for reign in history %}
+                    <div>
+                        <strong>{{ reign.boss_name }}</strong>
+                        <span>{{ reign.wins }} victoire(s)</span>
+
+                        {% if reign.defeated_by_name %}
+                        <small>
+                            Détrôné par {{ reign.defeated_by_name }}
+                        </small>
+                        {% elif reign.ended_at %}
+                        <small>Règne terminé</small>
+                        {% else %}
+                        <small>Règne actuel</small>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% else %}
+                <p>L'histoire du trône commence ici.</p>
+                {% endif %}
+            </article>
+        </section>
+
+        <section class="boss-glass boss-panel boss-command-help">
+            <p class="boss-kicker">COMMANDES PRINCIPALES</p>
+            <h2>🤖 Contrôle Discord</h2>
+
+            <div class="boss-command-grid">
+                <code>/boss status</code>
+                <code>/boss inscription</code>
+                <code>/boss programme</code>
+                <code>/boss set</code>
+                <code>/boss inscriptions</code>
+                <code>/boss planifier</code>
+                <code>/boss move</code>
+                <code>/boss swap</code>
+                <code>/boss resultat</code>
+                <code>/boss publier</code>
+                <code>/boss salon</code>
+                <code>/boss next_week</code>
+            </div>
+        </section>
+    </div>
+</section>
+
+{% if radagon_model_url %}
+<script
+    type="module"
+    src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.3.1/model-viewer.min.js"
+></script>
+{% endif %}
+<script src="/static/boss.js?v=20260819-6" defer></script>
+<script src="/static/boss_media.js?v=20260819-6" defer></script>
+<script src="/static/radagon-boss.js?v=20260819-2" defer></script>
+{% endblock %}
+
+
+<script defer src="/static/js/radagon-boss.js"></script>

@@ -78,3 +78,8 @@ body.halloween-modal-open{overflow:hidden}
 .halloween-candy-rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:1rem 0}.halloween-candy-rules article{display:grid;gap:.3rem;padding:.9rem;border:1px solid rgba(255,255,255,.09);border-radius:12px;background:rgba(255,255,255,.03)}.halloween-candy-rules article strong{color:#ffc18e}.halloween-candy-rules article span{font-size:.82rem;line-height:1.42;opacity:.84}.halloween-choice-hint{margin-top:1rem}
 @media(max-width:700px){.halloween-candy-rules{grid-template-columns:1fr}}
 /* ===== /HAMTARO HALLOWEEN V4 FINAL ===== */
+
+/* Halloween V5 — sorties annoncées 2026 */
+.halloween-release-badge { display:inline-flex; align-items:center; width:max-content; margin-top:.25rem; padding:.16rem .42rem; border:1px solid currentColor; border-radius:999px; font-size:.68rem; font-weight:800; letter-spacing:.02em; opacity:.9; }
+.halloween-card-limit.is-preview { border-style:dashed; }
+.halloween-preview-info { display:block; opacity:.72; margin-top:.18rem; }

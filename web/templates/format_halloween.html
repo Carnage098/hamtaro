@@ -74,6 +74,7 @@
                         <img src="{{ deck.image_url }}" alt="Artwork {{ deck.name }}" loading="lazy" decoding="async">
                     </span>
                     <strong>{{ deck.name }}</strong>
+                    {% if deck.release_label %}<span class="halloween-release-badge" title="{{ deck.release_set }} · {{ deck.release_date }}">{{ deck.release_label }}</span>{% endif %}
                 </button>
                 {% endfor %}
             </div>
@@ -89,6 +90,7 @@
                         <img src="{{ deck.image_url }}" alt="Artwork {{ deck.name }}" loading="lazy" decoding="async">
                     </span>
                     <strong>{{ deck.name }}</strong>
+                    {% if deck.release_label %}<span class="halloween-release-badge" title="{{ deck.release_set }} · {{ deck.release_date }}">{{ deck.release_label }}</span>{% endif %}
                 </button>
                 {% endfor %}
             </div>
@@ -103,6 +105,7 @@
             <li>Le deck doit utiliser les <strong>archétypes autorisés</strong> ci-dessous.</li>
             <li>Les cartes génériques sont rangées sous <strong>Staples</strong> ou <strong>Staples compatibles</strong>.</li>
             <li>Les supports officiellement liés peuvent apparaître dans une section <strong>Support lié</strong>.</li>
+            <li>Les cartes annoncées avant Halloween sont préchargées : elles sont visibles immédiatement mais ne deviennent <strong>légales qu’à leur date de sortie TCG européenne</strong>.</li>
         </ul>
     </article>
     <article class="format-panel halloween-panel">

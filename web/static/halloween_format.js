@@ -205,6 +205,50 @@
     return true;
   };
 
+  const releaseReached = (dateText) => {
+    if (!dateText) return true;
+    const release = new Date(`${dateText}T00:00:00`);
+    const now = new Date();
+    return Number.isNaN(release.getTime()) ? true : now >= release;
+  };
+
+  const previewCard = async (entry) => {
+    const meta = typeof entry === "string" ? {name: entry} : (entry || {});
+    if (!meta.name) return null;
+    const resolved = await fetchByName(meta.name);
+    const card = resolved ? {...resolved} : {
+      id: `preview:${normalize(meta.name)}`,
+      name: meta.name,
+      type: "Carte annoncée",
+      desc: `Carte annoncée pour ${meta.set || "une prochaine extension TCG"}.`,
+      card_images: [],
+      misc_info: [{formats: ["TCG-preview"]}],
+    };
+    card._halloween_preview = true;
+    card._halloween_release_date = meta.release_date || "";
+    card._halloween_set = meta.set || "";
+    card._halloween_release_reached = releaseReached(meta.release_date);
+    return card;
+  };
+
+  const fetchPreviewList = async (entries) => uniqueCards(await Promise.all((entries || []).map(previewCard)));
+
+  const fetchPreviewArchetypes = async (entries) => {
+    const chunks = await Promise.all((entries || []).map(async (entry) => {
+      const meta = typeof entry === "string" ? {archetype: entry} : (entry || {});
+      if (!meta.archetype) return [];
+      const cards = await fetchByArchetype(meta.archetype);
+      return cards.map((source) => ({
+        ...source,
+        _halloween_preview: true,
+        _halloween_release_date: meta.release_date || "",
+        _halloween_set: meta.set || "",
+        _halloween_release_reached: releaseReached(meta.release_date),
+      }));
+    }));
+    return uniqueCards(chunks.flat());
+  };
+
   const overrideForDeck = (deckName, cardName) => {
     const entries = config.overrides?.[deckName] || [];
     return entries.find((entry) => normalize(entry.card) === normalize(cardName)) || null;
@@ -223,6 +267,10 @@
   };
 
   const permissionFor = (deckName, card) => {
+    if (card?._halloween_preview && !card?._halloween_release_reached) {
+      const date = card._halloween_release_date ? new Date(`${card._halloween_release_date}T00:00:00`).toLocaleDateString("fr-FR") : "bientôt";
+      return {limit: 3, special: true, previewLocked: true, label: `Dès ${date}`};
+    }
     const globallyBanned = new Set((config.global_bans || []).map(normalize));
     if (globallyBanned.has(normalize(card.name))) {
       return {limit: 0, special: true, globalBan: true, label: "INTERDITE"};
@@ -278,6 +326,9 @@
     const stapleArchetypeChunks = await Promise.all((rule.staple_archetypes || []).map(fetchByArchetype));
     const stapleArchetypeCards = uniqueCards(stapleArchetypeChunks.flat()).filter(isTCGCard);
     const staples = applyRuleExclusions(rule, [...stapleArchetypeCards, ...(await fetchExactList(rule.staples || []))]);
+    const preview = applyRuleExclusions(rule, await fetchPreviewList(rule.preview_exact || []));
+    const previewRelated = applyRuleExclusions(rule, await fetchPreviewList(rule.related_preview_exact || []));
+    const previewArchetypes = applyRuleExclusions(rule, await fetchPreviewArchetypes(rule.preview_archetypes || []));
 
     const makeGroup = (key, title, cards) => {
       const decorated = cards
@@ -294,6 +345,8 @@
         makeGroup("extra", rule.extra_title || "Extra Deck", extra),
         makeGroup("support", rule.support_title || "Support", support),
         makeGroup("related", rule.related_title || "Related / Support lié", related),
+        makeGroup("preview", "Annoncées / sortie TCG 2026", [...preview, ...previewArchetypes]),
+        makeGroup("preview-related", "Support annoncé lié", previewRelated),
         makeGroup("staples", "Staples compatibles", staples),
       ].filter(Boolean),
     };
@@ -325,8 +378,9 @@
           <div class="halloween-card-gallery">
             ${cards.map(({card, permission}) => {
               const image = card.card_images?.[0]?.image_url_small || card.card_images?.[0]?.image_url || "";
-              const specialClass = permission.contextOnly ? "is-context" : permission.special ? "is-special" : "";
+              const specialClass = permission.previewLocked ? "is-preview" : permission.contextOnly ? "is-context" : permission.special ? "is-special" : "";
               const users = permission.users?.length ? ` · ${permission.users.join(", ")}` : "";
+              const releaseInfo = card._halloween_preview ? `<small class="halloween-preview-info">${card._halloween_set || "Sortie TCG annoncée"}${card._halloween_release_date ? ` · ${new Date(`${card._halloween_release_date}T00:00:00`).toLocaleDateString("fr-FR")}` : ""}</small>` : "";
               return `
                 <button type="button" class="halloween-card-tile" data-card-id="${card.id || ""}" data-card-name="${card.name.replaceAll('"', '&quot;')}" data-group-kind="${group.key}">
                   <span class="halloween-card-image">
@@ -335,6 +389,7 @@
                   </span>
                   <strong>${card.name}</strong>
                   <small>${card.type || ""}</small>
+                  ${releaseInfo}
                 </button>`;
             }).join("")}
           </div>

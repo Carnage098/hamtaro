@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% block title %}Format Boss · Hamtaro{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="/static/boss.css?v=20260818-5">
+
+<section class="boss-page">
+    <div class="boss-backdrop" aria-hidden="true"></div>
+
+    <div class="boss-content">
+        <header class="boss-hero boss-glass">
+            <div>
+                <p class="boss-kicker">FORMAT COMMUNAUTAIRE · HAMTARO</p>
+                <h1>👑 FORMAT BOSS</h1>
+                <p class="boss-subtitle">
+                    Un joueur tient le trône. Les challengers s'inscrivent et
+                    l'affrontent dans l'ordre du programme jusqu'à ce que
+                    quelqu'un fasse tomber le Boss. Et rebelote.
+                </p>
+
+                <div
+                    class="boss-soundtrack"
+                    data-boss-soundtrack
+                    data-video-id="iyGoea560lU"
+                >
+                    <div class="boss-soundtrack-head">
+                        <div>
+                            <small>🎵 MUSIQUE DU BOSS</small>
+                            <strong>Red Wolf of Radagon</strong>
+                        </div>
+                        <button
+                            class="boss-music-toggle"
+                            type="button"
+                            data-boss-music-toggle
+                            aria-pressed="false"
+                        >
+                            ▶ Activer la musique
+                        </button>
+                    </div>
+
+                    <div class="boss-volume-row">
+                        <span>🔊</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value="35"
+                            step="1"
+                            data-boss-music-volume
+                            aria-label="Volume de la musique du Boss"
+                        >
+                    </div>
+
+                    <small
+                        class="boss-music-status"
+                        data-boss-music-status
+                    >
+                        La lecture démarre seulement après ton clic.
+                    </small>
+
+                    <div
+                        class="boss-youtube-wrap"
+                        data-boss-youtube-wrap
+                        hidden
+                    >
+                        <div
+                            class="boss-youtube-player"
+                            data-boss-youtube-player
+                        ></div>
+                    </div>
+                </div>
+
+            </div>
+
+
+            <div class="boss-hero-side">
+                <div class="boss-model-card">
+                    <div class="boss-model-crown" aria-hidden="true">👑</div>
+
+                    {% if radagon_model_url %}
+                    <div class="boss-model-stage">
+                        <model-viewer
+                            class="boss-model-viewer"
+                            src="{{ radagon_model_url }}"
+                            alt="Modèle 3D du Boss Radagon"
+                            camera-controls
+                            auto-rotate
+                            rotation-per-second="18deg"
+                            shadow-intensity="1"
+                            exposure="1.05"
+                            interaction-prompt="none"
+                            loading="lazy"
+                        ></model-viewer>
+                    </div>
+                    <div class="boss-model-caption">
+                        <small>VIEWER 3D</small>
+                        <strong>Radagon</strong>
+                    </div>
+                    {% else %}
+                    <div class="boss-model-unavailable">
+                        <span class="boss-model-unavailable-icon">👑</span>
+                        <strong>Viewer 3D indisponible</strong>
+                        <small>Le modèle de Radagon sera ajouté prochainement.</small>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="boss-identity">
+                {% if state.boss_id %}
+                <span class="boss-crown">👑</span>
+                <small>BOSS ACTUEL</small>
+                <strong>{{ state.boss_name or state.boss_id }}</strong>
+                <span>
+                    {{ state.wins_current }} victoire(s) · semaine {{ state.week_number }}
+                </span>
+                {% if state.successor_id %}
+                <div class="boss-fallen">
+                    💀 Boss tombé · prochain Boss :
+                    {{ state.successor_name or state.successor_id }}
+                </div>
+                {% endif %}
+                {% else %}
+                <span class="boss-crown">👑</span>
+                <strong>Trône vacant</strong>
+                <span>Le staff doit définir le premier Boss.</span>
+                {% endif %}
+                </div>
+            </div>
+        </header>
+
+        {% if saved %}
+        <div class="boss-flash boss-flash-ok">
+            ✅ Modification enregistrée.
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="boss-flash boss-flash-error">
+            ❌ {{ error }}
+        </div>
+        {% endif %}
+
+        <section class="boss-grid boss-grid-main">
+            <article class="boss-glass boss-panel">
+                <div class="boss-panel-title">
+                    <div>
+                        <p class="boss-kicker">CHALLENGERS</p>
+                        <h2>⚔️ S'inscrire contre le Boss</h2>
+                    </div>
+
+                    <span class="boss-pill {% if state.registrations_open %}is-open{% endif %}">
+                        {% if state.registrations_open %}OUVERT{% else %}FERMÉ{% endif %}
+                    </span>
+                </div>
+
+                {% if user %}
+                <div class="boss-session">
+                    Connecté : <strong>{{ user.username }}</strong>
+                    <a href="/formats/boss/logout">Déconnexion</a>
+                </div>
+
+                {% if state.registrations_open and not is_registered and state.status != "defeated" %}
+                <form method="post" action="/formats/boss/register">
+                    <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                    <button class="boss-button boss-button-primary" type="submit">
+                        ⚔️ M'inscrire pour affronter le Boss
+                    </button>
+                </form>
+
+                {% elif is_registered %}
+                <p class="boss-registered">
+                    ✅ Tu es inscrit dans la file de cette semaine.
+                </p>
+
+                <form method="post" action="/formats/boss/unregister">
+                    <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                    <button class="boss-button boss-button-ghost" type="submit">
+                        Me désinscrire
+                    </button>
+                </form>
+
+                {% elif state.status == "defeated" %}
+                <p>
+                    Le Boss est déjà tombé. Les nouvelles inscriptions ouvriront
+                    avec la prochaine semaine.
+                </p>
+
+                {% else %}
+                <p>Les inscriptions sont actuellement fermées.</p>
+                {% endif %}
+
+                {% else %}
+                <p>
+                    Connecte ton compte Discord pour que Hamtaro sache exactement
+                    quel joueur rejoint la file.
+                </p>
+
+                <a class="boss-button boss-button-primary" href="/formats/boss/login">
+                    Discord · Se connecter
+                </a>
+                {% endif %}
+
+                <div class="boss-rules-mini">
+                    <span>1. Inscription</span>
+                    <span>2. Programme du staff</span>
+                    <span>3. Duel en BO3 · premier à 2 manches</span>
+                    <span>4. Le vainqueur prend le trône la semaine suivante</span>
+                </div>
+            </article>
+
+            <article class="boss-glass boss-panel">
+                <p class="boss-kicker">RÈGNE EN COURS</p>
+                <h2>🔥 État du trône</h2>
+
+                <div class="boss-stat-grid">
+                    <div>
+                        <strong>{{ state.wins_current }}</strong>
+                        <span>Victoires</span>
+                    </div>
+
+                    <div>
+                        <strong>{{ challengers|length }}</strong>
+                        <span>Challengers</span>
+                    </div>
+
+                    <div>
+                        <strong>#{{ state.week_number }}</strong>
+                        <span>Semaine</span>
+                    </div>
+
+                    <div>
+                        <strong>
+                            {% if state.status == "defeated" %}
+                            TOMBÉ
+                            {% elif state.boss_id %}
+                            ACTIF
+                            {% else %}
+                            VIDE
+                            {% endif %}
+                        </strong>
+                        <span>Statut</span>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="boss-glass boss-panel boss-program">
+            <div class="boss-panel-title">
+                <div>
+                    <p class="boss-kicker">PROGRAMME LIVE</p>
+                    <h2>📅 Ordre des duels</h2>
+                </div>
+
+                <div class="boss-program-badges">
+                    <span class="boss-bo3-pill">⚔️ BO3 · 2 manches gagnantes</span>
+                    {% if is_staff %}
+                    <span class="boss-pill boss-pill-staff">
+                        MODE STAFF
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if challengers %}
+            <div
+                class="boss-program-list"
+                {% if is_staff and user %}
+                data-boss-sortable="1"
+                data-csrf="{{ user.csrf }}"
+                data-reorder-url="/formats/boss/staff/reorder"
+                {% endif %}
+            >
+                {% for row in challengers %}
+                <div
+                    class="boss-program-row status-{{ row.status }}"
+                    data-challenger-id="{{ row.id }}"
+                    {% if is_staff and user and row.status not in ["defeated", "boss_killer"] %}
+                    draggable="true"
+                    {% endif %}
+                >
+                    {% if is_staff and user and row.status not in ["defeated", "boss_killer"] %}
+                    <button
+                        class="boss-drag-handle"
+                        type="button"
+                        aria-label="Déplacer {{ row.username }}"
+                        title="Glisser pour changer l'ordre"
+                    >⋮⋮</button>
+                    {% endif %}
+
+                    <div class="boss-program-rank" data-boss-rank>
+                        #{{ row.position }}
+                    </div>
+
+                    <div class="boss-program-player">
+                        <div class="boss-program-player-title">
+                            <strong>{{ row.username }}</strong>
+                            <span class="boss-match-format">BO3</span>
+                        </div>
+                        <small>
+                            {% if row.status == "defeated" %}
+                            ✅ battu par le Boss
+                            {% elif row.status == "boss_killer" %}
+                            💀 a fait tomber le Boss
+                            {% elif row.scheduled_at %}
+                            🗓️ {{ row.scheduled_at }}
+                            {% else %}
+                            ⏳ en attente de programmation
+                            {% endif %}
+                        </small>
+                    </div>
+
+                    {% if is_staff and user and row.status not in ["defeated", "boss_killer"] %}
+                    <div class="boss-staff-actions">
+                        <form method="post" action="/formats/boss/staff/move">
+                            <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                            <input type="hidden" name="challenger_id" value="{{ row.id }}">
+                            <input
+                                type="number"
+                                min="1"
+                                max="200"
+                                name="position"
+                                value="{{ row.position }}"
+                                aria-label="Nouvelle position"
+                            >
+                            <button type="submit">Déplacer</button>
+                        </form>
+
+                        <form method="post" action="/formats/boss/staff/schedule">
+                            <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                            <input type="hidden" name="challenger_id" value="{{ row.id }}">
+                            <input
+                                type="text"
+                                name="scheduled_at"
+                                value="{{ row.scheduled_at or '' }}"
+                                placeholder="Vendredi 20h30"
+                                maxlength="120"
+                                aria-label="Horaire du duel"
+                            >
+                            <button type="submit">Horaire</button>
+                        </form>
+
+                        <form method="post" action="/formats/boss/staff/remove">
+                            <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                            <input type="hidden" name="challenger_id" value="{{ row.id }}">
+                            <button class="danger" type="submit">
+                                Retirer
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if is_staff and user %}
+            <div
+                class="boss-drag-status"
+                data-boss-drag-status
+                aria-live="polite"
+            >
+                ↕️ Mode staff : fais glisser un challenger pour changer l'ordre.
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div class="boss-empty">
+                Aucun challenger pour le moment.
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="boss-grid">
+            <article class="boss-glass boss-panel">
+                <p class="boss-kicker">RÈGLES</p>
+                <h2>👑 Comment fonctionne le Boss ?</h2>
+
+                <ol class="boss-rules">
+                    <li>Le staff désigne un Boss avec <code>/boss set</code>.</li>
+                    <li>
+                        Les joueurs s'inscrivent eux-mêmes sur le site
+                        ou avec <code>/boss inscription</code>.
+                    </li>
+                    <li>Le staff choisit l'ordre et les horaires des duels.</li>
+                    <li>
+                        Tous les matchs Boss se jouent en <strong>BO3</strong> :
+                        le premier joueur à gagner <strong>2 manches</strong> remporte le match.
+                    </li>
+                    <li>Chaque victoire prolonge la série du Boss.</li>
+                    <li>
+                        Le premier challenger qui le bat devient son successeur.
+                    </li>
+                    <li>
+                        Le successeur prend officiellement le trône
+                        avec la semaine suivante.
+                    </li>
+                </ol>
+            </article>
+
+            <article class="boss-glass boss-panel">
+                <p class="boss-kicker">HALL OF BOSSES</p>
+                <h2>🏆 Anciens règnes</h2>
+
+                {% if history %}
+                <div class="boss-history">
+                    {% for reign in history %}
+                    <div>
+                        <strong>{{ reign.boss_name }}</strong>
+                        <span>{{ reign.wins }} victoire(s)</span>
+
+                        {% if reign.defeated_by_name %}
+                        <small>
+                            Détrôné par {{ reign.defeated_by_name }}
+                        </small>
+                        {% elif reign.ended_at %}
+                        <small>Règne terminé</small>
+                        {% else %}
+                        <small>Règne actuel</small>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% else %}
+                <p>L'histoire du trône commence ici.</p>
+                {% endif %}
+            </article>
+        </section>
+
+        <section class="boss-glass boss-panel boss-command-help">
+            <p class="boss-kicker">COMMANDES PRINCIPALES</p>
+            <h2>🤖 Contrôle Discord</h2>
+
+            <div class="boss-command-grid">
+                <code>/boss status</code>
+                <code>/boss inscription</code>
+                <code>/boss programme</code>
+                <code>/boss set</code>
+                <code>/boss inscriptions</code>
+                <code>/boss planifier</code>
+                <code>/boss move</code>
+                <code>/boss swap</code>
+                <code>/boss resultat</code>
+                <code>/boss publier</code>
+                <code>/boss salon</code>
+                <code>/boss next_week</code>
+            </div>
+        </section>
+    </div>
+</section>
+
+{% if radagon_model_url %}
+<script
+    type="module"
+    src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.3.1/model-viewer.min.js"
+></script>
+{% endif %}
+<script src="/static/boss.js?v=20260819-6" defer></script>
+<script src="/static/boss_media.js?v=20260819-6" defer></script>
+{% endblock %}
