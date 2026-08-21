@@ -79,7 +79,7 @@ body.halloween-modal-open{overflow:hidden}
 @media(max-width:700px){.halloween-candy-rules{grid-template-columns:1fr}}
 /* ===== /HAMTARO HALLOWEEN V4 FINAL ===== */
 
-/* Halloween V5 — sorties annoncées 2026 */
+/* Halloween V6 — Clown Crew + supports annoncés 2026 */
 .halloween-release-badge { display:inline-flex; align-items:center; width:max-content; margin-top:.25rem; padding:.16rem .42rem; border:1px solid currentColor; border-radius:999px; font-size:.68rem; font-weight:800; letter-spacing:.02em; opacity:.9; }
 .halloween-card-limit.is-preview { border-style:dashed; }
 .halloween-preview-info { display:block; opacity:.72; margin-top:.18rem; }
