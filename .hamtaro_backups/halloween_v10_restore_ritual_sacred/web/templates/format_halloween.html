@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}Format Halloween · Hamtaro{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/halloween_format.css">
+
+<section class="format-hero halloween-hero">
+    <div class="format-title-row">
+        <div>
+            <p class="format-kicker">FORMAT FÊTE · WHITELIST OFFICIELLE</p>
+            <h1>🎃 Format Halloween</h1>
+            <p>{{ format_data.description }}</p>
+        </div>
+        <div class="format-version-box halloween-version">
+            <strong>v{{ format_data.format_version }}</strong>
+            <small>Hamtaro Halloween</small>
+        </div>
+    </div>
+    <div class="format-pills">
+        <span>40–60 Main</span>
+        <span>Extra ≤ 15</span>
+        <span>Whitelist obligatoire</span>
+        <span>Staples séparées</span>
+        <span>Banlist Halloween</span>
+    </div>
+</section>
+
+<nav class="format-jump-nav halloween-nav" aria-label="Sections du Format Halloween">
+    <a href="#tierlist">Tier list</a>
+    <a href="#regles">Règles</a>
+    <a href="#whitelist">Whitelist</a>
+    <a href="#cards">Cartes autorisées</a>
+    <a href="#staples">Staples</a>
+    <a href="#banlist">Banlist Halloween</a>
+    <a href="#bonbons-sorts">Bonbons & Sorts</a>
+</nav>
+
+<section id="tierlist" class="format-panel halloween-panel">
+    <div class="format-section-heading">
+        <div>
+            <p class="format-kicker">CLASSEMENT OFFICIEL · MODULABLE LOCALEMENT</p>
+            <h2>Tier list du Format Halloween</h2>
+            <p class="format-muted">
+                Glisse les decks entre les tiers pour faire ta propre version. Rien n'est sauvegardé :
+                quitter ou recharger la page remet automatiquement la tier list officielle.
+            </p>
+        </div>
+        <div class="halloween-tier-actions">
+            <button class="format-button halloween-tier-export" id="halloween-tier-export" type="button">📸 Enregistrer en PNG</button>
+            <button class="format-button" id="halloween-tier-reset" type="button">Réinitialiser</button>
+        </div>
+    </div>
+
+    <div class="halloween-tier-mobile-tools">
+        <span id="halloween-selected-deck">Aucun deck sélectionné</span>
+        <select id="halloween-tier-target" aria-label="Tier de destination">
+            <option value="S">S</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="B-">B-</option>
+            <option value="C+">C+</option>
+            <option value="STAPLE">Staple</option>
+            <option value="C">C</option>
+            <option value="D">D</option>
+        </select>
+        <button class="format-button" id="halloween-tier-move" type="button">Déplacer</button>
+    </div>
+
+    <div class="halloween-live-tier-board" id="halloween-live-tier-board">
+        {% for tier in format_data.tiers %}
+        <section class="halloween-live-tier-row" data-tier-row="{{ tier.id }}">
+            <div class="halloween-live-tier-label tier-label-{{ tier.id|replace('+', 'plus')|replace('-', 'minus') }}">{{ tier.label }}</div>
+            <div class="halloween-live-tier-dropzone" data-tier-dropzone="{{ tier.id }}">
+                {% for deck in tier.entries %}
+                <button class="halloween-live-tier-tile" type="button" draggable="true"
+                        data-deck-name="{{ deck.name }}" data-original-tier="{{ tier.id }}">
+                    <span class="halloween-live-tier-art">
+                        <img src="{{ deck.image_url }}" alt="Artwork {{ deck.name }}" loading="lazy" decoding="async">
+                    </span>
+                    <strong>{{ deck.name }}</strong>
+                    {% if deck.release_label %}<span class="halloween-release-badge" title="{{ deck.release_set }} · {{ deck.release_date }}">{{ deck.release_label }}</span>{% endif %}
+                </button>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+        <section class="halloween-live-tier-row" data-tier-row="STAPLE">
+            <div class="halloween-live-tier-label tier-label-staple">Staple</div>
+            <div class="halloween-live-tier-dropzone" data-tier-dropzone="STAPLE">
+                {% for deck in format_data.staples %}
+                <button class="halloween-live-tier-tile" type="button" draggable="true"
+                        data-deck-name="{{ deck.name }}" data-original-tier="STAPLE">
+                    <span class="halloween-live-tier-art">
+                        <img src="{{ deck.image_url }}" alt="Artwork {{ deck.name }}" loading="lazy" decoding="async">
+                    </span>
+                    <strong>{{ deck.name }}</strong>
+                    {% if deck.release_label %}<span class="halloween-release-badge" title="{{ deck.release_set }} · {{ deck.release_date }}">{{ deck.release_label }}</span>{% endif %}
+                </button>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+</section>
+
+<section id="regles" class="format-rules-grid">
+    <article class="format-panel halloween-panel">
+        <h2>Whitelist</h2>
+        <ul>
+            <li>Le deck doit utiliser les <strong>archétypes autorisés</strong> ci-dessous.</li>
+            <li>Les cartes génériques sont rangées sous <strong>Staples</strong> ou <strong>Staples compatibles</strong>.</li>
+            <li>Les supports officiellement liés peuvent apparaître dans une section <strong>Support lié</strong>.</li>
+            <li>Les cartes annoncées avant Halloween sont préchargées : elles sont visibles immédiatement mais ne deviennent <strong>légales qu’à leur date de sortie TCG européenne</strong>.</li>
+        </ul>
+    </article>
+    <article class="format-panel halloween-panel">
+        <h2>Banlist spéciale</h2>
+        <ul>
+            <li>La <strong>banlist TCG</strong> reste la base.</li>
+            <li>Les exceptions Halloween affichées ici ont <strong>priorité</strong>.</li>
+            <li>Les cartes génériques ne sont plus présentées comme si elles appartenaient à l'archétype.</li>
+        </ul>
+    </article>
+    <article class="format-panel halloween-panel">
+        <h2>Construction</h2>
+        <ul>
+            <li>Main Deck : <strong>40–60</strong>.</li>
+            <li>Extra Deck : <strong>0–15</strong>.</li>
+            <li>Side Deck Halloween : <strong>0–14 cartes normales + 1 Halloween Slot</strong>.</li>
+        </ul>
+    </article>
+</section>
+
+<section id="whitelist" class="format-panel halloween-panel">
+    <div class="format-section-heading">
+        <div>
+            <p class="format-kicker">POOL D'ARCHÉTYPES</p>
+            <h2>Whitelist officielle</h2>
+            <p class="format-muted">Phantom Beast a été retiré. Pumpking / Call of the Haunted est bien présent en C+.</p>
+        </div>
+        <div class="halloween-tools">
+            <input id="halloween-search" class="format-search" type="search" placeholder="Rechercher un deck..." autocomplete="off">
+            <a class="format-button format-button-link" href="/api/formats/halloween/whitelist.txt">Télécharger .txt</a>
+        </div>
+    </div>
+
+    <div class="halloween-tier-filter">
+        <button class="halloween-filter is-active" data-tier-filter="all" type="button">Tous</button>
+        {% for tier in format_data.tiers %}
+        <button class="halloween-filter" data-tier-filter="{{ tier.id }}" type="button">{{ tier.label }}</button>
+        {% endfor %}
+    </div>
+
+    <div id="halloween-whitelist">
+        {% for tier in format_data.tiers %}
+        <section class="halloween-tier-section" data-tier-section="{{ tier.id }}">
+            <div class="halloween-tier-heading">
+                <span class="halloween-tier-badge">{{ tier.label }}</span>
+                <strong>{{ tier.decks|length }} deck(s)</strong>
+            </div>
+            <div class="halloween-deck-grid">
+                {% for deck in tier.entries %}
+                <article class="halloween-deck-card" data-deck-name="{{ deck.name }}" data-deck-tier="{{ tier.id }}">
+                    <button class="halloween-deck-open" type="button" data-open-deck="{{ deck.name }}">
+                        <div class="halloween-deck-art">
+                            <img src="{{ deck.image_url }}" alt="Artwork {{ deck.name }}" loading="lazy" decoding="async">
+                            <span class="halloween-tier-corner">{{ tier.label }}</span>
+                        </div>
+                        <div class="halloween-deck-name">{{ deck.name }}</div>
+                    </button>
+                    {% if deck.overrides %}
+                    <span class="halloween-special-dot">🎃 {{ deck.overrides|length }} exception(s)</span>
+                    {% else %}
+                    <span class="halloween-normal-dot">TCG normal</span>
+                    {% endif %}
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+</section>
+
+<section id="cards" class="format-panel halloween-panel halloween-card-catalog">
+    <div class="format-section-heading">
+        <div>
+            <p class="format-kicker">GALERIE VÉRIFIÉE</p>
+            <h2>🃏 Cartes autorisées</h2>
+            <p class="format-muted">
+                Choisis un deck. Le cœur du deck, les supports liés et les staples compatibles sont séparés pour éviter les faux positifs.
+            </p>
+        </div>
+        <div class="halloween-card-tools">
+            <select id="halloween-card-deck-select" aria-label="Choisir un deck">
+                <option value="">— Choisir un deck ou un groupe de staples —</option>
+                {% for tier in format_data.tiers %}
+                    {% for deck in tier.entries %}<option value="{{ deck.name }}">{{ deck.name }}</option>{% endfor %}
+                {% endfor %}
+                {% for deck in format_data.staples %}<option value="{{ deck.name }}">Staple · {{ deck.name }}</option>{% endfor %}
+            </select>
+            <input id="halloween-card-search" class="format-search" type="search" placeholder="Rechercher une carte..." autocomplete="off">
+        </div>
+    </div>
+    <div id="halloween-card-note" class="halloween-card-note" hidden></div>
+    <div id="halloween-card-status" class="halloween-card-status">Choisis un deck pour afficher ses cartes.</div>
+    <div id="halloween-card-sections"></div>
+</section>
+
+<section id="staples" class="format-panel halloween-panel">
+    <div class="format-section-heading">
+        <div>
+            <p class="format-kicker">FAMILLES ET CARTES GÉNÉRIQUES</p>
+            <h2>Staples autorisées</h2>
+            <p class="format-muted">
+                Les cartes génériques — par exemple Dimension Shifter — sont rangées ici/« Staples compatibles », et non dans le cœur de Myutant.
+            </p>
+        </div>
+        <span class="halloween-chip">Génériques</span>
+    </div>
+    <div class="halloween-deck-grid">
+        {% for deck in format_data.staples %}
+        <article class="halloween-deck-card halloween-staple-card">
+            <button class="halloween-deck-open" type="button" data-open-deck="{{ deck.name }}">
+                <div class="halloween-deck-art">
+                    <img src="{{ deck.image_url }}" alt="Artwork {{ deck.name }}" loading="lazy" decoding="async">
+                    <span class="halloween-tier-corner">STAPLE</span>
+                </div>
+                <div class="halloween-deck-name">{{ deck.name }}</div>
+            </button>
+            <span class="halloween-normal-dot">Voir les cartes</span>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+
+<section id="banlist" class="format-panel halloween-panel">
+    <div class="format-section-heading">
+        <div>
+            <p class="format-kicker">PLUS PIMENTÉ QUE LE TCG</p>
+            <h2>Banlist Halloween spéciale</h2>
+        </div>
+        <a class="format-button format-button-link" href="/api/formats/halloween/banlist.txt">Télécharger .txt</a>
+    </div>
+    <div class="halloween-warning">
+        <strong>🎃 Des cartes interdites ont été réintroduites spécialement pour Halloween.</strong>
+        <span>Une carte absente de cette liste suit la banlist TCG normale.</span>
+    </div>
+    {% if format_data.global_bans %}
+    <div class="halloween-global-ban">
+        <strong>🚫 Interdite dans tout le Format Halloween</strong>
+        {% for card in format_data.global_bans %}<span>{{ card }} · x0</span>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="halloween-banlist-grid">
+        {% for deck, entries in format_data.banlist_overrides.items() %}
+        <details class="halloween-ban-card">
+            <summary><strong>{{ deck }}</strong><span>{{ entries|length }} modification(s)</span></summary>
+            <ul>
+                {% for entry in entries %}
+                <li><span>{{ entry.card }}</span><strong class="halloween-limit">x{{ entry.limit }}</strong></li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endfor %}
+    </div>
+</section>
+
+<section id="bonbons-sorts" class="format-panel halloween-panel">
+    <div class="format-section-heading"><div><p class="format-kicker">RÈGLE OFFICIELLE DU TOURNOI HALLOWEEN</p><h2>🍬 Bonbon ou 🪄 Sort ?</h2></div><span class="halloween-chip">1 slot dynamique</span></div>
+    <div class="halloween-candy-rules">
+        <article><strong>1 · À l'inscription</strong><span>Tu déclares <b>1 Bonbon</b> et <b>1 Sort</b> avec <code>/register</code>.</span></article>
+        <article><strong>2 · Ton Side normal</strong><span>Tu prépares au maximum <b>14 cartes</b>. La 15e place est le Halloween Slot.</span></article>
+        <article><strong>3 · Avant chaque BO3</strong><span>Chacun fait <code>/halloween offer</code> sur son adversaire. Il choisit uniquement <b>Bonbon</b> ou <b>Sort</b>.</span></article>
+        <article><strong>4 · La carte révélée</strong><span>La carte pré-déclarée de cette catégorie devient ta <b>15e carte de Side pour ce BO3</b> et se side entre les games.</span></article>
+    </div>
+    <div class="halloween-warning"><strong>🎭 Le bluff</strong><span>L'adversaire choisit la catégorie sans connaître la carte. Les deux cartes ont été déclarées à l'avance et le staff peut les vérifier avec <code>/halloween roster</code>.</span></div>
+    <div class="halloween-choice-grid">
+        <article class="halloween-choice-panel"><h3>🍬 Bonbons</h3><p>Cartes plutôt avantageuses / polyvalentes.</p><div class="halloween-choice-list" data-choice-group="candy">{% for card in format_data.candies %}<button type="button" class="halloween-choice" data-choice="{{ card }}">{{ card }}</button>{% endfor %}</div></article>
+        <article class="halloween-choice-panel"><h3>🪄 Sorts</h3><p>Cartes plus agressives, perturbatrices ou risquées.</p><div class="halloween-choice-list" data-choice-group="spell">{% for card in format_data.spells %}<button type="button" class="halloween-choice" data-choice="{{ card }}">{{ card }}</button>{% endfor %}</div></article>
+    </div>
+    <p class="format-muted halloween-choice-hint">Le site simule les choix. En tournoi, le choix officiel est enregistré par Discord avec <code>/register</code> ou <code>/halloween set_choices</code>.</p>
+    <div class="halloween-selection-summary"><div><small>Bonbon simulé</small><strong id="halloween-candy-choice">Aucun</strong></div><div><small>Sort simulé</small><strong id="halloween-spell-choice">Aucun</strong></div><button id="halloween-copy-choice" class="format-button" type="button">Copier mes choix</button></div>
+</section>
+
+<div class="halloween-card-modal" id="halloween-card-modal" hidden aria-hidden="true">
+    <button class="halloween-card-modal-backdrop" type="button" data-close-card-modal aria-label="Fermer"></button>
+    <article class="halloween-card-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="halloween-card-modal-name">
+        <button class="halloween-card-modal-close" type="button" data-close-card-modal aria-label="Fermer">×</button>
+        <div class="halloween-card-modal-image"><img id="halloween-card-modal-image" alt=""></div>
+        <div class="halloween-card-modal-body">
+            <div class="halloween-card-modal-head">
+                <div>
+                    <small id="halloween-card-modal-kind"></small>
+                    <h2 id="halloween-card-modal-name"></h2>
+                </div>
+                <span id="halloween-card-modal-limit" class="halloween-card-limit"></span>
+            </div>
+            <p id="halloween-card-modal-type" class="format-muted"></p>
+            <div id="halloween-card-modal-desc" class="halloween-card-effect"></div>
+            <a id="halloween-card-modal-link" class="format-button format-button-link" href="#" target="_blank" rel="noopener noreferrer">Voir la carte et ses effets sur Neuron ↗</a>
+        </div>
+    </article>
+</div>
+
+<script id="halloween-card-data" type="application/json">{{ format_data.card_catalog_json|safe }}</script>
+<script src="/static/halloween_format.js" defer></script>
+{% endblock %}
