@@ -39,3 +39,81 @@
 .halloween-selection-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;gap:.8rem;align-items:end;margin-top:1rem;padding:1rem;border-radius:15px;background:rgba(0,0,0,.16)}
 .halloween-selection-summary div{display:grid;gap:.18rem}.halloween-selection-summary small{opacity:.58;font-size:.68rem;text-transform:uppercase;font-weight:850}.halloween-selection-summary strong{font-size:.9rem}
 @media(max-width:760px){.halloween-deck-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.halloween-choice-grid,.halloween-selection-summary{grid-template-columns:1fr}.halloween-tierlist-image{min-width:680px}}
+
+/* HAMTARO_HALLOWEEN_INTERACTIVE_V13:START */
+.halloween-live-tier-toolbar{
+  display:flex;justify-content:space-between;gap:1rem;align-items:center;
+  padding:1rem;margin-bottom:.8rem;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.halloween-live-tier-toolbar>div:first-child{display:grid;gap:.2rem}
+.halloween-live-tier-toolbar small{opacity:.68;max-width:760px}
+.halloween-live-tier-actions{display:flex;flex-wrap:wrap;gap:.45rem}
+.halloween-live-tier-actions select,.halloween-live-tier-actions button,
+.halloween-card-catalog-tools select{
+  border:1px solid rgba(255,255,255,.12);border-radius:9px;
+  background:rgba(255,255,255,.055);color:inherit;padding:.52rem .66rem;font:inherit;
+}
+.halloween-live-tier-actions button{cursor:pointer;font-weight:800}
+.halloween-live-tier-board{display:grid;gap:2px;background:#111}
+.halloween-live-tier-row{display:grid;grid-template-columns:92px 1fr;min-height:112px}
+.halloween-live-tier-label{
+  display:grid;place-items:center;color:#111;font-weight:1000;font-size:1.15rem;cursor:pointer;
+}
+.halloween-live-tier-row.is-s .halloween-live-tier-label{background:#ff7f83}
+.halloween-live-tier-row.is-a .halloween-live-tier-label{background:#fdbb79}
+.halloween-live-tier-row.is-b .halloween-live-tier-label{background:#ffdc7f}
+.halloween-live-tier-row.is-bminus .halloween-live-tier-label{background:#fff17a}
+.halloween-live-tier-row.is-cplus .halloween-live-tier-label{background:#f6e978}
+.halloween-live-tier-row.is-staple .halloween-live-tier-label{background:#fff278}
+.halloween-live-tier-row.is-c .halloween-live-tier-label{background:#f4e87d}
+.halloween-live-tier-row.is-d .halloween-live-tier-label{background:#adf56f}
+.halloween-live-tier-dropzone{
+  display:flex;flex-wrap:wrap;align-content:flex-start;gap:.45rem;padding:.5rem;
+  background:#1a1a1a;min-width:0;transition:background .12s ease;
+}
+.halloween-live-tier-dropzone.is-over{background:rgba(255,129,50,.14)}
+.halloween-live-tier-tile{
+  width:112px;overflow:hidden;padding:0;border:1px solid rgba(255,255,255,.12);
+  border-radius:8px;background:#222;color:#fff;cursor:grab;text-align:left;
+}
+.halloween-live-tier-tile:active{cursor:grabbing}
+.halloween-live-tier-tile.is-dragging{opacity:.42}
+.halloween-live-tier-tile.is-selected{outline:3px solid rgba(255,136,49,.85);outline-offset:1px}
+.halloween-live-tier-art{display:block;width:100%;aspect-ratio:4/3;background:#0d0d0d;overflow:hidden}
+.halloween-live-tier-art img{width:100%;height:100%;display:block;object-fit:cover}
+.halloween-live-tier-tile strong{
+  display:block;padding:.38rem .42rem .45rem;font-size:.68rem;line-height:1.12;overflow-wrap:anywhere;
+}
+.halloween-card-catalog{scroll-margin-top:1rem}
+.halloween-card-catalog-tools{display:flex;flex-wrap:wrap;gap:.55rem;align-items:center}
+.halloween-card-catalog-tools select{min-width:220px}
+.halloween-card-catalog-status{
+  margin:.8rem 0;padding:.65rem .8rem;border-radius:10px;background:rgba(255,255,255,.035);
+  color:rgba(255,255,255,.7);font-size:.8rem;
+}
+.halloween-card-gallery{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:.8rem;
+}
+.halloween-allowed-card{
+  min-width:0;overflow:hidden;border:1px solid rgba(255,255,255,.095);
+  border-radius:12px;background:rgba(255,255,255,.035);
+}
+.halloween-allowed-card-image{position:relative;aspect-ratio:177/254;background:#111;overflow:hidden}
+.halloween-allowed-card-image img{display:block;width:100%;height:100%;object-fit:cover}
+.halloween-card-limit{
+  position:absolute;right:.38rem;bottom:.38rem;padding:.28rem .42rem;border-radius:7px;
+  background:rgba(7,7,9,.88);border:1px solid rgba(255,255,255,.2);font-size:.64rem;font-weight:950;
+}
+.halloween-card-limit.is-special{background:rgba(153,61,17,.94);color:#ffd5b6}
+.halloween-allowed-card>strong{display:block;padding:.55rem .55rem .16rem;font-size:.76rem;line-height:1.18}
+.halloween-allowed-card>small{display:block;padding:0 .55rem .58rem;opacity:.52;font-size:.62rem}
+@media(max-width:760px){
+  .halloween-live-tier-toolbar{align-items:stretch;flex-direction:column}
+  .halloween-live-tier-row{grid-template-columns:58px 1fr}
+  .halloween-live-tier-tile{width:92px}
+  .halloween-card-gallery{grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem}
+}
+@media(max-width:480px){
+  .halloween-card-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+/* HAMTARO_HALLOWEEN_INTERACTIVE_V13:END */
