@@ -748,4 +748,48 @@
     if (event.key === "Escape" && modal && !modal.hidden) closeModal();
   });
 
+  // ------------------------------------------------------------
+  // Bonbons & Sorts (kept as before)
+  // ------------------------------------------------------------
+  const choiceState = {
+    candy: localStorage.getItem("hamtaroHalloweenCandy") || "",
+    spell: localStorage.getItem("hamtaroHalloweenSpell") || "",
+  };
+
+  const renderChoices = () => {
+    document.querySelectorAll("[data-choice-group]").forEach((group) => {
+      const key = group.dataset.choiceGroup;
+      group.querySelectorAll(".halloween-choice").forEach((button) => button.classList.toggle("is-selected", button.dataset.choice === choiceState[key]));
+    });
+    const candy = document.getElementById("halloween-candy-choice");
+    const spell = document.getElementById("halloween-spell-choice");
+    if (candy) candy.textContent = choiceState.candy || "Aucun";
+    if (spell) spell.textContent = choiceState.spell || "Aucun";
+  };
+
+  document.querySelectorAll("[data-choice-group]").forEach((group) => {
+    group.addEventListener("click", (event) => {
+      const button = event.target.closest(".halloween-choice");
+      if (!button) return;
+      const key = group.dataset.choiceGroup;
+      choiceState[key] = button.dataset.choice || "";
+      localStorage.setItem(key === "candy" ? "hamtaroHalloweenCandy" : "hamtaroHalloweenSpell", choiceState[key]);
+      renderChoices();
+    });
+  });
+
+  document.getElementById("halloween-copy-choice")?.addEventListener("click", async (event) => {
+    const text = `Format Halloween — Bonbon : ${choiceState.candy || "non choisi"} | Sort : ${choiceState.spell || "non choisi"}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      const button = event.currentTarget;
+      const original = button.textContent;
+      button.textContent = "✅ Choix copiés";
+      setTimeout(() => { button.textContent = original; }, 1500);
+    } catch (_) {
+      window.prompt("Copie tes choix :", text);
+    }
+  });
+
+  renderChoices();
 })();
