@@ -167,7 +167,15 @@
 
   const isTCGCard = (card) => {
     const formats = card?.misc_info?.[0]?.formats;
-    return !Array.isArray(formats) || !formats.length || formats.includes("TCG");
+    if (Array.isArray(formats) && formats.length) return formats.includes("TCG");
+
+    const sets = Array.isArray(card?.card_sets) ? card.card_sets : [];
+    if (sets.length) {
+      return sets.some((set) => /-(?:EN|FR|DE|IT|PT|SP)\d/i.test(String(set?.set_code || "")));
+    }
+
+    // Some older records omit format metadata. The explicit per-deck exclusion list remains authoritative.
+    return true;
   };
 
   const overrideForDeck = (deckName, cardName) => {
@@ -211,42 +219,31 @@
     return uniqueCards(results).filter(isTCGCard);
   };
 
-  const isArchfiendByTreatmentText = (card) => {
-    const text = normalize(card?.desc || "");
-    return (
-      text.includes("always treated as an archfiend card") ||
-      text.includes("still treated as an archfiend card") ||
-      text.includes("treated as an archfiend card")
-    );
-  };
-
-  const fetchArchetypeList = async (archetypes, nameContains, includeArchfiendTreatedAs = false) => {
+  const fetchArchetypeList = async (archetypes, nameContains) => {
     const chunks = await Promise.all((archetypes || []).map(fetchByArchetype));
     let cards = uniqueCards(chunks.flat()).filter(isTCGCard);
-
     if (nameContains?.length) {
-      cards = cards.filter((card) =>
-        nameContains.some((needle) => normalize(card.name).includes(normalize(needle))) ||
-        (includeArchfiendTreatedAs && isArchfiendByTreatmentText(card))
-      );
+      cards = cards.filter((card) => nameContains.some((needle) => normalize(card.name).includes(normalize(needle))));
     }
-
     return cards;
+  };
+
+  const applyRuleExclusions = (rule, cards) => {
+    const excluded = new Set((rule.exclude_exact || []).map(normalize));
+    return uniqueCards(cards).filter((card) => !excluded.has(normalize(card.name)));
   };
 
   const loadCatalog = async (deckName) => {
     const rule = config.catalog?.[deckName];
     if (!rule) return {rule: {}, groups: []};
 
-    const archetypeCards = await fetchArchetypeList(
-      rule.archetypes || [],
-      rule.name_contains || [],
-      Boolean(rule.include_archfiend_treated_as),
-    );
+    const archetypeCards = await fetchArchetypeList(rule.archetypes || [], rule.name_contains || []);
     const exactCore = await fetchExactList(rule.core_exact || []);
-    const core = uniqueCards([...archetypeCards, ...exactCore]);
-    const related = await fetchExactList(rule.related_exact || []);
-    const staples = await fetchExactList(rule.staples || []);
+    const core = applyRuleExclusions(rule, [...archetypeCards, ...exactCore]);
+    const extra = applyRuleExclusions(rule, await fetchExactList(rule.extra_exact || []));
+    const support = applyRuleExclusions(rule, await fetchExactList(rule.support_exact || []));
+    const related = applyRuleExclusions(rule, await fetchExactList(rule.related_exact || []));
+    const staples = applyRuleExclusions(rule, await fetchExactList(rule.staples || []));
 
     const makeGroup = (key, title, cards) => {
       const decorated = cards
@@ -259,8 +256,10 @@
     return {
       rule,
       groups: [
-        makeGroup("core", rule.staple_overview ? "Cartes de la catégorie" : "Cartes du deck", core),
-        makeGroup("related", "Support lié", related),
+        makeGroup("core", rule.core_title || (rule.staple_overview ? "Cartes de la catégorie" : "Cartes du deck"), core),
+        makeGroup("extra", rule.extra_title || "Extra Deck", extra),
+        makeGroup("support", rule.support_title || "Support", support),
+        makeGroup("related", rule.related_title || "Related / Support lié", related),
         makeGroup("staples", "Staples compatibles", staples),
       ].filter(Boolean),
     };
@@ -361,7 +360,14 @@
       modalImage.alt = card.name;
     }
     if (modalName) modalName.textContent = card.name;
-    if (modalKind) modalKind.textContent = groupKind === "staples" ? "Staple compatible" : groupKind === "related" ? "Support lié" : "Carte du deck";
+    if (modalKind) {
+      modalKind.textContent =
+        groupKind === "staples" ? "Staple compatible" :
+        groupKind === "related" ? "Related / Support lié" :
+        groupKind === "support" ? "Support" :
+        groupKind === "extra" ? "Extra Deck" :
+        "Carte du deck";
+    }
     if (modalType) modalType.textContent = card.type || "";
     if (modalDesc) modalDesc.textContent = card.desc || "Texte de carte indisponible.";
     if (modalLimit) {
