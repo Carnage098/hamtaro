@@ -111,7 +111,7 @@
                 <small>BOSS ACTUEL</small>
                 <strong>{{ state.boss_name or state.boss_id }}</strong>
                 <span>
-                    {{ state.wins_current }} victoire(s) · règne #{{ state.week_number }}
+                    {{ state.wins_current }} victoire(s) · semaine {{ state.week_number }}
                 </span>
                 {% if state.successor_id %}
                 <div class="boss-fallen">
@@ -169,7 +169,7 @@
 
                 {% elif is_registered %}
                 <p class="boss-registered">
-                    ✅ Tu es inscrit dans la file du règne actuel.
+                    ✅ Tu es inscrit dans la file de cette semaine.
                 </p>
 
                 <form method="post" action="/formats/boss/unregister">
@@ -181,7 +181,8 @@
 
                 {% elif state.status == "defeated" %}
                 <p>
-                    Le trône est en cours de transfert. Réessaie dans quelques instants.
+                    Le Boss est déjà tombé. Les nouvelles inscriptions ouvriront
+                    avec la prochaine semaine.
                 </p>
 
                 {% else %}
@@ -203,7 +204,7 @@
                     <span>1. Inscription</span>
                     <span>2. Programme du staff</span>
                     <span>3. Duel en BO3 · premier à 2 manches</span>
-                    <span>4. Le challenger vainqueur prend immédiatement le trône</span>
+                    <span>4. Le vainqueur prend le trône la semaine suivante</span>
                 </div>
             </article>
 
@@ -224,7 +225,7 @@
 
                     <div>
                         <strong>#{{ state.week_number }}</strong>
-                        <span>Règne</span>
+                        <span>Semaine</span>
                     </div>
 
                     <div>
@@ -300,8 +301,6 @@
                             ✅ battu par le Boss
                             {% elif row.status == "boss_killer" %}
                             💀 a fait tomber le Boss
-                            {% elif row.status == "in_match" %}
-                            🔴 match Boss en cours
                             {% elif row.scheduled_at %}
                             🗓️ {{ row.scheduled_at }}
                             {% else %}
@@ -391,7 +390,8 @@
                         Le premier challenger qui le bat devient son successeur.
                     </li>
                     <li>
-                        Le challenger vainqueur prend immédiatement le trône.
+                        Le successeur prend officiellement le trône
+                        avec la semaine suivante.
                     </li>
                 </ol>
             </article>
@@ -442,8 +442,7 @@
                 <code>/boss resultat</code>
                 <code>/boss publier</code>
                 <code>/boss salon</code>
-                <code>/boss config</code>
-                <code>/boss match_salon</code>
+                <code>/boss next_week</code>
             </div>
         </section>
     </div>

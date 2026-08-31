@@ -225,7 +225,7 @@ class BossService:
             if not force and not int(state["registrations_open"] or 0):
                 raise ValueError("Les inscriptions Boss sont actuellement fermées.")
             if str(state["status"]) == "defeated":
-                raise ValueError("Le changement de Boss est déjà en cours.")
+                raise ValueError("Le Boss est déjà tombé. Attends la prochaine semaine.")
 
             week_number = int(state["week_number"] or 1)
             cur = await db.execute(
@@ -490,7 +490,7 @@ class BossService:
         if not state.get("boss_id"):
             raise ValueError("Aucun Boss n'est défini.")
         if str(state.get("status")) == "defeated":
-            raise ValueError("Le changement de Boss est déjà en cours.")
+            raise ValueError("Le Boss est déjà tombé cette semaine.")
 
         challenger = await self.challenger_by_discord(guild_id, challenger_discord_id)
         if not challenger:
@@ -679,10 +679,10 @@ class BossService:
             "format_version": "1",
             "description": (
                 "Un Boss affronte les challengers du serveur jusqu'à sa chute. "
-                "Le joueur qui le bat prend immédiatement le trône."
+                "Le joueur qui le bat prend le trône la semaine suivante."
             ),
             "pool_count": 0,
-            "pool_revision": "Trône instantané",
+            "pool_revision": "Trône hebdomadaire",
             "meta_left": "Inscriptions + programme live",
             "meta_right": "Règne persistant",
         }

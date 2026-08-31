@@ -7,8 +7,6 @@ from discord import app_commands
 from discord.ext import commands
 
 from services.boss_service import BossService
-from cogs.boss_arena_support import BossArenaCoordinator
-# HAMTARO BOSS ARENA V1
 from utils.permissions import staff_only
 
 
@@ -24,14 +22,9 @@ class BossCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.service = BossService()
-        self.arena = BossArenaCoordinator(bot, self.service)
 
     async def cog_load(self) -> None:
         await self.service.ensure_schema()
-        await self.arena.cog_load()
-
-    def cog_unload(self) -> None:
-        self.arena.cog_unload()
 
     @staticmethod
     def _guild_id(interaction: discord.Interaction) -> str:
@@ -76,17 +69,7 @@ class BossCog(commands.Cog):
             return False
         return True
 
-    @commands.Cog.listener()
-    async def on_ready(self) -> None:
-        # Récupération idempotente : aucun nouveau fil n'est créé si un match
-        # actif existe déjà. Un fil réellement disparu est seulement réparé.
-        for guild in self.bot.guilds:
-            try:
-                await self.arena.recover_and_start(guild)
-            except Exception:
-                LOGGER.exception("Récupération de l'arène Boss impossible pour %s", guild.id)
-
-    @boss.command(name="status", description="Afficher le Boss et l'état du trône")
+    @boss.command(name="status", description="Afficher le Boss et l'état de la semaine")
     async def status(self, interaction: discord.Interaction) -> None:
         try:
             guild_id = self._guild_id(interaction)
@@ -96,7 +79,6 @@ class BossCog(commands.Cog):
 
         state = await self.service.state(guild_id)
         challengers = await self.service.challengers(guild_id)
-        arena_settings = await self.arena.settings(guild_id)
         if not state.get("boss_id"):
             await interaction.response.send_message(
                 "👑 Aucun Boss n'est encore défini.",
@@ -107,7 +89,7 @@ class BossCog(commands.Cog):
         lines = [
             f"👑 **Boss actuel : <@{state['boss_id']}>**",
             f"🔥 Série : **{int(state.get('wins_current') or 0)} victoire(s)**",
-            f"👑 Règne Boss : **#{int(state.get('week_number') or 1)}**",
+            f"📅 Semaine Boss : **{int(state.get('week_number') or 1)}**",
             f"⚔️ Challengers : **{len(challengers)}**",
             (
                 "📝 Inscriptions : **ouvertes**"
@@ -115,15 +97,6 @@ class BossCog(commands.Cog):
                 else "📝 Inscriptions : **fermées**"
             ),
         ]
-        if str(arena_settings.get("configured_boss_id") or "") == str(state.get("boss_id")):
-            lines.append(
-                f"🎮 Plateforme : **{self.arena.platform_label(arena_settings.get('platform_key'))}**"
-            )
-            lines.append(
-                f"🎴 Format : **{self.arena.format_label(arena_settings.get('format_key'))}**"
-            )
-        else:
-            lines.append("⚙️ Configuration : **à choisir avec `/boss config`**")
         if state.get("successor_id"):
             lines.append(
                 f"💀 Boss tombé · prochain Boss : <@{state['successor_id']}>"
@@ -146,19 +119,11 @@ class BossCog(commands.Cog):
             f"⚔️ Inscription confirmée ! Position actuelle : **#{row['position']}**.",
             ephemeral=True,
         )
-        if interaction.guild is not None:
-            await self.arena.maybe_start_next(interaction.guild)
 
     @boss.command(name="desinscription", description="Se retirer de la file du Boss")
     async def desinscription(self, interaction: discord.Interaction) -> None:
         try:
             guild_id = self._guild_id(interaction)
-            if await self.arena.challenger_has_active_match(
-                guild_id, str(interaction.user.id)
-            ):
-                raise ValueError(
-                    "Impossible de quitter la file pendant ton match Boss actif."
-                )
             await self.service.unregister_challenger(
                 guild_id,
                 str(interaction.user.id),
@@ -180,22 +145,13 @@ class BossCog(commands.Cog):
         joueur: discord.Member,
     ) -> None:
         guild_id = self._guild_id(interaction)
-        before_set = await self.service.state(guild_id)
         state = await self.service.set_boss(
             guild_id,
             str(joueur.id),
             joueur.display_name,
         )
-        if interaction.guild is not None:
-            await self.arena.on_manual_boss_change(
-                interaction.guild,
-                old_boss_id=str(before_set.get('boss_id') or '') or None,
-                new_boss_id=str(joueur.id),
-            )
-        else:
-            await self.arena.reset_for_new_boss(guild_id)
         await interaction.response.send_message(
-            f"👑 {joueur.mention} devient immédiatement le **Boss** (règne #{state['week_number']}).",
+            f"👑 {joueur.mention} devient le **Boss** de la semaine {state['week_number']}.",
             ephemeral=True,
         )
         await self._announce(
@@ -203,7 +159,7 @@ class BossCog(commands.Cog):
             title="👑 UN NOUVEAU BOSS PREND LE TRÔNE",
             description=(
                 f"{joueur.mention} devient le Boss Hamtaro.\n\n"
-                "Les challengers devront le faire tomber pour prendre immédiatement sa place."
+                "Les challengers devront le faire tomber pour prendre sa place la semaine suivante."
             ),
         )
 
@@ -222,8 +178,6 @@ class BossCog(commands.Cog):
             f"📝 Inscriptions Boss **{label}**.",
             ephemeral=True,
         )
-        if ouvertes and interaction.guild is not None:
-            await self.arena.maybe_start_next(interaction.guild)
         if ouvertes:
             await self._announce(
                 interaction,
@@ -257,8 +211,6 @@ class BossCog(commands.Cog):
             f"✅ {joueur.mention} ajouté en position **#{row['position']}**.",
             ephemeral=True,
         )
-        if interaction.guild is not None:
-            await self.arena.maybe_start_next(interaction.guild)
 
     @boss.command(name="remove", description="Retirer un challenger")
     @app_commands.default_permissions(manage_guild=True)
@@ -303,7 +255,6 @@ class BossCog(commands.Cog):
         status_icon = {
             "registered": "⏳",
             "scheduled": "🗓️",
-            "in_match": "🔴",
             "defeated": "✅",
             "boss_killer": "💀",
         }
@@ -402,30 +353,43 @@ class BossCog(commands.Cog):
         gagnant: discord.Member,
     ) -> None:
         guild_id = self._guild_id(interaction)
-        if interaction.guild is None:
-            await interaction.response.send_message("❌ Serveur introuvable.", ephemeral=True)
-            return
         try:
-            result = await self.arena.finalize_manual(
-                interaction.guild,
-                challenger_id=str(challenger.id),
-                winner_id=str(gagnant.id),
-                winner_name=gagnant.display_name,
+            result = await self.service.record_result(
+                guild_id,
+                str(challenger.id),
+                str(gagnant.id),
+                gagnant.display_name,
             )
         except ValueError as exc:
             await interaction.response.send_message(f"❌ {exc}", ephemeral=True)
             return
+
+        state = result["state"]
         if result["boss_won"]:
-            state = result["state"]
             await interaction.response.send_message(
                 f"🔥 Victoire du Boss. Série actuelle : **{state['wins_current']}**.",
                 ephemeral=True,
             )
+            await self._announce(
+                interaction,
+                title="🔥 LE BOSS SURVIT",
+                description=(
+                    f"<@{state['boss_id']}> bat {challenger.mention}.\n"
+                    f"Série actuelle : **{state['wins_current']} victoire(s)**."
+                ),
+            )
         else:
             await interaction.response.send_message(
-                f"⚔️ {challenger.mention} a fait tomber le Boss et devient **immédiatement** le nouveau Boss. "
-                f"File conservée : **{result.get('migrated', 0)}** challenger(s).",
+                f"💀 {challenger.mention} a fait tomber le Boss et deviendra le prochain Boss.",
                 ephemeral=True,
+            )
+            await self._announce(
+                interaction,
+                title="💀 LE BOSS EST TOMBÉ",
+                description=(
+                    f"{challenger.mention} vient de renverser <@{state['boss_id']}>.\n\n"
+                    f"👑 **{challenger.mention} prendra le trône la semaine prochaine.**"
+                ),
             )
 
     @boss.command(name="publier", description="Publier le programme Boss dans le salon d'annonces")
@@ -494,115 +458,41 @@ class BossCog(commands.Cog):
             ephemeral=True,
         )
 
-    @boss.command(name="config", description="Choisir la plateforme et le format du Boss")
-    @app_commands.choices(
-        plateforme=[
-            app_commands.Choice(name="Master Duel", value="master_duel"),
-            app_commands.Choice(name="Remote Duel", value="remote"),
-            app_commands.Choice(name="YGO Omega", value="omega"),
-        ],
-        format_jeu=[
-            app_commands.Choice(name="Format classique", value="classique"),
-            app_commands.Choice(name="Format animé", value="anime"),
-            app_commands.Choice(name="Deck de structure boutique", value="structure_boutique"),
-            app_commands.Choice(name="GOAT", value="goat"),
-            app_commands.Choice(name="Edison", value="edison"),
-        ],
-    )
-    async def config(
-        self,
-        interaction: discord.Interaction,
-        plateforme: app_commands.Choice[str],
-        format_jeu: app_commands.Choice[str],
-    ) -> None:
-        guild_id = self._guild_id(interaction)
-        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
-            await interaction.response.send_message("❌ Serveur introuvable.", ephemeral=True)
-            return
-        state = await self.service.state(guild_id)
-        if not state.get("boss_id"):
-            await interaction.response.send_message(
-                "❌ Aucun Boss n'est actuellement défini.", ephemeral=True
-            )
-            return
-        is_boss = str(state.get("boss_id") or "") == str(interaction.user.id)
-        is_manager = interaction.user.guild_permissions.manage_guild
-        if not is_boss and not is_manager:
-            await interaction.response.send_message(
-                "❌ Seul le Boss actuel (ou un administrateur) peut choisir ces règles.",
-                ephemeral=True,
-            )
-            return
-        try:
-            settings = await self.arena.configure(
-                interaction.guild,
-                boss_id=str(state.get("boss_id") or interaction.user.id),
-                platform_key=plateforme.value,
-                format_key=format_jeu.value,
-            )
-        except ValueError as exc:
-            await interaction.response.send_message(f"❌ {exc}", ephemeral=True)
-            return
-        await interaction.response.send_message(
-            f"✅ Configuration Boss enregistrée : **{self.arena.platform_label(settings['platform_key'])}** · "
-            f"**{self.arena.format_label(settings['format_key'])}** · **BO3**.",
-            ephemeral=True,
-        )
-
-    @boss.command(name="match_salon", description="Choisir le salon qui héberge les fils de match Boss")
-    @app_commands.default_permissions(manage_guild=True)
-    @staff_only()
-    async def match_salon(
-        self,
-        interaction: discord.Interaction,
-        salon: discord.TextChannel | None = None,
-    ) -> None:
-        guild_id = self._guild_id(interaction)
-        if interaction.guild is None:
-            await interaction.response.send_message("❌ Serveur introuvable.", ephemeral=True)
-            return
-        if salon is None:
-            salon = discord.utils.get(interaction.guild.text_channels, name="⚔️・match-boss")
-            if salon is None:
-                try:
-                    salon = await interaction.guild.create_text_channel(
-                        "⚔️・match-boss",
-                        reason="Salon automatique du format Boss Hamtaro",
-                    )
-                except (discord.Forbidden, discord.HTTPException):
-                    await interaction.response.send_message(
-                        "❌ Hamtaro ne peut pas créer le salon. Crée-le manuellement puis utilise "
-                        "`/boss match_salon salon:#ton-salon`.",
-                        ephemeral=True,
-                    )
-                    return
-        await self.arena.set_match_channel(interaction.guild, salon)
-        me = interaction.guild.me
-        warning = ""
-        if me is not None:
-            perms = salon.permissions_for(me)
-            missing = []
-            if not perms.send_messages:
-                missing.append("Envoyer des messages")
-            if not perms.create_public_threads:
-                missing.append("Créer des fils publics")
-            if not perms.manage_threads:
-                missing.append("Gérer les fils")
-            if missing:
-                warning = "\n⚠️ Permissions à ajouter à Hamtaro : " + ", ".join(missing) + "."
-        await interaction.response.send_message(
-            f"✅ Les matchs Boss seront créés dans {salon.mention}.{warning}",
-            ephemeral=True,
-        )
-
-    @boss.command(name="next_week", description="Commande héritée : aucun délai hebdomadaire")
+    @boss.command(name="next_week", description="Passer à la semaine Boss suivante")
     @app_commands.default_permissions(manage_guild=True)
     @staff_only()
     async def next_week(self, interaction: discord.Interaction) -> None:
+        guild_id = self._guild_id(interaction)
+        before = await self.service.state(guild_id)
+        try:
+            after = await self.service.next_week(guild_id)
+        except ValueError as exc:
+            await interaction.response.send_message(f"❌ {exc}", ephemeral=True)
+            return
+
+        changed = str(before.get("boss_id")) != str(after.get("boss_id"))
         await interaction.response.send_message(
-            "ℹ️ Le format Boss n'utilise plus de changement hebdomadaire. "
-            "Le challenger qui gagne prend désormais le trône immédiatement.",
+            (
+                f"✅ Semaine Boss **#{after['week_number']}** ouverte. "
+                + (
+                    f"Nouveau Boss : <@{after['boss_id']}>."
+                    if changed
+                    else f"<@{after['boss_id']}> conserve son trône."
+                )
+            ),
             ephemeral=True,
+        )
+        await self._announce(
+            interaction,
+            title="👑 NOUVELLE SEMAINE BOSS",
+            description=(
+                f"<@{after['boss_id']}> prend officiellement le trône."
+                if changed
+                else (
+                    f"<@{after['boss_id']}> reste Boss après avoir survécu "
+                    "à la semaine précédente."
+                )
+            ),
         )
 
 
