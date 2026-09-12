@@ -94,18 +94,23 @@
                 data-capacity="{{ slot.tournament.max_players }}"
                 {% endif %}
                 aria-haspopup="dialog"
+                aria-label="{{ slot.day_label }}, de {{ slot.start }} à {{ slot.end }} — {{ slot.format }}, {{ slot.platform }}. Afficher les détails."
             >
                 <span class="schedule-slot-icon" aria-hidden="true">{{ slot.emoji }}</span>
                 <span class="schedule-slot-copy">
-                    <strong>{{ slot.day_label }}</strong>
-                    <span>{{ slot.start }}–{{ slot.end }}</span>
-                    <small>{{ slot.format }} · {{ slot.platform }}</small>
+                    <span class="schedule-slot-date">{{ slot.day_label }}</span>
+                    <strong class="schedule-slot-time">{{ slot.start }}–{{ slot.end }}</strong>
+                    <span class="schedule-slot-format">{{ slot.format }}</span>
+                    <small>{{ slot.platform }}</small>
                 </span>
-                {% if slot.tournament %}
-                <span class="schedule-live-badge">{{ slot.tournament.participant_count or 0 }}/{{ slot.tournament.max_players }}</span>
-                {% else %}
-                <span class="schedule-pending-badge">À venir</span>
-                {% endif %}
+                <span class="schedule-slot-meta">
+                    {% if slot.tournament %}
+                    <span class="schedule-live-badge">{{ slot.tournament.participant_count or 0 }}/{{ slot.tournament.max_players }}</span>
+                    {% else %}
+                    <span class="schedule-pending-badge">À venir</span>
+                    {% endif %}
+                    <span class="schedule-slot-action" aria-hidden="true">Détails <span>→</span></span>
+                </span>
             </button>
             {% endfor %}
         </div>
