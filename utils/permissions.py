@@ -30,6 +30,11 @@ def is_staff_member(user: discord.abc.User) -> bool:
     if user.guild_permissions.manage_guild:
         return True
 
+    # C'est également la permission utilisée par Discord pour masquer
+    # entièrement l'espace /staff aux joueurs ordinaires.
+    if user.guild_permissions.manage_messages:
+        return True
+
     user_roles = {
         role.name.lower()
         for role in user.roles

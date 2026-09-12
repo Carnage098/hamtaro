@@ -275,6 +275,7 @@ STAFF_MODULES = (
 STAFF_NAMES = {
     "pending_results", "result_setup", "special_result", "admin_win",
     "start_tournament", "swiss_start", "staff_panel", "tournament_manage",
+    "pair", "start", "roles_panel", "match_center_status",
 }
 STAFF_PREFIXES = (
     "admin_", "approve_", "cancel_", "create_", "delete_", "end_",
@@ -464,7 +465,11 @@ def _role_group(tree, role: str, page: int = 0) -> app_commands.Group:
         default_permissions=(
             discord.Permissions(administrator=True)
             if role == "admin"
-            else None
+            else (
+                discord.Permissions(manage_messages=True)
+                if role == "staff"
+                else None
+            )
         ),
         extras={"hamtaro_role_space": role},
     )

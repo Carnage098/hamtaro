@@ -49,6 +49,8 @@ def test_navigation_has_three_role_spaces_and_keeps_every_action() -> None:
         if isinstance(item, app_commands.Command)
     )
     assert tree.get_command("admin").default_permissions.administrator  # type: ignore[union-attr]
+    assert tree.get_command("staff").default_permissions.manage_messages  # type: ignore[union-attr]
+    assert tree.get_command("joueur").default_permissions is None  # type: ignore[union-attr]
 
     # La seconde passe (après les cogs optionnels) ne doit rien déplacer.
     second = compact_command_tree(tree)
@@ -84,6 +86,26 @@ def test_visible_command_names_are_french_after_compaction() -> None:
     assert "staff tournois creer_tournoi" in qualified_names
     assert "joueur resultats resultats_en_attente" not in qualified_names
     assert any(name.endswith("resultats_en_attente") for name in qualified_names)
+
+
+def test_organization_actions_are_not_exposed_in_player_space() -> None:
+    _bot, tree = _tree()
+    for name, module in (
+        ("pair", "cogs.team_2v2"),
+        ("start", "cogs.team_2v2"),
+        ("roles_panel", "cogs.role_panel"),
+        ("match_center_status", "cogs.match_center"),
+    ):
+        tree.add_command(_command(name, module))
+
+    compact_command_tree(tree)
+
+    paths = {
+        command.qualified_name
+        for command in tree.walk_commands()
+        if isinstance(command, app_commands.Command)
+    }
+    assert all(path.startswith("staff") for path in paths)
 
 
 def test_large_role_space_is_split_below_discord_character_limit() -> None:
