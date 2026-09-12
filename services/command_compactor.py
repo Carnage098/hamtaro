@@ -27,7 +27,7 @@ DIRECT_COMMANDS = {
 }
 ROLE_PAGE_NAMES = {
     "joueur": ("joueur", "joueur_suite", "joueur_outils"),
-    "staff": ("staff", "staff_suite", "staff_outils"),
+    "staff": ("staff", "staff_suite", "staff_outils", "staff_avance"),
     "admin": ("admin",),
 }
 ROLE_ROOTS = {

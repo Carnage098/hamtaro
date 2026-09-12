@@ -115,3 +115,24 @@ def test_large_role_space_is_split_below_discord_character_limit() -> None:
         return 0
 
     assert all(text_characters(page.to_dict(tree)) <= 4000 for page in role_pages)
+
+
+def test_staff_space_can_use_a_fourth_page_after_translation() -> None:
+    _bot, tree = _tree()
+    for category_index in range(4):
+        for command_index in range(20):
+            command = _command(
+                f"staff_{category_index}_{command_index}",
+                f"cogs.staff_section_{category_index}",
+            )
+            command.description = "Outil détaillé réservé à l'équipe d'organisation."
+            tree.add_command(command)
+
+    compact_command_tree(tree)
+
+    pages = [
+        command
+        for command in tree.get_commands()
+        if command.name.startswith("staff")
+    ]
+    assert len(pages) <= 4
