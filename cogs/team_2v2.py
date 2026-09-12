@@ -355,7 +355,7 @@ class Team2v2Cog(commands.Cog):
         if len(teams) > 1:
             ids = ", ".join(f"{row['name']} (#{row['id']})" for row in teams[:8])
             raise ValueError(
-                "Tu appartiens à plusieurs équipes. Relance `/register` avec `team_id`. "
+                "Tu appartiens à plusieurs équipes. Relance `/inscription` avec `team_id`. "
                 f"Équipes disponibles : {ids}"
             )
         return teams[0]

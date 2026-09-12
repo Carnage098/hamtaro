@@ -4,6 +4,8 @@ from typing import Any
 
 import discord
 
+from services.tournament_schedule_service import get_schedule_slot
+
 
 INACTIVE_STATUSES = {"finished", "cancelled"}
 
@@ -181,10 +183,24 @@ async def active_tournament_code_autocomplete(
     needle = current.strip().lower()
     choices: list[discord.app_commands.Choice[str]] = []
 
-    for tournament in tournaments:
+    def sort_key(tournament: Any) -> tuple[Any, ...]:
+        slot = get_schedule_slot(getattr(tournament, "scheduled_slot_id", None))
+        if slot is not None:
+            return (1, str(slot["date"]), str(slot["start"]), int(tournament.id))
+        # Un tournoi créé manuellement et actif reste prioritaire.
+        return (0, "", "", -int(getattr(tournament, "id", 0) or 0))
+
+    for tournament in sorted(tournaments, key=sort_key):
         code = str(tournament.code)
         name = str(tournament.name)
-        label = f"{code} — {name}"
+        slot = get_schedule_slot(getattr(tournament, "scheduled_slot_id", None))
+        if slot is None:
+            label = f"{code} — {name}"
+        else:
+            label = (
+                f"{code} — {slot['day_label']} à {slot['start']} — "
+                f"{slot['format']}"
+            )
         if needle and needle not in label.lower():
             continue
         choices.append(

@@ -41,7 +41,7 @@ def test_navigation_has_three_role_spaces_and_keeps_every_action() -> None:
 
     assert before == after == report.actions_after
     assert {item.name for item in tree.get_commands()} == {
-        "hamtaro", "help", "register", "joueur", "staff", "admin",
+        "hamtaro", "aide", "inscription", "joueur", "staff", "admin",
     }
     assert all(
         len(item.qualified_name.split()) <= 3
@@ -62,9 +62,28 @@ def test_hub_resolves_commands_after_compaction() -> None:
     compact_command_tree(tree)
 
     hub = HamtaroHubCog(bot)
-    assert hub.find_command("register").qualified_name == "register"
-    assert hub.find_command("hamtaro_health").qualified_name == "admin maintenance health"
+    assert hub.find_command("register").qualified_name == "inscription"
+    assert hub.find_command("hamtaro_health").qualified_name == "admin maintenance sante"
     assert hub.find_command("commande_absente") is None
+
+
+def test_visible_command_names_are_french_after_compaction() -> None:
+    _bot, tree = _tree()
+    tree.add_command(_command("result", "cogs.results"))
+    tree.add_command(_command("create_tournament", "cogs.tournament"))
+    tree.add_command(_command("pending_results", "cogs.results"))
+
+    compact_command_tree(tree)
+
+    qualified_names = {
+        command.qualified_name
+        for command in tree.walk_commands()
+        if isinstance(command, app_commands.Command)
+    }
+    assert "resultat" in qualified_names
+    assert "staff tournois creer_tournoi" in qualified_names
+    assert "joueur resultats resultats_en_attente" not in qualified_names
+    assert any(name.endswith("resultats_en_attente") for name in qualified_names)
 
 
 def test_large_role_space_is_split_below_discord_character_limit() -> None:

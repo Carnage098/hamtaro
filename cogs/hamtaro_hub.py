@@ -180,7 +180,7 @@ class HubQuickResultModal(discord.ui.Modal):
                 if sent_opponent
                 else "⚠️ L'adversaire n'a pas pu être contacté automatiquement."
             ),
-            "Pour joindre une preuve, utilise aussi `/result`.",
+            "Pour joindre une preuve, utilise aussi `/resultat`.",
         ]
 
         await interaction.followup.send(

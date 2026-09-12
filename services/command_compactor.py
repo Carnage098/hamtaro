@@ -14,10 +14,20 @@ MAX_GROUP_CHILDREN = 25
 
 # L'interface publique reste volontairement courte. Toutes les autres actions
 # sont rangées sous l'espace de la personne qui les utilise.
-DIRECT_COMMANDS = {"hamtaro", "help", "rules", "register", "result"}
+DIRECT_COMMAND_RENAMES = {
+    "help": "aide",
+    "rules": "regles",
+    "register": "inscription",
+    "result": "resultat",
+}
+DIRECT_COMMANDS = {
+    "hamtaro",
+    *DIRECT_COMMAND_RENAMES.keys(),
+    *DIRECT_COMMAND_RENAMES.values(),
+}
 ROLE_PAGE_NAMES = {
-    "joueur": ("joueur", "joueur_plus", "joueur_outils"),
-    "staff": ("staff", "staff_plus", "staff_outils"),
+    "joueur": ("joueur", "joueur_suite", "joueur_outils"),
+    "staff": ("staff", "staff_suite", "staff_outils"),
     "admin": ("admin",),
 }
 ROLE_ROOTS = {
@@ -37,8 +47,8 @@ ROLE_DESCRIPTIONS = {
 
 TECHNICAL_CATEGORIES = {
     "tournament": "tournois", "match": "matchs", "results": "resultats",
-    "bracket": "brackets", "swiss": "suisse", "deck": "decks",
-    "archetype": "cartes", "player": "profil", "casual": "casual",
+    "bracket": "arbres", "swiss": "suisse", "deck": "decks",
+    "archetype": "cartes", "player": "profil", "casual": "amicaux",
     "competition": "classements", "staff": "moderation",
     "setup": "configuration", "graphics": "affichage",
     "community": "communaute", "formats": "formats", "planning": "planning",
@@ -48,12 +58,12 @@ CATEGORY_DESCRIPTIONS = {
     "tournois": "Inscriptions, participants et gestion des tournois.",
     "matchs": "Adversaires, salons de duel et historique des matchs.",
     "resultats": "Déclaration, validation et correction des résultats.",
-    "brackets": "Affichage et publication des arbres de tournoi.",
+    "arbres": "Affichage et publication des arbres de tournoi.",
     "suisse": "Rondes, appariements et classements suisses.",
     "decks": "Decks, statistiques et outils associés.",
     "cartes": "Catalogue et illustrations des archétypes.",
     "profil": "Profil, statistiques et progression du joueur.",
-    "casual": "Matchs et résultats hors tournoi.",
+    "amicaux": "Matchs et résultats hors tournoi.",
     "classements": "Classements, saisons et compétition permanente.",
     "moderation": "Arbitrage, journaux et outils du staff.",
     "configuration": "Installation et configuration du serveur.",
@@ -129,6 +139,125 @@ EXPLICIT_GROUPS = {
 ROOT_TO_SUB = {
     "bracket": "voir", "profile": "voir", "matches": "voir",
     "participants": "liste", "setup": "ouvrir", "health": "etat",
+}
+
+# Noms affichés dans Discord. Le nom technique d'origine reste mémorisé dans
+# ``_hamtaro_original_name`` pour que les boutons et intégrations historiques
+# continuent de retrouver la bonne action.
+FRENCH_ACTION_NAMES = {
+    "achievements": "succes", "add": "ajouter",
+    "admin_add_player": "ajouter_joueur",
+    "admin_change_deck": "modifier_deck",
+    "admin_clear_seed": "effacer_position", "admin_dq": "disqualifier",
+    "admin_drop": "retirer_joueur", "admin_health": "sante",
+    "admin_regenerate_bracket": "regenerer_arbre",
+    "admin_reset_bracket": "reinitialiser_arbre",
+    "admin_restore": "restaurer", "admin_result": "resultat",
+    "admin_seed": "definir_position", "admin_status": "statut",
+    "admin_sync_round": "synchroniser_ronde",
+    "admin_win": "attribuer_victoire", "apply": "appliquer",
+    "approve": "approuver", "approve_result": "valider_resultat",
+    "archetype_add": "ajouter_archetype",
+    "archetype_edit": "modifier_archetype",
+    "archetype_list": "liste_archetypes",
+    "audit_history": "historique_audit", "bracket": "voir",
+    "bracket_full": "arbre_complet", "cancel": "annuler",
+    "cancel_casual": "annuler_amical",
+    "cancel_tournament": "annuler_tournoi", "casual": "match_amical",
+    "change_tournament_capacity": "modifier_capacite",
+    "change_tournament_format": "modifier_format", "check": "verifier",
+    "close": "fermer", "configure": "configurer", "confirm": "confirmer",
+    "contest": "contester", "create": "creer",
+    "create_tournament": "creer_tournoi", "current": "actuel",
+    "dashboard": "tableau_de_bord", "deck_add": "ajouter_deck",
+    "deck_delete": "supprimer_deck", "deck_list": "liste_decks",
+    "deck_lock": "verrouiller_deck", "deck_select": "choisir_deck",
+    "deck_stats": "statistiques_deck", "default": "par_defaut",
+    "edit": "modifier", "end_tournament": "terminer_tournoi",
+    "export_tournament": "exporter_tournoi",
+    "feature_match": "match_en_vedette",
+    "feature_status": "statut_vedette", "final_bracket": "arbre_final",
+    "force_winner": "forcer_vainqueur",
+    "generate_next_round": "generer_ronde_suivante",
+    "hamtaro_backup": "sauvegarde", "hamtaro_cleanup": "nettoyage",
+    "hamtaro_doctor": "diagnostic", "hamtaro_health": "sante",
+    "hamtaro_site": "site", "hamtaro_test": "test",
+    "judge_call": "appeler_arbitre", "judge_list": "liste_appels",
+    "judge_resolve": "resoudre_appel",
+    "match_center_repair": "reparer_centre_matchs",
+    "match_center_setup": "configurer_centre_matchs",
+    "match_center_status": "statut_centre_matchs",
+    "match_history": "historique_matchs",
+    "match_issue": "signaler_probleme", "next_week": "semaine_suivante",
+    "nextmatch": "prochain_match", "offer": "proposer",
+    "pause_tournament": "mettre_en_pause", "pending": "en_attente",
+    "pending_results": "resultats_en_attente", "players": "joueurs",
+    "preview": "apercu", "preview_bracket": "apercu_arbre",
+    "profile": "voir", "progression_setup": "configurer_progression",
+    "progression_status": "statut_progression",
+    "publish_matches": "publier_matchs", "recap": "recapitulatif",
+    "register": "inscription", "reject": "refuser",
+    "reject_result": "refuser_resultat", "remove": "retirer",
+    "remove_player": "retirer_joueur",
+    "repair_tournament": "reparer_tournoi", "report": "declarer",
+    "reset": "reinitialiser", "resolve": "resoudre",
+    "result": "resultat", "result_casual": "resultat_amical",
+    "result_setup": "configurer_resultats",
+    "resume_tournament": "reprendre_tournoi", "roles_panel": "panneau_roles",
+    "round": "ronde", "round_show": "voir_ronde", "rules": "regles",
+    "schedule_cancel": "annuler_programmation",
+    "schedule_create": "programmer", "schedule_list": "planning",
+    "secure_history": "historique_securise",
+    "secure_revert": "restaurer_action", "set": "definir",
+    "set_choices": "definir_choix", "show": "afficher",
+    "special_result": "resultat_special",
+    "staff_dashboard": "tableau_de_bord", "staff_log": "journal",
+    "staff_logs_channel": "salon_journaux",
+    "staff_logs_history": "historique_journaux",
+    "staff_logs_setup": "configurer_journaux",
+    "staff_panel": "panneau_staff", "standings": "classement",
+    "start": "demarrer", "start_tournament": "demarrer_tournoi",
+    "status": "statut", "stop": "arreter",
+    "swiss_final_image": "image_finale", "swiss_next": "ronde_suivante",
+    "swiss_pair": "apparier", "swiss_pairings": "appariements",
+    "swiss_preview": "apercu", "swiss_reset": "reinitialiser",
+    "swiss_result": "resultat", "swiss_round_image": "image_ronde",
+    "swiss_standings": "classement",
+    "swiss_standings_image": "image_classement",
+    "swiss_start": "demarrer", "swiss_status": "statut",
+    "swiss_tiebreakers": "departages", "team_accept": "accepter_equipe",
+    "team_create": "creer_equipe", "team_info": "info_equipe",
+    "template_create": "creer_modele", "template_list": "liste_modeles",
+    "template_use": "utiliser_modele",
+    "tournament_assistant": "assistant_tournoi",
+    "tournament_list": "liste_tournois",
+    "tournament_manage": "gerer_tournoi",
+    "tournament_status": "statut_tournoi",
+    "trophy_award": "attribuer_trophee",
+    "undo_history": "historique_annulations",
+    "undo_tournament_action": "annuler_derniere_action",
+    "unregister": "desinscription", "waitlist_join": "rejoindre_attente",
+    "waitlist_leave": "quitter_attente",
+    "waitlist_promote": "promouvoir_attente", "winner": "vainqueur",
+}
+
+FRENCH_TOKENS = {
+    "add": "ajouter", "approve": "valider", "backup": "sauvegarde",
+    "cancel": "annuler", "change": "modifier", "create": "creer",
+    "current": "actuel", "delete": "supprimer", "edit": "modifier",
+    "end": "terminer", "export": "exporter", "full": "complet",
+    "generate": "generer", "health": "sante", "history": "historique",
+    "info": "infos", "join": "rejoindre", "leave": "quitter",
+    "list": "liste", "manage": "gerer", "next": "suivant",
+    "pair": "apparier", "pairings": "appariements", "pending": "en_attente",
+    "player": "joueur", "players": "joueurs", "preview": "apercu",
+    "publish": "publier", "reject": "refuser", "remove": "retirer",
+    "repair": "reparer", "reset": "reinitialiser", "result": "resultat",
+    "results": "resultats", "resume": "reprendre", "round": "ronde",
+    "schedule": "planning", "select": "choisir", "setup": "configurer",
+    "show": "afficher", "start": "demarrer", "status": "statut",
+    "stop": "arreter", "team": "equipe", "template": "modele",
+    "tournament": "tournoi", "use": "utiliser", "winner": "vainqueur",
 }
 
 ADMIN_MODULES = (
@@ -280,6 +409,10 @@ def _detach_leaf_commands(group: app_commands.Group) -> list[app_commands.Comman
 
 
 def _sub_name(original: str, technical_group: str) -> str:
+    translated = FRENCH_ACTION_NAMES.get(original.lower())
+    if translated:
+        return translated[:32]
+
     name = original.lower()
     prefixes = {
         "results": ("result_", "results_"),
@@ -293,18 +426,17 @@ def _sub_name(original: str, technical_group: str) -> str:
             name = name[len(prefix):]
             break
     name = ROOT_TO_SUB.get(original.lower(), name)
+    name = "_".join(FRENCH_TOKENS.get(token, token) for token in name.split("_"))
     name = re.sub(r"[^a-z0-9_\-]", "_", name)
     name = re.sub(r"[_\-]{2,}", "_", name).strip("_-")
     return (name or "action")[:32]
 
 
 def _unique_name(group: app_commands.Group, desired: str, original: str) -> str:
+    del original
     used = {child.name for child in group.commands}
     if desired not in used:
         return desired
-    fallback = re.sub(r"[^a-z0-9_\-]", "_", original.lower())[:32]
-    if fallback and fallback not in used:
-        return fallback
     index = 2
     while True:
         suffix = f"_{index}"
@@ -476,6 +608,25 @@ def _preserve_root_only_restrictions(command: app_commands.Command) -> int:
 def compact_command_tree(tree, *, logger=None) -> CompactionReport:
     """Réunit l'arbre Discord sous /joueur, /staff et /admin, sans perte."""
     logger = logger or LOGGER
+
+    # Les quatre accès directs sont eux aussi présentés en français. Leur nom
+    # historique reste utilisable en interne depuis le centre /hamtaro.
+    for old_name, french_name in DIRECT_COMMAND_RENAMES.items():
+        item = tree.get_command(old_name, type=discord.AppCommandType.chat_input)
+        if not isinstance(item, app_commands.Command):
+            continue
+        if tree.get_command(french_name, type=discord.AppCommandType.chat_input) is not None:
+            logger.warning(
+                "Impossible de franciser /%s : /%s existe déjà.",
+                old_name,
+                french_name,
+            )
+            continue
+        tree.remove_command(old_name, type=discord.AppCommandType.chat_input)
+        item.extras.setdefault("_hamtaro_original_name", old_name)
+        item.name = french_name
+        tree.add_command(item)
+
     before = _root_commands(tree)
     actions_before = _count_actions(tree)
     movable = []

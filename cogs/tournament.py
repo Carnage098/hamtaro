@@ -332,7 +332,7 @@ class TournamentCog(commands.Cog):
 
         embed.set_footer(
             text=(
-                "Inscris-toi avec /register. "
+                "Inscris-toi avec /inscription. "
                 "Le staff lancera le tournoi lorsque "
                 "les inscriptions seront terminées."
             )

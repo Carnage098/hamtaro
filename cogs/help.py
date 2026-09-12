@@ -280,7 +280,7 @@ class InteractiveHelpView(discord.ui.View):
             interaction,
             content=(
                 "❌ Ce menu d'aide appartient à une autre personne. "
-                "Utilise `/help`."
+                "Utilise `/aide`."
             ),
             ephemeral=True,
         )
@@ -296,7 +296,7 @@ class InteractiveHelpView(discord.ui.View):
             return
 
         print(
-            "❌ Erreur dans le menu /help "
+            "❌ Erreur dans le menu /aide "
             f"({type(item).__name__}) : {error}"
         )
         await safe_send(
@@ -668,7 +668,7 @@ class HelpCog(commands.Cog):
                 f"Arborescence : {navigation}.\n\n"
                 "Choisis une catégorie ci-dessous seulement pour consulter le catalogue. "
                 "Pour rechercher une commande précise, utilise par exemple "
-                "`/help commande:result`."
+                "`/aide commande:resultat`."
             ),
             color=discord.Color.gold(),
         )
@@ -841,7 +841,7 @@ class HelpCog(commands.Cog):
                 color=discord.Color.blurple(),
             )
             embed.set_footer(
-                text="Relance /help avec le nom exact pour voir les détails."
+                text="Relance /aide avec le nom exact pour voir les détails."
             )
             await safe_send(
                 interaction,
@@ -882,7 +882,7 @@ class HelpCog(commands.Cog):
         if _is_expired_interaction_error(original):
             return
 
-        print(f"❌ Erreur /help : {original}")
+        print(f"❌ Erreur /aide : {original}")
         await safe_send(
             interaction,
             content="❌ Impossible d'ouvrir l'aide pour le moment.",

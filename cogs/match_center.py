@@ -188,7 +188,7 @@ class QuickResultModal(discord.ui.Modal):
             "✅ Confirmation envoyée à l’adversaire."
             if sent_opponent
             else "⚠️ L’adversaire n’a pas pu être contacté automatiquement.",
-            "Pour joindre une preuve, utilisez aussi `/result` avec le paramètre `preuve`.",
+            "Pour joindre une preuve, utilisez aussi `/resultat` avec le paramètre `preuve`.",
         ]
         await interaction.followup.send(
             embed=success_embed(
@@ -1053,7 +1053,7 @@ class MatchCenterCog(commands.Cog):
         embed.add_field(
             name="📊 Résultat",
             value=(
-                "Utilisez le bouton **Déclarer le résultat** ou `/result`. "
+                "Utilisez le bouton **Déclarer le résultat** ou `/resultat`. "
                 "Hamtaro reconnaît automatiquement ce match et son tournoi."
             ),
             inline=False,
@@ -1643,7 +1643,7 @@ class MatchCenterCog(commands.Cog):
                     description=(
                         "Le temps réglementaire est terminé.\n\n"
                         "✅ Si le duel avait déjà atteint **2-0, 2-1, 0-2 ou 1-2**, "
-                        "déclare ce score normalement avec `/result`.\n"
+                        "déclare ce score normalement avec `/resultat`.\n"
                         "⚠️ Si le score est encore **1-0, 0-0, 0-1, 1-1** "
                         "ou tout autre score incomplet, le résultat est un **Double Loss** "
                         "et vaut **0 point pour les deux joueurs**.\n\n"

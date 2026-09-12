@@ -753,7 +753,7 @@ class TournamentProgressionCog(commands.Cog):
         embed.add_field(
             name="📊 Déclarer le résultat",
             value=(
-                "Utilisez `/result` à la fin du duel. "
+                "Utilisez `/resultat` à la fin du duel. "
                 "Le résultat sera ensuite envoyé au staff."
             ),
             inline=False,
@@ -825,7 +825,7 @@ class TournamentProgressionCog(commands.Cog):
                 "Ce fil est autonome : Hamtaro connaît déjà le tournoi, le match, "
                 "les joueurs et la phase. Aucun `/tournament_select` ni identifiant "
                 "de match n'est nécessaire.\n\n"
-                "À la fin, utilisez `/result` ou le bouton **Déclarer le résultat**."
+                "À la fin, utilisez `/resultat` ou le bouton **Déclarer le résultat**."
             ),
             allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
         )

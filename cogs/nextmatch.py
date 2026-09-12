@@ -143,7 +143,7 @@ class NextMatchCog(commands.Cog):
             inline=True,
         )
         embed.set_footer(
-            text="Bracket ou Suisse : Hamtaro gère la différence automatiquement. Utilise /result à la fin."
+            text="Arbre ou Suisse : Hamtaro gère la différence automatiquement. Utilise /resultat à la fin."
         )
         return embed
 

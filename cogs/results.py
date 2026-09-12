@@ -3482,7 +3482,7 @@ class ResultsCog(commands.Cog):
                 interaction,
                 embed=error_embed(
                     title="Serveur requis",
-                    description="Utilise `/result` dans le serveur Hamtaro.",
+                    description="Utilise `/resultat` dans le serveur Hamtaro.",
                 ),
             )
             return

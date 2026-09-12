@@ -1071,7 +1071,7 @@ class BracketService(BaseService):
                 f"{match_title}\n"
                 f"⚔️ {player1} vs {player2}\n"
                 f"🟢 En cours\n"
-                f"➡️ Pour reporter : `/result match_id:{match.id}`"
+                f"➡️ Pour déclarer : `/resultat match_id:{match.id}`"
             )
 
         if match.status == MatchStatus.WAITING:

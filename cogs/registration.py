@@ -125,7 +125,7 @@ class RegistrationCog(commands.Cog):
                     interaction=interaction,
                     title="Choix Halloween requis",
                     description=(
-                        "Pour ce tournoi, choisis **1 Bonbon** et **1 Sort** dans /register. "
+                        "Pour ce tournoi, choisis **1 Bonbon** et **1 Sort** dans /inscription. "
                         "Tu pourras les modifier avec `/joueur formats set_choices`."
                     ),
                 )
