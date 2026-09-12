@@ -74,7 +74,7 @@ SYNC_GUILD_COMMANDS = env_bool("SYNC_GUILD_COMMANDS", True)
 FORCE_COMMAND_SYNC = env_bool("FORCE_COMMAND_SYNC", False)
 
 # Identifiants facultatifs de salons.
-# Les matchs vedettes sont normalement configurés via /setup_plus configure.
+# Les matchs vedettes sont normalement configurés via /admin configuration configure.
 CASUAL_MATCH_CHANNEL_ID = os.getenv("CASUAL_MATCH_CHANNEL_ID", "").strip()
 
 # SQLite : chemin manuel, volume Railway, puis fichier local.

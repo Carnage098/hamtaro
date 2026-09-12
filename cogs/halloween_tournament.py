@@ -56,7 +56,7 @@ class HalloweenTournamentCog(commands.Cog):
 
     @halloween.command(name="rules",description="Comprendre Bonbon / Sort")
     async def rules(self,interaction:discord.Interaction)->None:
-        embed=discord.Embed(title="🎃 Bonbon ou Sort — règle simple",description="**1.** Déclare 1 Bonbon + 1 Sort.\n**2.** Side Deck normal : maximum 14 cartes.\n**3.** Avant chaque BO3, chacun fait `/halloween offer`.\n**4.** L'adversaire choisit Bonbon ou Sort sans voir la carte.\n**5.** La carte révélée devient ta 15e carte de Side pour ce BO3.\n**6.** Elle se side entre G1→G2 et G2→G3.\n\nLa banlist Halloween reste obligatoire.",color=discord.Color.orange())
+        embed=discord.Embed(title="🎃 Bonbon ou Sort — règle simple",description="**1.** Déclare 1 Bonbon + 1 Sort.\n**2.** Side Deck normal : maximum 14 cartes.\n**3.** Avant chaque BO3, chacun fait `/joueur formats offer`.\n**4.** L'adversaire choisit Bonbon ou Sort sans voir la carte.\n**5.** La carte révélée devient ta 15e carte de Side pour ce BO3.\n**6.** Elle se side entre G1→G2 et G2→G3.\n\nLa banlist Halloween reste obligatoire.",color=discord.Color.orange())
         await interaction.response.send_message(embed=embed,ephemeral=True)
 
     @halloween.command(name="choices",description="Voir tes choix")
@@ -66,7 +66,7 @@ class HalloweenTournamentCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         try: tournament=await self._resolve(interaction,code); row=await self._choice_row(int(tournament.id),str(interaction.user.id))
         except ValueError as e: await interaction.followup.send(f"❌ {e}",ephemeral=True); return
-        if row is None: await interaction.followup.send("❌ Aucun choix enregistré. Utilise `/halloween set_choices`.",ephemeral=True); return
+        if row is None: await interaction.followup.send("❌ Aucun choix enregistré. Utilise `/joueur formats set_choices`.",ephemeral=True); return
         await interaction.followup.send(f"🍬 **{row['halloween_candy']}**\n🪄 **{row['halloween_spell']}**",ephemeral=True)
 
     @halloween.command(name="set_choices",description="Définir ou modifier ton Bonbon et ton Sort")
@@ -111,7 +111,7 @@ class HalloweenTournamentCog(commands.Cog):
             row=await self._choice_row(int(tournament.id),str(interaction.user.id))
             opponent_row=await self._choice_row(int(tournament.id),str(adversaire.id))
         except ValueError as e: await interaction.followup.send(f"❌ {e}",ephemeral=True); return
-        if row is None: await interaction.followup.send("❌ Enregistre d'abord tes choix avec `/halloween set_choices`.",ephemeral=True); return
+        if row is None: await interaction.followup.send("❌ Enregistre d'abord tes choix avec `/joueur formats set_choices`.",ephemeral=True); return
         if opponent_row is None: await interaction.followup.send("❌ Cet adversaire n'a pas encore de choix Halloween enregistré pour ce tournoi.",ephemeral=True); return
         view=HalloweenOfferView(chooser_id=int(adversaire.id),requester_name=getattr(interaction.user,"display_name",interaction.user.name),candy=str(row["halloween_candy"]),spell=str(row["halloween_spell"]),tournament_code=str(tournament.code))
         embed=discord.Embed(title="🎃 Bonbon ou Sort ?",description=f"{adversaire.mention}, choisis le Halloween Slot de {interaction.user.mention}. Tu ne vois pas la carte avant de choisir.",color=discord.Color.orange())

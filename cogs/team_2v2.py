@@ -349,8 +349,8 @@ class Team2v2Cog(commands.Cog):
         teams = await self._active_teams_for_user(guild_id, user_id)
         if not teams:
             raise ValueError(
-                "Tu n'as aucune équipe 2v2 complète. Crée-la avec `/duo team_create`, "
-                "puis ton partenaire utilise `/duo team_accept`."
+                "Tu n'as aucune équipe 2v2 complète. Crée-la avec `/joueur formats team_create`, "
+                "puis ton partenaire utilise `/joueur formats team_accept`."
             )
         if len(teams) > 1:
             ids = ", ".join(f"{row['name']} (#{row['id']})" for row in teams[:8])
@@ -1428,7 +1428,7 @@ class Team2v2Cog(commands.Cog):
 
         await interaction.response.send_message(
             f"🤝 **{name.strip()}** créée.\n"
-            f"{partner.mention}, accepte avec `/duo team_accept team_id:{team_id}`.\n"
+            f"{partner.mention}, accepte avec `/joueur formats team_accept team_id:{team_id}`.\n"
             f"ID équipe : **{team_id}**"
         )
 
@@ -1805,8 +1805,8 @@ class Team2v2Cog(commands.Cog):
         )
         await interaction.response.send_message(
             f"📨 Résultat envoyé. <@{opponent}> doit utiliser "
-            f"`/duo confirm match_id:{match_id} board:{board}` "
-            f"ou `/duo reject ...`."
+            f"`/joueur formats confirm match_id:{match_id} board:{board}` "
+            f"ou `/joueur formats reject ...`."
         )
 
     @duo.command(name="confirm", description="Confirmer un résultat 2v2.")

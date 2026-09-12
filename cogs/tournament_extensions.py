@@ -864,9 +864,9 @@ class TournamentExtensionsCog(commands.Cog):
         embed.add_field(
             name="Commandes essentielles",
             value=(
-                "`/tourney_plus judge_list` • `/tourney_plus waitlist_promote`\n"
-                "`/tourney_plus swiss_pair` • `/tourney_plus schedule_list`\n"
-                "`/tourney_plus secure_history` • `/tourney_plus secure_revert`"
+                "`/staff moderation judge_list` • `/staff tournois waitlist_promote`\n"
+                "`/staff suisse swiss_pair` • `/staff planning schedule_list`\n"
+                "`/staff maintenance secure_history` • `/staff maintenance secure_revert`"
             ),
             inline=False,
         )

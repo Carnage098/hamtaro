@@ -126,7 +126,7 @@ class RegistrationCog(commands.Cog):
                     title="Choix Halloween requis",
                     description=(
                         "Pour ce tournoi, choisis **1 Bonbon** et **1 Sort** dans /register. "
-                        "Tu pourras les modifier pendant les inscriptions avec /halloween set_choices."
+                        "Tu pourras les modifier avec `/joueur formats set_choices`."
                     ),
                 )
                 return

@@ -710,7 +710,6 @@ class PublicWebsiteCog(commands.Cog):
         }
         profiles = {
             "profile",
-            "hamtaro_plus",
         }
         statistics = {
             "deck_stats",

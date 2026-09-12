@@ -64,8 +64,8 @@ class CasualResultsPlusCog(commands.Cog):
             name="Validation",
             value=(
                 f"<@{opponent_id}> doit utiliser "
-                f"`/casual_result confirm demande_id:{result['request_id']}`.\n"
-                "En cas de désaccord : `/casual_result contest`."
+                f"`/joueur casual confirm demande_id:{result['request_id']}`.\n"
+                "En cas de désaccord : `/joueur casual contest`."
             ),
             inline=False,
         )

@@ -137,7 +137,7 @@ class BossCog(commands.Cog):
                 f"🎴 Format : **{self.arena.format_label(arena_settings.get('format_key'))}**"
             )
         else:
-            lines.append("⚙️ Configuration : **à choisir avec `/boss config`**")
+            lines.append("⚙️ Configuration : **à choisir avec `/joueur formats config`**")
         if state.get("successor_id"):
             lines.append(
                 f"💀 Boss tombé · prochain Boss : <@{state['successor_id']}>"
@@ -307,7 +307,7 @@ class BossCog(commands.Cog):
                 interaction,
                 title="⚔️ LES INSCRIPTIONS BOSS SONT OUVERTES",
                 description=(
-                    "Inscris-toi avec **/boss inscription** ou depuis la page "
+                    "Inscris-toi avec **/joueur formats inscription** ou depuis la page "
                     "**/formats/boss** pour tenter de faire tomber le Boss."
                 ),
             )
@@ -545,7 +545,7 @@ class BossCog(commands.Cog):
         )
         if not sent:
             await interaction.response.send_message(
-                "❌ Aucun salon d'annonces Boss n'est configuré. Utilise `/boss salon`.",
+                "❌ Aucun salon d'annonces Boss n'est configuré. Utilise `/staff formats salon`.",
                 ephemeral=True,
             )
             return
@@ -640,7 +640,7 @@ class BossCog(commands.Cog):
                 except (discord.Forbidden, discord.HTTPException):
                     await interaction.response.send_message(
                         "❌ Hamtaro ne peut pas créer le salon. Crée-le manuellement puis utilise "
-                        "`/boss match_salon salon:#ton-salon`.",
+                        "`/staff formats match_salon salon:#ton-salon`.",
                         ephemeral=True,
                     )
                     return

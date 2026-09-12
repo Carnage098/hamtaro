@@ -549,7 +549,7 @@ class BracketCog(commands.Cog):
                     (
                         "ℹ️ Ce tournoi est terminé. "
                         "Utilise plutôt "
-                        f"`/final_bracket tournoi:{tournament_code}` "
+                        f"`/joueur brackets final_bracket tournoi:{tournament_code}` "
                         "pour obtenir son affiche finale."
                     ),
                     ephemeral=True,
@@ -624,7 +624,7 @@ class BracketCog(commands.Cog):
                 await interaction.followup.send(
                     (
                         "❌ Ce tournoi n'est pas encore terminé.\n"
-                        "Utilise `/bracket` pour consulter son "
+                        "Utilise `/joueur brackets voir` pour consulter son "
                         "avancement actuel."
                     ),
                     ephemeral=True,

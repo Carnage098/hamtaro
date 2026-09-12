@@ -671,6 +671,136 @@ class DatabaseService:
             ),
         )
 
+    async def finish_single_player_tournament_by_bye(
+        self,
+        tournament_id: int,
+        guild_id: str,
+        structure: str = "single_elimination",
+    ) -> Tournament:
+        """Termine atomiquement un tournoi à un joueur avec un BYE final."""
+        if structure not in {"single_elimination", "swiss"}:
+            raise ValueError("Structure de tournoi inconnue.")
+        connection = self._connection()
+        await connection.execute("BEGIN IMMEDIATE")
+        try:
+            tournament = await (
+                await connection.execute(
+                    """
+                    SELECT status FROM tournaments
+                    WHERE id = ? AND guild_id = ?
+                    """,
+                    (tournament_id, guild_id),
+                )
+            ).fetchone()
+            if tournament is None:
+                raise ValueError("Tournoi introuvable.")
+            if str(tournament["status"]) not in {"registration", "check_in"}:
+                raise ValueError("Le tournoi n'est plus en phase d'inscription.")
+
+            registrations = await (
+                await connection.execute(
+                    """
+                    SELECT discord_id, username
+                    FROM registrations
+                    WHERE tournament_id = ?
+                      AND COALESCE(dropped, 0) = 0
+                      AND COALESCE(disqualified, 0) = 0
+                    """,
+                    (tournament_id,),
+                )
+            ).fetchall()
+            if len(registrations) != 1:
+                raise ValueError("Ce démarrage par BYE exige exactement un joueur actif.")
+
+            existing_matches = await (
+                await connection.execute(
+                    "SELECT COUNT(*) FROM matches WHERE tournament_id = ?",
+                    (tournament_id,),
+                )
+            ).fetchone()
+            if int(existing_matches[0] or 0):
+                raise ValueError("Un bracket existe déjà pour ce tournoi.")
+
+            player = registrations[0]
+            player_id = str(player["discord_id"])
+            player_name = str(player["username"])
+            if structure == "swiss":
+                await connection.execute(
+                    """
+                    INSERT INTO swiss_settings (
+                        tournament_id, total_rounds, current_round, status,
+                        started_at, finished_at
+                    )
+                    VALUES (?, 1, 1, 'finished', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """,
+                    (tournament_id,),
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO swiss_matches (
+                        tournament_id, round_number, table_number,
+                        player1_id, player1_name, winner_id, winner_name,
+                        is_bye, status, reported_by, reported_at, finished_at
+                    )
+                    VALUES (?, 1, 1, ?, ?, ?, ?, 1, 'completed',
+                            'hamtaro-auto', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """,
+                    (tournament_id, player_id, player_name, player_id, player_name),
+                )
+            else:
+                await connection.execute(
+                    """
+                    INSERT INTO matches (
+                        tournament_id, round, match_number, bracket_position,
+                        player1_id, player1_name, player1_score, player2_score,
+                        winner_id, winner_name, score, validated_by,
+                        reported_at, validated_at, status, is_bye, notes
+                    )
+                    VALUES (?, 1, 1, 1, ?, ?, 1, 0, ?, ?, 'BYE',
+                            'hamtaro-auto', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                            'completed', 1, 'Victoire automatique : seul joueur inscrit.')
+                    """,
+                    (tournament_id, player_id, player_name, player_id, player_name),
+                )
+            await connection.execute(
+                """
+                UPDATE tournaments
+                SET status = 'finished', current_round = 1, total_rounds = 1,
+                    winner_id = ?, winner_name = ?,
+                    started_at = CURRENT_TIMESTAMP,
+                    finished_at = CURRENT_TIMESTAMP,
+                    auto_start_attempted_at = CURRENT_TIMESTAMP,
+                    auto_start_result = 'finished_single_player_bye'
+                WHERE id = ?
+                """,
+                (player_id, player_name, tournament_id),
+            )
+            await connection.execute(
+                """
+                UPDATE registrations SET final_rank = 1
+                WHERE tournament_id = ? AND discord_id = ?
+                """,
+                (tournament_id, player_id),
+            )
+            await connection.execute(
+                """
+                UPDATE players
+                SET tournaments_played = tournaments_played + 1,
+                    tournaments_won = tournaments_won + 1
+                WHERE discord_id = ? AND guild_id = ?
+                """,
+                (player_id, guild_id),
+            )
+            await connection.commit()
+        except Exception:
+            await connection.rollback()
+            raise
+
+        updated = await self.get_tournament(tournament_id)
+        if updated is None:
+            raise RuntimeError("Le tournoi terminé par BYE ne peut pas être relu.")
+        return updated
+
     async def cancel_tournament(
         self,
         tournament_id: int,

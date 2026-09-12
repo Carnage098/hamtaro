@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils.tournament_resolver import resolve_tournament
+from utils.permissions import is_staff_member
 
 
 LOGGER = logging.getLogger(__name__)
@@ -192,19 +193,128 @@ class HubQuickResultModal(discord.ui.Modal):
         )
 
 
+class StaffQuickView(discord.ui.View):
+    """Quatre parcours fréquents, sans demander au staff de mémoriser les commandes."""
+
+    def __init__(self, cog: "HamtaroHubCog", requester_id: int) -> None:
+        super().__init__(timeout=HUB_TIMEOUT_SECONDS)
+        self.cog = cog
+        self.requester_id = requester_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.requester_id and is_staff_member(interaction.user):
+            return True
+        await interaction.response.send_message("⛔ Accès réservé au staff.", ephemeral=True)
+        return False
+
+    @discord.ui.button(label="Gérer le tournoi", emoji="🏟️", style=discord.ButtonStyle.primary)
+    async def manage(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        del button
+        await self.cog.invoke_public_command(
+            interaction,
+            "tournament_manage",
+            preferred_role="staff",
+            preferred_module="cogs.tournament_manage",
+            code=None,
+        )
+
+    @discord.ui.button(label="Préparer le départ", emoji="🚦", style=discord.ButtonStyle.success)
+    async def start(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        del button
+        await self.cog.invoke_public_command(
+            interaction,
+            "start_tournament",
+            preferred_role="staff",
+            preferred_module="cogs.tournament_start_preview",
+            code=None,
+            rondes=None,
+            visible=False,
+            recreer=False,
+        )
+
+    @discord.ui.button(label="Résultats à valider", emoji="✅", style=discord.ButtonStyle.secondary)
+    async def pending(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        del button
+        await self.cog.invoke_public_command(
+            interaction,
+            "pending_results",
+            preferred_role="staff",
+            preferred_module="cogs.results",
+        )
+
+    @discord.ui.button(label="Tableau de bord", emoji="📋", style=discord.ButtonStyle.secondary)
+    async def dashboard(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        del button
+        await self.cog.invoke_public_command(
+            interaction,
+            "staff_dashboard",
+            preferred_role="staff",
+        )
+
+
+class AdminQuickView(discord.ui.View):
+    """Contrôles de configuration réservés aux administrateurs."""
+
+    def __init__(self, cog: "HamtaroHubCog", requester_id: int) -> None:
+        super().__init__(timeout=HUB_TIMEOUT_SECONDS)
+        self.cog = cog
+        self.requester_id = requester_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        allowed = bool(
+            interaction.user.id == self.requester_id
+            and isinstance(interaction.user, discord.Member)
+            and interaction.user.guild_permissions.administrator
+        )
+        if allowed:
+            return True
+        await interaction.response.send_message("⛔ Accès réservé aux admins.", ephemeral=True)
+        return False
+
+    @discord.ui.button(label="État du système", emoji="💚", style=discord.ButtonStyle.primary)
+    async def health(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        del button
+        await self.cog.invoke_public_command(
+            interaction, "hamtaro_health", preferred_role="admin"
+        )
+
+    @discord.ui.button(label="Voir la configuration", emoji="🔎", style=discord.ButtonStyle.secondary)
+    async def show(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        del button
+        await self.cog.invoke_public_command(interaction, "show", preferred_role="admin")
+
+    @discord.ui.button(label="Vérifier les accès", emoji="🔐", style=discord.ButtonStyle.secondary)
+    async def check(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        del button
+        await self.cog.invoke_public_command(interaction, "check", preferred_role="admin")
+
+    @discord.ui.button(label="Sauvegarder", emoji="💾", style=discord.ButtonStyle.secondary)
+    async def backup(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        del button
+        await self.cog.invoke_public_command(
+            interaction, "hamtaro_backup", preferred_role="admin"
+        )
+
+
 class HamtaroHubView(discord.ui.View):
-    """Menu joueur principal affiché par /hamtaro."""
+    """Menu principal adapté au rôle de la personne qui l'ouvre."""
 
     def __init__(
         self,
         *,
         cog: "HamtaroHubCog",
         requester_id: int,
+        is_staff: bool,
+        is_admin: bool,
     ) -> None:
         super().__init__(timeout=HUB_TIMEOUT_SECONDS)
         self.cog = cog
         self.requester_id = requester_id
         self.message: discord.Message | None = None
+        if not is_staff:
+            self.remove_item(self.staff_button)
+        if not is_admin:
+            self.remove_item(self.admin_button)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.requester_id:
@@ -272,6 +382,7 @@ class HamtaroHubView(discord.ui.View):
         await self.cog.invoke_public_command(
             interaction,
             "nextmatch",
+            preferred_module="cogs.nextmatch",
             joueur=None,
             tournoi=None,
         )
@@ -305,6 +416,7 @@ class HamtaroHubView(discord.ui.View):
         await self.cog.invoke_public_command(
             interaction,
             "bracket",
+            preferred_module="cogs.bracket",
             tournoi=None,
         )
 
@@ -337,6 +449,7 @@ class HamtaroHubView(discord.ui.View):
         await self.cog.invoke_public_command(
             interaction,
             "profile",
+            preferred_module="cogs.profile",
             member=None,
             code=None,
             visible=False,
@@ -405,9 +518,37 @@ class HamtaroHubView(discord.ui.View):
         embed = await self.cog.build_home_embed(interaction)
         await interaction.edit_original_response(embed=embed, view=self)
 
+    @discord.ui.button(
+        label="Espace staff",
+        emoji="🛡️",
+        style=discord.ButtonStyle.primary,
+        row=2,
+    )
+    async def staff_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        del button
+        await self.cog.open_staff_space(interaction)
+
+    @discord.ui.button(
+        label="Espace admin",
+        emoji="⚙️",
+        style=discord.ButtonStyle.danger,
+        row=2,
+    )
+    async def admin_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        del button
+        await self.cog.open_admin_space(interaction)
+
 
 class HamtaroHubCog(commands.Cog):
-    """Commande centrale /hamtaro destinée aux joueurs."""
+    """Commande centrale adaptée aux joueurs, au staff et aux admins."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -442,6 +583,9 @@ class HamtaroHubCog(commands.Cog):
         self,
         interaction: discord.Interaction,
         command_name: str,
+        *,
+        preferred_role: str | None = None,
+        preferred_module: str | None = None,
         **kwargs: Any,
     ) -> bool:
         """
@@ -451,7 +595,11 @@ class HamtaroHubCog(commands.Cog):
         avec plusieurs versions du projet Hamtaro.
         """
 
-        command = self.bot.tree.get_command(command_name)
+        command = self.find_command(
+            command_name,
+            preferred_role=preferred_role,
+            preferred_module=preferred_module,
+        )
 
         if not isinstance(command, app_commands.Command):
             await safe_ephemeral_send(
@@ -519,6 +667,94 @@ class HamtaroHubCog(commands.Cog):
 
         return True
 
+    def find_command(
+        self,
+        command_name: str,
+        *,
+        preferred_role: str | None = None,
+        preferred_module: str | None = None,
+    ) -> app_commands.Command | None:
+        """Retrouve une action même après son rangement sous un espace par rôle."""
+        direct = self.bot.tree.get_command(
+            command_name,
+            type=discord.AppCommandType.chat_input,
+        )
+        if isinstance(direct, app_commands.Command):
+            return direct
+
+        candidates: list[tuple[int, app_commands.Command]] = []
+        for command in self.bot.tree.walk_commands(
+            type=discord.AppCommandType.chat_input,
+        ):
+            if not isinstance(command, app_commands.Command):
+                continue
+            original = str(
+                command.extras.get("_hamtaro_original_name", "")
+            )
+            if original != command_name and command.name != command_name:
+                continue
+            score = 10 if original == command_name else 1
+            root_name = command.qualified_name.split()[0]
+            if preferred_role and root_name == preferred_role:
+                score += 20
+            callback = getattr(command, "callback", None)
+            module = str(getattr(callback, "__module__", ""))
+            if preferred_module and module.startswith(preferred_module):
+                score += 40
+            candidates.append((score, command))
+        if not candidates:
+            return None
+        return max(candidates, key=lambda candidate: candidate[0])[1]
+
+    async def open_staff_space(self, interaction: discord.Interaction) -> None:
+        if not is_staff_member(interaction.user):
+            await safe_ephemeral_send(interaction, content="⛔ Accès réservé au staff.")
+            return
+        embed = discord.Embed(
+            title="🛡️ Espace staff",
+            description=(
+                "Les quatre tâches les plus fréquentes sont accessibles ci-dessous. "
+                "Pour une opération moins courante, ouvre `/staff`."
+            ),
+            colour=discord.Colour.blurple(),
+        )
+        embed.add_field(
+            name="Parcours conseillé",
+            value=(
+                "1. **Gérer le tournoi** pour contrôler les inscriptions et la progression\n"
+                "2. **Préparer le départ** pour vérifier les rondes avant lancement\n"
+                "3. **Résultats à valider** pour traiter les scores signalés"
+            ),
+            inline=False,
+        )
+        await safe_ephemeral_send(
+            interaction,
+            embed=embed,
+            view=StaffQuickView(self, interaction.user.id),
+        )
+
+    async def open_admin_space(self, interaction: discord.Interaction) -> None:
+        is_admin = bool(
+            isinstance(interaction.user, discord.Member)
+            and interaction.user.guild_permissions.administrator
+        )
+        if not is_admin:
+            await safe_ephemeral_send(interaction, content="⛔ Accès réservé aux admins.")
+            return
+        embed = discord.Embed(
+            title="⚙️ Espace administration",
+            description=(
+                "Santé, permissions, configuration et sauvegarde sont réunies ici. "
+                "La configuration complète reste disponible dans `/admin configuration`."
+            ),
+            colour=discord.Colour.dark_gold(),
+        )
+        await safe_ephemeral_send(
+            interaction,
+            embed=embed,
+            view=AdminQuickView(self, interaction.user.id),
+        )
+
     # ==========================================================
     # EMBED PRINCIPAL
     # ==========================================================
@@ -530,8 +766,8 @@ class HamtaroHubCog(commands.Cog):
         embed = discord.Embed(
             title="🐹 Centre Hamtaro",
             description=(
-                "Toutes les actions importantes du tournoi sont réunies ici.\n"
-                "Choisis simplement un bouton."
+                "Toutes les actions importantes sont réunies ici. "
+                "Hamtaro adapte ce menu à ton rôle."
             ),
             colour=discord.Colour.gold(),
         )
@@ -614,6 +850,19 @@ class HamtaroHubCog(commands.Cog):
             ),
             inline=False,
         )
+
+        staff = is_staff_member(interaction.user)
+        admin = bool(
+            isinstance(interaction.user, discord.Member)
+            and interaction.user.guild_permissions.administrator
+        )
+        if admin:
+            role_text = "⚙️ Administration — espaces joueur, staff et système disponibles"
+        elif staff:
+            role_text = "🛡️ Staff — outils d'organisation et d'arbitrage disponibles"
+        else:
+            role_text = "🎮 Joueur — seules les actions utiles pour jouer sont proposées"
+        embed.add_field(name="Ton espace", value=role_text, inline=False)
 
         if self.bot.user is not None:
             embed.set_thumbnail(url=self.bot.user.display_avatar.url)
@@ -778,13 +1027,11 @@ class HamtaroHubCog(commands.Cog):
             await self.invoke_public_command(
                 interaction,
                 "swiss_standings",
+                preferred_module="cogs.swiss",
             )
             return
 
-        if isinstance(
-            self.bot.tree.get_command("leaderboard"),
-            app_commands.Command,
-        ):
+        if self.find_command("leaderboard") is not None:
             await self.invoke_public_command(
                 interaction,
                 "leaderboard",
@@ -806,7 +1053,10 @@ class HamtaroHubCog(commands.Cog):
 
     async def open_rules(self, interaction: discord.Interaction) -> None:
         if isinstance(
-            self.bot.tree.get_command("rules"),
+            self.bot.tree.get_command(
+                "rules",
+                type=discord.AppCommandType.chat_input,
+            ),
             app_commands.Command,
         ):
             await self.invoke_public_command(interaction, "rules")
@@ -853,10 +1103,7 @@ class HamtaroHubCog(commands.Cog):
         await safe_ephemeral_send(interaction, embed=embed)
 
     async def open_website(self, interaction: discord.Interaction) -> None:
-        if isinstance(
-            self.bot.tree.get_command("hamtaro_site"),
-            app_commands.Command,
-        ):
+        if self.find_command("hamtaro_site") is not None:
             await self.invoke_public_command(interaction, "hamtaro_site")
             return
 
@@ -899,7 +1146,7 @@ class HamtaroHubCog(commands.Cog):
 
     @app_commands.command(
         name="hamtaro",
-        description="Ouvrir le centre de contrôle joueur Hamtaro",
+        description="Ouvrir ton espace Hamtaro adapté à ton rôle",
     )
     async def hamtaro(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
@@ -915,9 +1162,16 @@ class HamtaroHubCog(commands.Cog):
         )
 
         embed = await self.build_home_embed(interaction)
+        staff = is_staff_member(interaction.user)
+        admin = bool(
+            isinstance(interaction.user, discord.Member)
+            and interaction.user.guild_permissions.administrator
+        )
         view = HamtaroHubView(
             cog=self,
             requester_id=interaction.user.id,
+            is_staff=staff,
+            is_admin=admin,
         )
 
         message = await interaction.followup.send(

@@ -651,14 +651,22 @@ class HelpCog(commands.Cog):
         is_staff: bool,
     ) -> discord.Embed:
         command_count = sum(len(items) for items in categories.values())
-        detected_role = "Staff" if is_staff else "Joueur"
+        detected_role = "Staff / administration" if is_staff else "Joueur"
+        navigation = (
+            "`/joueur` pour participer • `/staff` pour organiser • "
+            "`/admin` pour configurer"
+            if is_staff
+            else "`/joueur` pour les commandes de jeu"
+        )
 
         embed = discord.Embed(
             title="🐹 Centre d'aide Hamtaro",
             description=(
                 f"Rôle détecté : **{detected_role}**\n"
                 f"Commandes accessibles : **{command_count}**\n\n"
-                "Choisis une catégorie dans le menu. "
+                "Le plus simple : ouvre **`/hamtaro`** et utilise les boutons.\n"
+                f"Arborescence : {navigation}.\n\n"
+                "Choisis une catégorie ci-dessous seulement pour consulter le catalogue. "
                 "Pour rechercher une commande précise, utilise par exemple "
                 "`/help commande:result`."
             ),

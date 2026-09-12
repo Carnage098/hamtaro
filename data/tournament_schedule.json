@@ -7,7 +7,7 @@
       "label": "Septembre 2026",
       "emoji": "🍂",
       "slots": [
-        {"id": "2026-09-19-suisse", "code": "SUI-1909", "date": "2026-09-19", "day_label": "Samedi 19 septembre", "start": "18:00", "end": "22:30", "format": "Suisse", "platform": "YGO Omega", "kind": "special", "emoji": "🏆"},
+        {"id": "2026-09-19-suisse", "code": "SUI-1909", "date": "2026-09-19", "day_label": "Samedi 19 septembre", "start": "18:00", "end": "22:30", "format": "Suisse", "platform": "YGO Omega", "structure": "swiss", "kind": "special", "emoji": "🏆"},
         {"id": "2026-09-20-classique", "code": "TCG-2009", "date": "2026-09-20", "day_label": "Dimanche 20 septembre", "start": "16:00", "end": "18:30", "format": "Classique", "platform": "YGO Omega", "kind": "classic", "emoji": "🟦"},
         {"id": "2026-09-26-master-duel", "code": "MD-2609", "date": "2026-09-26", "day_label": "Samedi 26 septembre", "start": "16:00", "end": "21:30", "format": "Master Duel", "platform": "Master Duel uniquement", "kind": "classic", "emoji": "🟦"},
         {"id": "2026-09-27-special", "code": "SPE-2709", "date": "2026-09-27", "day_label": "Dimanche 27 septembre", "start": "16:00", "end": "18:30", "format": "Format spécial à annoncer", "platform": "À confirmer", "kind": "special", "emoji": "⚙️"}
@@ -40,7 +40,7 @@
         {"id": "2026-11-14-pure", "code": "PUR-1411", "date": "2026-11-14", "day_label": "Samedi 14 novembre", "start": "18:00", "end": "22:30", "format": "Pure", "platform": "À confirmer", "kind": "special", "emoji": "🌿"},
         {"id": "2026-11-15-classique", "code": "TCG-1511", "date": "2026-11-15", "day_label": "Dimanche 15 novembre", "start": "16:00", "end": "18:30", "format": "Classique", "platform": "À confirmer", "kind": "classic", "emoji": "🟦"},
         {"id": "2026-11-21-classique", "code": "TCG-2111", "date": "2026-11-21", "day_label": "Samedi 21 novembre", "start": "16:00", "end": "21:30", "format": "Classique", "platform": "À confirmer", "kind": "classic", "emoji": "🟦"},
-        {"id": "2026-11-22-suisse", "code": "SUI-2211", "date": "2026-11-22", "day_label": "Dimanche 22 novembre", "start": "16:00", "end": "19:30", "format": "Suisse", "platform": "À confirmer", "kind": "special", "emoji": "🏆"},
+        {"id": "2026-11-22-suisse", "code": "SUI-2211", "date": "2026-11-22", "day_label": "Dimanche 22 novembre", "start": "16:00", "end": "19:30", "format": "Suisse", "platform": "À confirmer", "structure": "swiss", "kind": "special", "emoji": "🏆"},
         {"id": "2026-11-28-edison", "code": "EDI-2811", "date": "2026-11-28", "day_label": "Samedi 28 novembre", "start": "18:00", "end": "22:30", "format": "Edison", "platform": "À confirmer", "kind": "special", "emoji": "⚙️"},
         {"id": "2026-11-29-classique", "code": "TCG-2911", "date": "2026-11-29", "day_label": "Dimanche 29 novembre", "start": "16:00", "end": "18:30", "format": "Classique", "platform": "À confirmer", "kind": "classic", "emoji": "🟦"}
       ]

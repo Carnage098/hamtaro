@@ -653,7 +653,9 @@ class TournamentManageCog(commands.Cog):
             f"• Round **{row['round']}** : {row['finished']}/{row['total']} terminé(s)"
             for row in rows
         )
-        embed.set_footer(text="L'image officielle reste disponible avec /bracket ou /final_bracket.")
+        embed.set_footer(
+            text="Images : /joueur brackets voir ou /joueur brackets final_bracket."
+        )
         return embed
 
     @app_commands.command(

@@ -515,7 +515,7 @@ class BossArenaCoordinator:
             return
         await self.store.mark_disputed(int(match["id"]))
         await interaction.response.send_message(
-            "⚠️ Résultat contesté. Le fil reste ouvert et le staff peut trancher avec `/boss resultat`.",
+            "⚠️ Résultat contesté. Le fil reste ouvert et le staff peut trancher avec `/staff formats resultat`.",
             ephemeral=True,
         )
         if isinstance(interaction.channel, discord.Thread):
@@ -647,7 +647,7 @@ class BossArenaCoordinator:
                         f"<@{challenger_id}> détrône <@{old_boss_id}>.\n\n"
                         f"👑 **Nouveau Boss : <@{new_boss_id}>**\n"
                         f"♻️ **{migrated}** challenger(s) conservé(s) dans la file.\n"
-                        "Le nouveau Boss doit choisir sa plateforme et son format avec `/boss config`."
+                        "Le nouveau Boss doit choisir sa plateforme et son format avec `/joueur formats config`."
                     ),
                 )
                 output = {

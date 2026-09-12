@@ -36,9 +36,12 @@ def schedule_tournament_specs(max_players: int = 8) -> list[dict[str, Any]]:
         {
             "scheduled_slot_id": slot["id"],
             "code": slot["code"],
+            "date": slot["date"],
+            "start": slot["start"],
             "name": f"{slot['format']} — {slot['day_label']}",
             "format": slot["format"],
             "max_players": max_players,
+            "structure": slot.get("structure", "single_elimination"),
         }
         for slot in schedule_slots()
     ]

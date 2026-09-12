@@ -113,6 +113,8 @@ async def run_migrations(
     await ensure_column(db, "tournaments", "started_at", "TIMESTAMP")
     await ensure_column(db, "tournaments", "finished_at", "TIMESTAMP")
     await ensure_column(db, "tournaments", "scheduled_slot_id", "TEXT")
+    await ensure_column(db, "tournaments", "auto_start_attempted_at", "TIMESTAMP")
+    await ensure_column(db, "tournaments", "auto_start_result", "TEXT")
 
     # ==========================================================
     # MIGRATIONS JOUEURS
@@ -257,6 +259,8 @@ async def init_db() -> None:
             started_at TIMESTAMP,
             finished_at TIMESTAMP
             ,scheduled_slot_id TEXT
+            ,auto_start_attempted_at TIMESTAMP
+            ,auto_start_result TEXT
         )
         """)
 
