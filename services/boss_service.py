@@ -4,6 +4,7 @@ import aiosqlite
 from typing import Any
 
 from config import DATABASE, SQLITE_BUSY_TIMEOUT_MS
+from services.boss_arena_service import BossArenaService
 
 
 class BossService:
@@ -91,6 +92,21 @@ class BossService:
                     ON boss_reigns(guild_id, id DESC);
                 """
             )
+            columns = {
+                row["name"]
+                for row in await (await db.execute(
+                    "PRAGMA table_info(boss_challengers)"
+                )).fetchall()
+            }
+            for name, definition in {
+                "preferred_platform_key": "TEXT",
+                "preferred_format_key": "TEXT",
+                "availability": "TEXT",
+            }.items():
+                if name not in columns:
+                    await db.execute(
+                        f"ALTER TABLE boss_challengers ADD COLUMN {name} {definition}"
+                    )
             await db.commit()
         finally:
             await db.close()
@@ -208,7 +224,15 @@ class BossService:
         username: str,
         *,
         force: bool = False,
+        platform_key: str | None = None,
+        format_key: str | None = None,
+        availability: str | None = None,
     ) -> dict[str, Any]:
+        platform_key, format_key, availability = self._validate_preferences(
+            platform_key,
+            format_key,
+            availability,
+        )
         await self.ensure_schema()
         db = await self._connect()
         try:
@@ -254,21 +278,40 @@ class BossService:
                     """
                     UPDATE boss_challengers
                     SET username = ?, position = ?, scheduled_at = NULL,
-                        status = 'registered', updated_at = CURRENT_TIMESTAMP
+                        preferred_platform_key = ?, preferred_format_key = ?,
+                        availability = ?, status = 'registered',
+                        updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                     """,
-                    (username, position, int(existing["id"])),
+                    (
+                        username,
+                        position,
+                        platform_key,
+                        format_key,
+                        availability,
+                        int(existing["id"]),
+                    ),
                 )
                 challenger_id = int(existing["id"])
             else:
                 cur = await db.execute(
                     """
                     INSERT INTO boss_challengers(
-                        guild_id, week_number, discord_id, username, position
+                        guild_id, week_number, discord_id, username, position,
+                        preferred_platform_key, preferred_format_key, availability
                     )
-                    VALUES(?, ?, ?, ?, ?)
+                    VALUES(?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (guild_id, week_number, discord_id, username, position),
+                    (
+                        guild_id,
+                        week_number,
+                        discord_id,
+                        username,
+                        position,
+                        platform_key,
+                        format_key,
+                        availability,
+                    ),
                 )
                 challenger_id = int(cur.lastrowid)
 
@@ -280,6 +323,63 @@ class BossService:
             return dict(await cur.fetchone())
         finally:
             await db.close()
+
+    @staticmethod
+    def _validate_preferences(
+        platform_key: str | None,
+        format_key: str | None,
+        availability: str | None,
+    ) -> tuple[str | None, str | None, str | None]:
+        platform = str(platform_key or "").strip() or None
+        game_format = str(format_key or "").strip() or None
+        available = str(availability or "").strip() or None
+        if bool(platform) != bool(game_format):
+            raise ValueError(
+                "Choisis à la fois une plateforme et un format, ou laisse les deux vides."
+            )
+        if platform and game_format:
+            BossArenaService().validate_configuration(platform, game_format)
+        if available and len(available) > 120:
+            raise ValueError("La disponibilité ne peut pas dépasser 120 caractères.")
+        return platform, game_format, available
+
+    async def update_preferences(
+        self,
+        guild_id: str,
+        discord_id: str,
+        *,
+        platform_key: str,
+        format_key: str,
+        availability: str | None = None,
+    ) -> dict[str, Any]:
+        platform, game_format, available = self._validate_preferences(
+            platform_key,
+            format_key,
+            availability,
+        )
+        row = await self.challenger_by_discord(guild_id, discord_id)
+        if not row:
+            raise ValueError("Inscris-toi d'abord dans la file du Boss.")
+        if str(row["status"]) in {"in_match", "defeated", "boss_killer"}:
+            raise ValueError("Les choix ne peuvent plus être modifiés pour ce duel.")
+        db = await self._connect()
+        try:
+            await db.execute(
+                """
+                UPDATE boss_challengers
+                SET preferred_platform_key = ?, preferred_format_key = ?,
+                    availability = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (platform, game_format, available, int(row["id"])),
+            )
+            await db.commit()
+        finally:
+            await db.close()
+        updated = await self.challenger_by_discord(guild_id, discord_id)
+        if updated is None:
+            raise RuntimeError("Les préférences ont été enregistrées mais sont introuvables.")
+        return updated
 
     async def unregister_challenger(
         self,

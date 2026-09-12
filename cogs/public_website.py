@@ -29,6 +29,7 @@ from services.format_routes import register_format_routes
 from services.site_experience_routes import register_site_experience_routes
 from services.trophy_routes import register_trophy_routes
 from services.team_routes import register_team_routes
+from services.tournament_schedule_service import public_schedule
 
 
 LOGGER = logging.getLogger(__name__)
@@ -285,7 +286,7 @@ class PublicWebsiteCog(commands.Cog):
             "Routes Équipes 2v2 enregistrées : /equipes, /api/equipes"
         )
         application.router.add_get("/favicon.ico", self.favicon)
-        # HAMTARO FORMAT ARAIGNEE: routes publiques et API.
+        # Pages publiques des formats communautaires actifs.
         register_format_routes(application, self)
 
         if self.static_directory.exists():
@@ -1089,9 +1090,12 @@ class PublicWebsiteCog(commands.Cog):
             if self._status(item.get("status")) in FINISHED_STATUSES
         ][:8]
 
+        schedule = public_schedule(tournaments)
+
         return self.render(
             "index.html",
             request=request,
+            schedule=schedule,
             open_tournaments=open_tournaments,
             current_tournaments=current_tournaments,
             recent_archives=recent_archives,

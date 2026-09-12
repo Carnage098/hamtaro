@@ -1088,3 +1088,53 @@
 @media (max-width: 620px) {
     .boss-program-badges { justify-content: flex-start; }
 }
+
+/* Choix individuels des challengers */
+.boss-choice-form {
+    display: grid;
+    gap: .85rem;
+    margin: 1rem 0;
+    padding: 1rem;
+    border: 1px solid rgba(255, 166, 70, .18);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .025);
+}
+
+.boss-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .8rem;
+}
+
+.boss-choice-form label {
+    display: grid;
+    gap: .4rem;
+    color: #d8cabe;
+    font-size: .78rem;
+    font-weight: 800;
+}
+
+.boss-choice-form select,
+.boss-choice-form input {
+    width: 100%;
+    min-height: 44px;
+    padding: .68rem .75rem;
+    border: 1px solid rgba(255, 255, 255, .13);
+    border-radius: 11px;
+    background: #151417;
+    color: #fff5e9;
+    font: inherit;
+}
+
+.boss-player-choice {
+    margin-top: .45rem;
+    color: #ffd0a0;
+    font-size: .72rem;
+    line-height: 1.45;
+}
+
+@media (max-width: 620px) {
+    .boss-choice-grid {
+        grid-template-columns: 1fr;
+    }
+}

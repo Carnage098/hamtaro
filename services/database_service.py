@@ -246,6 +246,7 @@ class DatabaseService:
         format: str,
         max_players: int,
         created_by: str,
+        scheduled_slot_id: str | None = None,
     ) -> Tournament:
         """
         Crée un tournoi en phase d'inscription.
@@ -261,6 +262,16 @@ class DatabaseService:
         # ou automatiquement lorsqu'il n'existe qu'un seul tournoi actif.
         code = await self.generate_unique_tournament_code(format)
 
+        if scheduled_slot_id:
+            linked = await self.fetchone(
+                "SELECT id FROM tournaments WHERE scheduled_slot_id = ? LIMIT 1",
+                (scheduled_slot_id,),
+            )
+            if linked is not None:
+                raise ValueError(
+                    "Ce créneau du planning est déjà relié à un autre tournoi."
+                )
+
         tournament_id = await self.insert(
             """
             INSERT INTO tournaments (
@@ -270,9 +281,10 @@ class DatabaseService:
                 format,
                 max_players,
                 status,
-                created_by
+                created_by,
+                scheduled_slot_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 guild_id,
@@ -282,6 +294,7 @@ class DatabaseService:
                 max_players,
                 TournamentStatus.REGISTRATION.value,
                 created_by,
+                scheduled_slot_id,
             ),
         )
 
@@ -3964,5 +3977,3 @@ class DatabaseService:
         )
 
         return value == 1
-
-

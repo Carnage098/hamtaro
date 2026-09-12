@@ -211,15 +211,21 @@ class BossRoutes:
 
         is_staff = False
         is_registered = False
+        registered_challenger = None
 
         if user:
             discord_id = str(user.get("id") or "")
             is_staff = await self._is_staff(guild_id, discord_id)
-            is_registered = any(
-                str(row["discord_id"]) == discord_id
-                and str(row["status"]) != "removed"
-                for row in challengers
+            registered_challenger = next(
+                (
+                    row
+                    for row in challengers
+                    if str(row["discord_id"]) == discord_id
+                    and str(row["status"]) != "removed"
+                ),
+                None,
             )
+            is_registered = registered_challenger is not None
 
         return self.website_cog.render(
             "format_boss.html",
@@ -231,10 +237,29 @@ class BossRoutes:
             user=user,
             is_staff=is_staff,
             is_registered=is_registered,
+            registered_challenger=registered_challenger,
+            platform_formats=self.service_platform_formats(),
+            platform_labels=self.service_platform_labels(),
+            format_labels=self.service_format_labels(),
             saved=request.query.get("saved") == "1",
             error=request.query.get("error"),
             radagon_model_url=radagon_model_url,
         )
+
+    @staticmethod
+    def service_platform_formats() -> dict[str, tuple[str, ...]]:
+        from services.boss_arena_service import BossArenaService
+        return BossArenaService.PLATFORM_FORMATS
+
+    @staticmethod
+    def service_platform_labels() -> dict[str, str]:
+        from services.boss_arena_service import BossArenaService
+        return BossArenaService.PLATFORM_LABELS
+
+    @staticmethod
+    def service_format_labels() -> dict[str, str]:
+        from services.boss_arena_service import BossArenaService
+        return BossArenaService.FORMAT_LABELS
 
     async def login(self, request: web.Request) -> web.Response:
         client_id = self._oauth_client_id()
@@ -364,6 +389,9 @@ class BossRoutes:
                 guild_id,
                 str(member.id),
                 member.display_name,
+                platform_key=str(data.get("platform_key") or "") or None,
+                format_key=str(data.get("format_key") or "") or None,
+                availability=str(data.get("availability") or "") or None,
             )
         except ValueError as exc:
             raise web.HTTPSeeOther(
@@ -373,6 +401,28 @@ class BossRoutes:
         raise web.HTTPSeeOther(
             location="/formats/boss?saved=1"
         )
+
+    async def preferences(self, request: web.Request) -> web.Response:
+        guild_id, user, member = await self._require_user(request)
+        data = await request.post()
+        if not self._csrf_ok(user, str(data.get("csrf") or "")):
+            raise web.HTTPForbidden(
+                text="Jeton de sécurité invalide. Recharge la page."
+            )
+        try:
+            await self.service.update_preferences(
+                guild_id,
+                str(member.id),
+                platform_key=str(data.get("platform_key") or ""),
+                format_key=str(data.get("format_key") or ""),
+                availability=str(data.get("availability") or "") or None,
+            )
+        except ValueError as exc:
+            raise web.HTTPSeeOther(
+                location="/formats/boss?error="
+                + urlencode({"x": str(exc)})[2:]
+            )
+        raise web.HTTPSeeOther(location="/formats/boss?saved=1")
 
     async def unregister(self, request: web.Request) -> web.Response:
         guild_id, user, member = await self._require_user(request)
@@ -564,6 +614,10 @@ def register_boss_routes(
     application.router.add_post(
         "/formats/boss/unregister",
         routes.unregister,
+    )
+    application.router.add_post(
+        "/formats/boss/preferences",
+        routes.preferences,
     )
     application.router.add_post(
         "/formats/boss/staff/move",

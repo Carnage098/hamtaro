@@ -271,6 +271,20 @@ class BossArenaCoordinator:
             if challenger is None:
                 return None
 
+            platform_key = str(
+                challenger.get("preferred_platform_key")
+                or settings["platform_key"]
+            )
+            format_key = str(
+                challenger.get("preferred_format_key")
+                or settings["format_key"]
+            )
+            try:
+                self.store.validate_configuration(platform_key, format_key)
+            except ValueError:
+                platform_key = str(settings["platform_key"])
+                format_key = str(settings["format_key"])
+
             try:
                 match = await self.store.create_match(
                     guild_id=guild_id,
@@ -280,8 +294,8 @@ class BossArenaCoordinator:
                     challenger_id=str(challenger["discord_id"]),
                     challenger_name=str(challenger["username"]),
                     challenger_row_id=int(challenger["id"]),
-                    platform_key=str(settings["platform_key"]),
-                    format_key=str(settings["format_key"]),
+                    platform_key=platform_key,
+                    format_key=format_key,
                 )
             except ValueError:
                 return None
@@ -302,12 +316,19 @@ class BossArenaCoordinator:
                     announcement_message_id=str(message.id),
                     thread_id=str(thread.id),
                 )
+                availability_line = (
+                    f"🕒 Disponibilité annoncée : {challenger['availability']}\n"
+                    if challenger.get("availability")
+                    else ""
+                )
                 await thread.send(
                     content=(
                         f"👑 Boss : <@{match['boss_id']}>\n"
                         f"⚔️ Challenger : <@{match['challenger_id']}>\n"
                         f"🎮 {self.platform_label(match['platform_key'])}\n"
                         f"🎴 {self.format_label(match['format_key'])}\n"
+                        + availability_line
+                        +
                         "🏆 BO3\n\n"
                         "À la fin du duel, un joueur déclare le vainqueur puis "
                         "l'autre joueur confirme."

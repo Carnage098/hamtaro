@@ -34,6 +34,106 @@
     </p>
 </section>
 
+<section class="content-section schedule-section" aria-labelledby="schedule-title">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">{{ schedule.season | upper }}</p>
+            <h2 id="schedule-title">Planning des tournois</h2>
+        </div>
+        <p class="schedule-timezone">Horaires de Paris · {{ schedule.timezone }}</p>
+    </div>
+
+    <p class="schedule-intro">
+        Deux rendez-vous chaque week-end : un tournoi classique et un format
+        différent. Clique sur un créneau pour afficher sa fiche, son code et
+        le nombre d'inscrits dès que le tournoi est ouvert.
+    </p>
+
+    <div class="schedule-month-tabs" role="tablist" aria-label="Mois du planning">
+        {% for month in schedule.months %}
+        <button
+            class="schedule-month-tab{% if loop.first %} is-active{% endif %}"
+            id="schedule-tab-{{ month.key }}"
+            type="button"
+            role="tab"
+            aria-selected="{{ 'true' if loop.first else 'false' }}"
+            aria-controls="schedule-panel-{{ month.key }}"
+            data-schedule-tab="{{ month.key }}"
+        >{{ month.emoji }} {{ month.label }}</button>
+        {% endfor %}
+    </div>
+
+    {% for month in schedule.months %}
+    <div
+        class="schedule-month-panel"
+        id="schedule-panel-{{ month.key }}"
+        role="tabpanel"
+        aria-labelledby="schedule-tab-{{ month.key }}"
+        data-schedule-panel="{{ month.key }}"
+        {% if not loop.first %}hidden{% endif %}
+    >
+        <div class="schedule-grid">
+            {% for slot in month.slots %}
+            <button
+                class="schedule-slot schedule-slot-{{ slot.kind }}"
+                type="button"
+                data-schedule-slot
+                data-day="{{ slot.day_label }}"
+                data-date="{{ slot.date }}"
+                data-start="{{ slot.start }}"
+                data-end="{{ slot.end }}"
+                data-format="{{ slot.format }}"
+                data-platform="{{ slot.platform }}"
+                data-emoji="{{ slot.emoji }}"
+                {% if slot.tournament %}
+                data-tournament-id="{{ slot.tournament.id }}"
+                data-tournament-name="{{ slot.tournament.name }}"
+                data-tournament-code="{{ slot.tournament.code }}"
+                data-tournament-status="{{ slot.tournament.status }}"
+                data-participants="{{ slot.tournament.participant_count or 0 }}"
+                data-capacity="{{ slot.tournament.max_players }}"
+                {% endif %}
+                aria-haspopup="dialog"
+            >
+                <span class="schedule-slot-icon" aria-hidden="true">{{ slot.emoji }}</span>
+                <span class="schedule-slot-copy">
+                    <strong>{{ slot.day_label }}</strong>
+                    <span>{{ slot.start }}–{{ slot.end }}</span>
+                    <small>{{ slot.format }} · {{ slot.platform }}</small>
+                </span>
+                {% if slot.tournament %}
+                <span class="schedule-live-badge">{{ slot.tournament.participant_count or 0 }}/{{ slot.tournament.max_players }}</span>
+                {% else %}
+                <span class="schedule-pending-badge">À venir</span>
+                {% endif %}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</section>
+
+<dialog class="schedule-dialog" data-schedule-dialog aria-labelledby="schedule-dialog-title">
+    <form method="dialog" class="schedule-dialog-head">
+        <span class="schedule-dialog-icon" data-dialog-emoji aria-hidden="true"></span>
+        <button type="submit" class="schedule-dialog-close" aria-label="Fermer la fiche">×</button>
+    </form>
+    <div class="schedule-dialog-body">
+        <p class="eyebrow" data-dialog-day></p>
+        <h2 id="schedule-dialog-title" data-dialog-title></h2>
+        <dl class="schedule-dialog-details">
+            <div><dt>Horaire</dt><dd data-dialog-time></dd></div>
+            <div><dt>Plateforme</dt><dd data-dialog-platform></dd></div>
+            <div data-dialog-id-row hidden><dt>ID</dt><dd data-dialog-id></dd></div>
+            <div data-dialog-code-row hidden><dt>Code</dt><dd><code data-dialog-code></code></dd></div>
+            <div data-dialog-players-row hidden><dt>Inscriptions</dt><dd data-dialog-players></dd></div>
+            <div data-dialog-status-row hidden><dt>Statut</dt><dd data-dialog-status></dd></div>
+        </dl>
+        <p class="schedule-dialog-message" data-dialog-message></p>
+        <a class="schedule-dialog-link" data-dialog-link hidden>Ouvrir la fiche complète du tournoi</a>
+    </div>
+</dialog>
+
 <section class="content-section">
     <div class="section-heading">
         <div>

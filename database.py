@@ -112,6 +112,7 @@ async def run_migrations(
     await ensure_column(db, "tournaments", "bracket_message_id", "TEXT")
     await ensure_column(db, "tournaments", "started_at", "TIMESTAMP")
     await ensure_column(db, "tournaments", "finished_at", "TIMESTAMP")
+    await ensure_column(db, "tournaments", "scheduled_slot_id", "TEXT")
 
     # ==========================================================
     # MIGRATIONS JOUEURS
@@ -255,6 +256,7 @@ async def init_db() -> None:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             started_at TIMESTAMP,
             finished_at TIMESTAMP
+            ,scheduled_slot_id TEXT
         )
         """)
 
@@ -547,6 +549,12 @@ async def init_db() -> None:
         await db.execute("""
         CREATE INDEX IF NOT EXISTS idx_tournament_status
         ON tournaments(status)
+        """)
+
+        await db.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_tournament_schedule_slot
+        ON tournaments(scheduled_slot_id)
+        WHERE scheduled_slot_id IS NOT NULL
         """)
 
         await db.execute("""

@@ -160,8 +160,39 @@
                 </div>
 
                 {% if state.registrations_open and not is_registered and state.status != "defeated" %}
-                <form method="post" action="/formats/boss/register">
+                <form class="boss-choice-form" method="post" action="/formats/boss/register">
                     <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                    <div class="boss-choice-grid">
+                        <label>
+                            <span>Plateforme souhaitée</span>
+                            <select name="platform_key" required data-boss-platform>
+                                {% for key, label in platform_labels.items() %}
+                                <option value="{{ key }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Format souhaité</span>
+                            <select name="format_key" required data-boss-format>
+                                {% for key, label in format_labels.items() %}
+                                <option
+                                    value="{{ key }}"
+                                    data-platforms="{% for platform, formats in platform_formats.items() %}{% if key in formats %}{{ platform }} {% endif %}{% endfor %}"
+                                >{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                    </div>
+                    <label class="boss-availability-field">
+                        <span>Mes disponibilités</span>
+                        <input
+                            type="text"
+                            name="availability"
+                            maxlength="120"
+                            placeholder="Ex. samedi de 18 h à 21 h"
+                            autocomplete="off"
+                        >
+                    </label>
                     <button class="boss-button boss-button-primary" type="submit">
                         ⚔️ M'inscrire pour affronter le Boss
                     </button>
@@ -171,6 +202,46 @@
                 <p class="boss-registered">
                     ✅ Tu es inscrit dans la file du règne actuel.
                 </p>
+
+                <form class="boss-choice-form" method="post" action="/formats/boss/preferences">
+                    <input type="hidden" name="csrf" value="{{ user.csrf }}">
+                    <div class="boss-choice-grid">
+                        <label>
+                            <span>Ma plateforme</span>
+                            <select name="platform_key" required data-boss-platform>
+                                {% for key, label in platform_labels.items() %}
+                                <option value="{{ key }}"{% if registered_challenger.preferred_platform_key == key %} selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Mon format</span>
+                            <select name="format_key" required data-boss-format>
+                                {% for key, label in format_labels.items() %}
+                                <option
+                                    value="{{ key }}"
+                                    data-platforms="{% for platform, formats in platform_formats.items() %}{% if key in formats %}{{ platform }} {% endif %}{% endfor %}"
+                                    {% if registered_challenger.preferred_format_key == key %}selected{% endif %}
+                                >{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                    </div>
+                    <label class="boss-availability-field">
+                        <span>Mes disponibilités</span>
+                        <input
+                            type="text"
+                            name="availability"
+                            maxlength="120"
+                            value="{{ registered_challenger.availability or '' }}"
+                            placeholder="Ex. samedi de 18 h à 21 h"
+                            autocomplete="off"
+                        >
+                    </label>
+                    <button class="boss-button boss-button-primary" type="submit">
+                        Enregistrer mes choix
+                    </button>
+                </form>
 
                 <form method="post" action="/formats/boss/unregister">
                     <input type="hidden" name="csrf" value="{{ user.csrf }}">
@@ -308,6 +379,13 @@
                             ⏳ en attente de programmation
                             {% endif %}
                         </small>
+                        {% if row.preferred_platform_key %}
+                        <div class="boss-player-choice">
+                            🎮 {{ platform_labels.get(row.preferred_platform_key, row.preferred_platform_key) }}
+                            · {{ format_labels.get(row.preferred_format_key, row.preferred_format_key) }}
+                            {% if row.availability %}· 🕒 {{ row.availability }}{% endif %}
+                        </div>
+                        {% endif %}
                     </div>
 
                     {% if is_staff and user and row.status not in ["defeated", "boss_killer"] %}
@@ -383,6 +461,10 @@
                     </li>
                     <li>Le staff choisit l'ordre et les horaires des duels.</li>
                     <li>
+                        Chaque challenger choisit sa plateforme, son format
+                        compatible et indique ses disponibilités.
+                    </li>
+                    <li>
                         Tous les matchs Boss se jouent en <strong>BO3</strong> :
                         le premier joueur à gagner <strong>2 manches</strong> remporte le match.
                     </li>
@@ -433,6 +515,7 @@
             <div class="boss-command-grid">
                 <code>/boss status</code>
                 <code>/boss inscription</code>
+                <code>/boss choix</code>
                 <code>/boss programme</code>
                 <code>/boss set</code>
                 <code>/boss inscriptions</code>
@@ -455,6 +538,6 @@
     src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.3.1/model-viewer.min.js"
 ></script>
 {% endif %}
-<script src="/static/boss.js?v=20260819-6" defer></script>
+<script src="/static/boss.js?v=20260912-1" defer></script>
 <script src="/static/boss_media.js?v=20260819-6" defer></script>
 {% endblock %}

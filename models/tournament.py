@@ -37,6 +37,7 @@ class Tournament:
     created_at: str | None = None
     started_at: str | None = None
     finished_at: str |None = None
+    scheduled_slot_id: str | None = None
 
     @classmethod
     def from_row(cls, row: Row | dict):
@@ -73,7 +74,13 @@ class Tournament:
 
             started_at=row["started_at"],
 
-            finished_at=row["finished_at"]
+            finished_at=row["finished_at"],
+
+            scheduled_slot_id=(
+                row["scheduled_slot_id"]
+                if "scheduled_slot_id" in row.keys()
+                else None
+            )
 
         )
 
@@ -112,6 +119,8 @@ class Tournament:
             "started_at": self.started_at,
 
             "finished_at": self.finished_at,
+
+            "scheduled_slot_id": self.scheduled_slot_id,
 
         }
 

@@ -1,6 +1,32 @@
 (() => {
     "use strict";
 
+    document.querySelectorAll(".boss-choice-form").forEach((form) => {
+        const platform = form.querySelector("[data-boss-platform]");
+        const format = form.querySelector("[data-boss-format]");
+        if (!platform || !format) return;
+
+        const refreshFormats = () => {
+            const platformKey = platform.value;
+            let firstAllowed = null;
+            [...format.options].forEach((option) => {
+                const allowed = (option.dataset.platforms || "")
+                    .trim()
+                    .split(/\s+/)
+                    .includes(platformKey);
+                option.hidden = !allowed;
+                option.disabled = !allowed;
+                if (allowed && !firstAllowed) firstAllowed = option;
+            });
+            if (format.selectedOptions[0]?.disabled && firstAllowed) {
+                firstAllowed.selected = true;
+            }
+        };
+
+        platform.addEventListener("change", refreshFormats);
+        refreshFormats();
+    });
+
     const list = document.querySelector('[data-boss-sortable="1"]');
     if (!list) {
         return;

@@ -6,6 +6,10 @@ from discord.ext import commands
 
 from services.bracket_service import BracketService
 from services.tournament_start_service import TournamentStartService
+from services.tournament_schedule_service import (
+    get_schedule_slot,
+    schedule_slot_autocomplete,
+)
 from utils.tournament_resolver import (
     active_tournament_code_autocomplete,
     tournament_code_autocomplete,
@@ -26,8 +30,9 @@ FORMATS = [
     "Rush Duel",
     "Speed Duel",
 
-    "Araignée",
     "Halloween",
+    "Pure",
+    "Suisse",
 ]
 
 
@@ -147,6 +152,7 @@ class TournamentCog(commands.Cog):
         format="Format du tournoi",
         max_players="Nombre maximum de joueurs / équipes",
         participants="Type de participants",
+        creneau="Créneau du planning public (facultatif)",
     )
     @app_commands.choices(
         format=[
@@ -163,6 +169,7 @@ class TournamentCog(commands.Cog):
             app_commands.Choice(name="👥 Équipes 2v2", value="duo"),
         ]
     )
+    @app_commands.autocomplete(creneau=schedule_slot_autocomplete)
     @app_commands.default_permissions(
         manage_guild=True
     )
@@ -173,6 +180,7 @@ class TournamentCog(commands.Cog):
         format: app_commands.Choice[str],
         max_players: int,
         participants: app_commands.Choice[str],
+        creneau: str | None = None,
     ) -> None:
         acknowledged = await self._safe_defer(
             interaction,
@@ -187,6 +195,12 @@ class TournamentCog(commands.Cog):
                 interaction
             )
 
+            schedule_slot = get_schedule_slot(creneau)
+            if creneau and schedule_slot is None:
+                raise ValueError(
+                    "Ce créneau n'existe pas dans le planning public."
+                )
+
             tournament = await self.db.create_tournament(
                 guild_id=guild_id,
                 name=name,
@@ -194,6 +208,9 @@ class TournamentCog(commands.Cog):
                 max_players=max_players,
                 created_by=str(
                     interaction.user.id
+                ),
+                scheduled_slot_id=(
+                    schedule_slot["id"] if schedule_slot else None
                 ),
             )
 
@@ -286,6 +303,17 @@ class TournamentCog(commands.Cog):
             value=f"0/{tournament.max_players}",
             inline=True,
         )
+
+        if schedule_slot:
+            embed.add_field(
+                name="Créneau public",
+                value=(
+                    f"{schedule_slot['day_label']} · "
+                    f"{schedule_slot['start']}–{schedule_slot['end']}\n"
+                    "La fiche est maintenant reliée au planning du site."
+                ),
+                inline=False,
+            )
 
         embed.add_field(
             name="Statut",

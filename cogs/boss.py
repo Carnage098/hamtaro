@@ -14,6 +14,20 @@ from utils.permissions import staff_only
 
 LOGGER = logging.getLogger("hamtaro.boss")
 
+PLATFORM_CHOICES = [
+    app_commands.Choice(name="Master Duel", value="master_duel"),
+    app_commands.Choice(name="Remote Duel", value="remote"),
+    app_commands.Choice(name="YGO Omega", value="omega"),
+]
+
+FORMAT_CHOICES = [
+    app_commands.Choice(name="Format classique", value="classique"),
+    app_commands.Choice(name="Format animé", value="anime"),
+    app_commands.Choice(name="Deck de structure boutique", value="structure_boutique"),
+    app_commands.Choice(name="GOAT", value="goat"),
+    app_commands.Choice(name="Edison", value="edison"),
+]
+
 
 class BossCog(commands.Cog):
     boss = app_commands.Group(
@@ -131,23 +145,87 @@ class BossCog(commands.Cog):
         await interaction.response.send_message("\n".join(lines))
 
     @boss.command(name="inscription", description="S'inscrire pour affronter le Boss")
-    async def inscription(self, interaction: discord.Interaction) -> None:
+    @app_commands.describe(
+        plateforme="Ta plateforme préférée (facultatif)",
+        format_jeu="Ton format préféré (facultatif)",
+        disponibilite="Tes disponibilités, par ex. samedi 18 h–21 h",
+    )
+    @app_commands.choices(
+        plateforme=PLATFORM_CHOICES,
+        format_jeu=FORMAT_CHOICES,
+    )
+    async def inscription(
+        self,
+        interaction: discord.Interaction,
+        plateforme: app_commands.Choice[str] | None = None,
+        format_jeu: app_commands.Choice[str] | None = None,
+        disponibilite: app_commands.Range[str, 0, 120] | None = None,
+    ) -> None:
         try:
             guild_id = self._guild_id(interaction)
             row = await self.service.register_challenger(
                 guild_id,
                 str(interaction.user.id),
                 getattr(interaction.user, "display_name", interaction.user.name),
+                platform_key=plateforme.value if plateforme else None,
+                format_key=format_jeu.value if format_jeu else None,
+                availability=disponibilite,
             )
         except ValueError as exc:
             await interaction.response.send_message(f"❌ {exc}", ephemeral=True)
             return
         await interaction.response.send_message(
-            f"⚔️ Inscription confirmée ! Position actuelle : **#{row['position']}**.",
+            (
+                f"⚔️ Inscription confirmée ! Position actuelle : **#{row['position']}**."
+                + (
+                    f"\n🎮 Choix : **{self.arena.platform_label(row.get('preferred_platform_key'))}** · "
+                    f"**{self.arena.format_label(row.get('preferred_format_key'))}**."
+                    if row.get("preferred_platform_key")
+                    else "\n🎮 Les choix par défaut du Boss seront utilisés."
+                )
+            ),
             ephemeral=True,
         )
         if interaction.guild is not None:
             await self.arena.maybe_start_next(interaction.guild)
+
+    @boss.command(name="choix", description="Modifier ses choix de match Boss")
+    @app_commands.describe(
+        plateforme="Ta plateforme pour le prochain duel",
+        format_jeu="Ton format pour le prochain duel",
+        disponibilite="Tes disponibilités, par ex. samedi 18 h–21 h",
+    )
+    @app_commands.choices(
+        plateforme=PLATFORM_CHOICES,
+        format_jeu=FORMAT_CHOICES,
+    )
+    async def choix(
+        self,
+        interaction: discord.Interaction,
+        plateforme: app_commands.Choice[str],
+        format_jeu: app_commands.Choice[str],
+        disponibilite: app_commands.Range[str, 0, 120] | None = None,
+    ) -> None:
+        try:
+            guild_id = self._guild_id(interaction)
+            row = await self.service.update_preferences(
+                guild_id,
+                str(interaction.user.id),
+                platform_key=plateforme.value,
+                format_key=format_jeu.value,
+                availability=disponibilite,
+            )
+        except ValueError as exc:
+            await interaction.response.send_message(f"❌ {exc}", ephemeral=True)
+            return
+        await interaction.response.send_message(
+            (
+                "✅ Tes choix Boss ont été mis à jour : "
+                f"**{self.arena.platform_label(row['preferred_platform_key'])}** · "
+                f"**{self.arena.format_label(row['preferred_format_key'])}**."
+            ),
+            ephemeral=True,
+        )
 
     @boss.command(name="desinscription", description="Se retirer de la file du Boss")
     async def desinscription(self, interaction: discord.Interaction) -> None:
@@ -496,18 +574,8 @@ class BossCog(commands.Cog):
 
     @boss.command(name="config", description="Choisir la plateforme et le format du Boss")
     @app_commands.choices(
-        plateforme=[
-            app_commands.Choice(name="Master Duel", value="master_duel"),
-            app_commands.Choice(name="Remote Duel", value="remote"),
-            app_commands.Choice(name="YGO Omega", value="omega"),
-        ],
-        format_jeu=[
-            app_commands.Choice(name="Format classique", value="classique"),
-            app_commands.Choice(name="Format animé", value="anime"),
-            app_commands.Choice(name="Deck de structure boutique", value="structure_boutique"),
-            app_commands.Choice(name="GOAT", value="goat"),
-            app_commands.Choice(name="Edison", value="edison"),
-        ],
+        plateforme=PLATFORM_CHOICES,
+        format_jeu=FORMAT_CHOICES,
     )
     async def config(
         self,
