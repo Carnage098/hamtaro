@@ -155,6 +155,7 @@ FRENCH_ACTION_NAMES = {
     "admin_restore": "restaurer", "admin_result": "resultat",
     "admin_seed": "definir_position", "admin_status": "statut",
     "admin_sync_round": "synchroniser_ronde",
+    "automatiser": "automatiser",
     "admin_win": "attribuer_victoire", "apply": "appliquer",
     "approve": "approuver", "approve_result": "valider_resultat",
     "archetype_add": "ajouter_archetype",

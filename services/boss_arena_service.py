@@ -180,6 +180,30 @@ class BossArenaService:
         finally:
             await db.close()
 
+    async def carry_configuration(
+        self,
+        guild_id: str,
+        new_boss_id: str,
+        *,
+        default_platform_key: str = "master_duel",
+        default_format_key: str = "classique",
+    ) -> dict[str, Any]:
+        """Transfère les règles au nouveau Boss sans interrompre la file.
+
+        Les choix existants sont conservés. Pour une première activation, des
+        règles simples et compatibles sont posées afin que l'arène puisse
+        démarrer sans commande de configuration supplémentaire.
+        """
+        current = await self.settings(guild_id)
+        platform_key = str(current.get("platform_key") or default_platform_key)
+        format_key = str(current.get("format_key") or default_format_key)
+        return await self.configure(
+            guild_id,
+            str(new_boss_id),
+            platform_key,
+            format_key,
+        )
+
     async def set_match_channel(self, guild_id: str, channel_id: str | None) -> None:
         await self.ensure_schema()
         db = await self._connect()

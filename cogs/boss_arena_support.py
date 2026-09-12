@@ -132,7 +132,12 @@ class BossArenaCoordinator:
         ) is not None
 
     async def reset_for_new_boss(self, guild_id: str) -> None:
-        await self.store.clear_configuration(guild_id)
+        state = await self.boss_service.state(guild_id)
+        boss_id = str(state.get("boss_id") or "")
+        if boss_id:
+            await self.store.carry_configuration(guild_id, boss_id)
+        else:
+            await self.store.clear_configuration(guild_id)
 
     async def on_manual_boss_change(
         self,
@@ -142,12 +147,13 @@ class BossArenaCoordinator:
         new_boss_id: str,
     ) -> None:
         guild_id = str(guild.id)
-        await self.store.clear_configuration(guild_id)
         with suppress(ValueError):
             await self.boss_service.unregister_challenger(
                 guild_id, new_boss_id, force=True
             )
         if not old_boss_id or str(old_boss_id) == str(new_boss_id):
+            await self.store.carry_configuration(guild_id, new_boss_id)
+            await self.maybe_start_next(guild)
             return
         rows = await self.store.active_matches_for_boss(guild_id, str(old_boss_id))
         for row in rows:
@@ -164,6 +170,8 @@ class BossArenaCoordinator:
                     "Le staff a changé le Boss. Le challenger retourne dans la file."
                 ),
             )
+        await self.store.carry_configuration(guild_id, new_boss_id)
+        await self.maybe_start_next(guild)
 
     async def configure(
         self,
@@ -193,6 +201,35 @@ class BossArenaCoordinator:
     ) -> None:
         await self.store.set_match_channel(str(guild.id), str(channel.id))
         await self.maybe_start_next(guild)
+
+    async def activate(
+        self,
+        guild: discord.Guild,
+        *,
+        boss_id: str,
+        channel: discord.TextChannel,
+        platform_key: str,
+        format_key: str,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None, bool]:
+        """Configure l'arène d'un bloc puis tente de lancer la file.
+
+        Si un duel est déjà actif, ses règles ne sont jamais modifiées : la
+        commande devient idempotente et confirme simplement l'automatisation.
+        """
+        guild_id = str(guild.id)
+        async with self._guild_locks[guild_id]:
+            active = await self.store.active_match(guild_id)
+            if active is not None:
+                return await self.store.settings(guild_id), active, False
+            await self.store.set_match_channel(guild_id, str(channel.id))
+            settings = await self.store.configure(
+                guild_id,
+                boss_id,
+                platform_key,
+                format_key,
+            )
+        started = await self.maybe_start_next(guild)
+        return settings, started, True
 
     def platform_label(self, key: str | None) -> str:
         return self.store.PLATFORM_LABELS.get(str(key), str(key or "Non choisie"))
@@ -607,7 +644,10 @@ class BossArenaCoordinator:
                     excluded_ids={new_boss_id},
                 )
                 await self.boss_service.set_registrations(guild_id, True)
-                await self.store.clear_configuration(guild_id)
+                inherited_settings = await self.store.carry_configuration(
+                    guild_id,
+                    new_boss_id,
+                )
 
                 active_rows = await self.store.active_matches_for_boss(guild_id, old_boss_id)
                 for row in active_rows:
@@ -647,7 +687,9 @@ class BossArenaCoordinator:
                         f"<@{challenger_id}> détrône <@{old_boss_id}>.\n\n"
                         f"👑 **Nouveau Boss : <@{new_boss_id}>**\n"
                         f"♻️ **{migrated}** challenger(s) conservé(s) dans la file.\n"
-                        "Le nouveau Boss doit choisir sa plateforme et son format avec `/joueur formats config`."
+                        f"▶️ Arène relancée automatiquement en "
+                        f"**{self.platform_label(inherited_settings['platform_key'])}** · "
+                        f"**{self.format_label(inherited_settings['format_key'])}**."
                     ),
                 )
                 output = {
@@ -661,8 +703,7 @@ class BossArenaCoordinator:
 
         # Hors du verrou : éviter qu'une création de fil Discord longue ne bloque
         # une confirmation concurrente déjà terminée.
-        if output["boss_won"]:
-            await self.maybe_start_next(guild)
+        await self.maybe_start_next(guild)
         return output
 
     async def _finish_thread(

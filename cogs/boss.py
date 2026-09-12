@@ -285,6 +285,111 @@ class BossCog(commands.Cog):
             ),
         )
 
+    @boss.command(
+        name="automatiser",
+        description="Activer toute l'arène Boss en une seule action",
+    )
+    @app_commands.default_permissions(manage_guild=True)
+    @staff_only()
+    @app_commands.describe(
+        boss="Premier Boss (facultatif si un Boss est déjà défini)",
+        salon="Salon des matchs (créé automatiquement si absent)",
+        plateforme="Plateforme par défaut",
+        format_jeu="Format par défaut",
+    )
+    @app_commands.choices(
+        plateforme=PLATFORM_CHOICES,
+        format_jeu=FORMAT_CHOICES,
+    )
+    async def automatiser(
+        self,
+        interaction: discord.Interaction,
+        boss: discord.Member | None = None,
+        salon: discord.TextChannel | None = None,
+        plateforme: app_commands.Choice[str] | None = None,
+        format_jeu: app_commands.Choice[str] | None = None,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message("❌ Serveur introuvable.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        guild = interaction.guild
+        guild_id = str(guild.id)
+        state = await self.service.state(guild_id)
+        selected_boss_id = str(boss.id) if boss else str(state.get("boss_id") or "")
+        if not selected_boss_id:
+            await interaction.followup.send(
+                "❌ Choisis le premier Boss pour activer l'automatisation.",
+                ephemeral=True,
+            )
+            return
+
+        if boss is not None and str(state.get("boss_id") or "") != selected_boss_id:
+            old_boss_id = str(state.get("boss_id") or "") or None
+            await self.service.set_boss(guild_id, selected_boss_id, boss.display_name)
+            await self.arena.on_manual_boss_change(
+                guild,
+                old_boss_id=old_boss_id,
+                new_boss_id=selected_boss_id,
+            )
+
+        settings = await self.arena.settings(guild_id)
+        if salon is None:
+            stored_channel_id = str(settings.get("match_channel_id") or "")
+            stored_channel = (
+                guild.get_channel(int(stored_channel_id))
+                if stored_channel_id.isdigit()
+                else None
+            )
+            salon = stored_channel if isinstance(stored_channel, discord.TextChannel) else None
+        if salon is None:
+            salon = discord.utils.get(guild.text_channels, name="⚔️・match-boss")
+        if salon is None:
+            try:
+                salon = await guild.create_text_channel(
+                    "⚔️・match-boss",
+                    reason="Activation automatique du format Boss Hamtaro",
+                )
+            except (discord.Forbidden, discord.HTTPException):
+                await interaction.followup.send(
+                    "❌ Je ne peux pas créer le salon des matchs. Donne-moi la permission "
+                    "**Gérer les salons** ou indique un salon existant.",
+                    ephemeral=True,
+                )
+                return
+
+        platform_key = plateforme.value if plateforme else str(settings.get("platform_key") or "master_duel")
+        format_key = format_jeu.value if format_jeu else str(settings.get("format_key") or "classique")
+        try:
+            configured, started, changed = await self.arena.activate(
+                guild,
+                boss_id=selected_boss_id,
+                channel=salon,
+                platform_key=platform_key,
+                format_key=format_key,
+            )
+        except ValueError as exc:
+            await interaction.followup.send(f"❌ {exc}", ephemeral=True)
+            return
+        await self.service.set_registrations(guild_id, True)
+        launch = (
+            f"\n▶️ Match Boss **#{started['id']}** lancé immédiatement."
+            if started and changed
+            else f"\n🔴 Le match Boss **#{started['id']}** était déjà en cours."
+            if started
+            else "\n⏳ Le premier match démarrera dès qu'un challenger sera disponible."
+        )
+        await interaction.followup.send(
+            "✅ **Arène Boss automatisée.**\n"
+            f"👑 Boss : <@{selected_boss_id}>\n"
+            f"🎮 {self.arena.platform_label(configured['platform_key'])} · "
+            f"{self.arena.format_label(configured['format_key'])} · BO3\n"
+            f"📍 Matchs : {salon.mention}\n"
+            "🔁 Hamtaro enchaînera la file et transférera automatiquement le trône."
+            + launch,
+            ephemeral=True,
+        )
+
     @boss.command(name="inscriptions", description="Ouvrir ou fermer les inscriptions Boss")
     @app_commands.default_permissions(manage_guild=True)
     @staff_only()
