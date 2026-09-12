@@ -39,6 +39,7 @@ from services.database_maintenance import (
     prepare_database,
 )
 from services.database_service import DatabaseService
+from services.tournament_schedule_service import ensure_schedule_tournaments
 from services.command_sync_once import publish_application_commands_once
 from services.command_compactor import compact_command_tree, log_command_tree_summary
 from services.command_sync_guard import CommandSyncState, command_tree_fingerprint
@@ -197,6 +198,21 @@ class HamtaroBot(commands.Bot):
         await prepare_database()
         await init_db()
         await self.db.connect()
+
+        if GUILD_ID:
+            created_tournament_ids = await ensure_schedule_tournaments(
+                self.db,
+                GUILD_ID,
+                max_players=8,
+            )
+            LOGGER.info(
+                "Planning 2026 prêt : %s tournoi(s) créé(s).",
+                len(created_tournament_ids),
+            )
+        else:
+            LOGGER.warning(
+                "Planning 2026 non créé : GUILD_ID/PUBLIC_GUILD_ID absent."
+            )
 
         await self._load_extensions()
         self._drop_retired_application_commands()
