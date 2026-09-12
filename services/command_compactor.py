@@ -15,7 +15,20 @@ MAX_GROUP_CHILDREN = 25
 # L'interface publique reste volontairement courte. Toutes les autres actions
 # sont rangées sous l'espace de la personne qui les utilise.
 DIRECT_COMMANDS = {"hamtaro", "help", "rules", "register", "result"}
-ROLE_ROOTS = {"joueur", "staff", "admin"}
+ROLE_PAGE_NAMES = {
+    "joueur": ("joueur", "joueur_plus", "joueur_outils"),
+    "staff": ("staff", "staff_plus", "staff_outils"),
+    "admin": ("admin",),
+}
+ROLE_ROOTS = {
+    page_name
+    for page_names in ROLE_PAGE_NAMES.values()
+    for page_name in page_names
+}
+# Discord limite à 4 000 caractères cumulés les noms/descriptions/choix d'une
+# commande racine. On garde une petite marge pour le nom et la description de
+# la page elle-même.
+MAX_PAGE_CONTENT_CHARACTERS = 3925
 ROLE_DESCRIPTIONS = {
     "joueur": "Jouer un tournoi, gérer ses matchs et consulter son profil.",
     "staff": "Organiser les tournois, arbitrer et valider les résultats.",
@@ -301,13 +314,20 @@ def _unique_name(group: app_commands.Group, desired: str, original: str) -> str:
         index += 1
 
 
-def _role_group(tree, role: str) -> app_commands.Group:
-    existing = tree.get_command(role, type=discord.AppCommandType.chat_input)
+def _role_group(tree, role: str, page: int = 0) -> app_commands.Group:
+    page_names = ROLE_PAGE_NAMES[role]
+    if page >= len(page_names):
+        raise RuntimeError(f"Trop de pages nécessaires pour l'espace {role}.")
+    name = page_names[page]
+    existing = tree.get_command(name, type=discord.AppCommandType.chat_input)
     if isinstance(existing, app_commands.Group):
         return existing
+    description = ROLE_DESCRIPTIONS[role]
+    if page:
+        description = f"Suite des outils de l'espace {role} Hamtaro."
     group = app_commands.Group(
-        name=role,
-        description=ROLE_DESCRIPTIONS[role],
+        name=name,
+        description=description,
         guild_only=True,
         default_permissions=(
             discord.Permissions(administrator=True)
@@ -320,7 +340,16 @@ def _role_group(tree, role: str) -> app_commands.Group:
     return group
 
 
-def _category_group(role_group: app_commands.Group, category: str) -> app_commands.Group:
+def _category_group(tree, role: str, category: str) -> app_commands.Group:
+    for page_name in ROLE_PAGE_NAMES[role]:
+        page = tree.get_command(page_name, type=discord.AppCommandType.chat_input)
+        if not isinstance(page, app_commands.Group):
+            continue
+        existing = next((child for child in page.commands if child.name == category), None)
+        if isinstance(existing, app_commands.Group) and len(existing.commands) < MAX_GROUP_CHILDREN:
+            return existing
+
+    role_group = _role_group(tree, role)
     index = 1
     while True:
         name = category if index == 1 else f"{category}{index}"
@@ -337,6 +366,74 @@ def _category_group(role_group: app_commands.Group, category: str) -> app_comman
         if isinstance(existing, app_commands.Group) and len(existing.commands) < MAX_GROUP_CHILDREN:
             return existing
         index += 1
+
+
+def _payload_text_characters(value) -> int:
+    if isinstance(value, dict):
+        total = 0
+        for key, child in value.items():
+            if key in {"name", "description", "value"} and isinstance(child, (str, int, float)):
+                total += len(str(child))
+            else:
+                total += _payload_text_characters(child)
+        return total
+    if isinstance(value, list):
+        return sum(_payload_text_characters(child) for child in value)
+    return 0
+
+
+def _split_role_pages(tree) -> None:
+    """Répartit les rubriques sans dépasser la limite de 4 000 caractères."""
+    for role, page_names in ROLE_PAGE_NAMES.items():
+        pages = [
+            page
+            for page_name in page_names
+            if isinstance(
+                (page := tree.get_command(page_name, type=discord.AppCommandType.chat_input)),
+                app_commands.Group,
+            )
+        ]
+        categories: list[app_commands.Group] = []
+        for page in pages:
+            for child in list(page.commands):
+                if isinstance(child, app_commands.Group):
+                    page.remove_command(child.name)
+                    categories.append(child)
+
+        # First-fit décroissant : trois pages joueur et trois pages staff
+        # suffisent actuellement, avec un peu de marge pour les futures actions.
+        weighted = sorted(
+            (
+                (_payload_text_characters(category.to_dict(tree)), category)
+                for category in categories
+            ),
+            key=lambda item: (-item[0], item[1].name),
+        )
+        bins: list[tuple[int, list[app_commands.Group]]] = []
+        for weight, category in weighted:
+            for index, (used, items) in enumerate(bins):
+                if used + weight <= MAX_PAGE_CONTENT_CHARACTERS:
+                    items.append(category)
+                    bins[index] = (used + weight, items)
+                    break
+            else:
+                bins.append((weight, [category]))
+
+        if len(bins) > len(page_names):
+            raise RuntimeError(
+                f"L'espace /{role} nécessite {len(bins)} pages ; "
+                f"maximum prévu : {len(page_names)}."
+            )
+
+        for page_index, (_, items) in enumerate(bins):
+            page = _role_group(tree, role, page_index)
+            for category in items:
+                page.add_command(category)
+
+        for unused_name in page_names[len(bins):]:
+            unused = tree.get_command(unused_name, type=discord.AppCommandType.chat_input)
+            if isinstance(unused, app_commands.Group) and not unused.commands:
+                tree.remove_command(unused_name, type=discord.AppCommandType.chat_input)
 
 
 def _preserve_root_only_restrictions(command: app_commands.Command) -> int:
@@ -403,10 +500,8 @@ def compact_command_tree(tree, *, logger=None) -> CompactionReport:
                 leaf_original = leaf.name
                 leaf.extras.setdefault("_hamtaro_original_name", leaf_original)
                 technical = _classify(leaf)
-                destination = _category_group(
-                    _role_group(tree, _role_for_command(leaf)),
-                    TECHNICAL_CATEGORIES[technical],
-                )
+                role = _role_for_command(leaf)
+                destination = _category_group(tree, role, TECHNICAL_CATEGORIES[technical])
                 leaf.name = _unique_name(
                     destination,
                     _sub_name(leaf_original, technical),
@@ -419,12 +514,13 @@ def compact_command_tree(tree, *, logger=None) -> CompactionReport:
             continue
         item.extras.setdefault("_hamtaro_original_name", original)
         technical = _classify(item)
-        destination = _category_group(
-            _role_group(tree, _role_for_command(item)), TECHNICAL_CATEGORIES[technical],
-        )
+        role = _role_for_command(item)
+        destination = _category_group(tree, role, TECHNICAL_CATEGORIES[technical])
         item.name = _unique_name(destination, _sub_name(original, technical), original)
         restriction_guards += _preserve_root_only_restrictions(item)
         destination.add_command(item)
+
+    _split_role_pages(tree)
 
     after = _root_commands(tree)
     actions_after = _count_actions(tree)
@@ -434,9 +530,9 @@ def compact_command_tree(tree, *, logger=None) -> CompactionReport:
         raise RuntimeError(f"Perte d'actions pendant la compaction : {actions_before} -> {actions_after}.")
 
     role_sizes = {
-        role: len(group.commands)
-        for role in ROLE_ROOTS
-        if isinstance((group := tree.get_command(role)), app_commands.Group)
+        page_name: len(group.commands)
+        for page_name in ROLE_ROOTS
+        if isinstance((group := tree.get_command(page_name)), app_commands.Group)
     }
     logger.info(
         "Navigation par rôle : %s racines -> %s ; %s actions conservées ; "

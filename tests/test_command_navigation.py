@@ -65,3 +65,34 @@ def test_hub_resolves_commands_after_compaction() -> None:
     assert hub.find_command("register").qualified_name == "register"
     assert hub.find_command("hamtaro_health").qualified_name == "admin maintenance health"
     assert hub.find_command("commande_absente") is None
+
+
+def test_large_role_space_is_split_below_discord_character_limit() -> None:
+    _bot, tree = _tree()
+    for index in range(45):
+        command = _command(f"player_tool_{index}", "cogs.player_experience")
+        command.description = "O" * 100
+        tree.add_command(command)
+
+    compact_command_tree(tree)
+    role_pages = [
+        command
+        for command in tree.get_commands()
+        if command.name.startswith("joueur")
+    ]
+    assert len(role_pages) >= 2
+
+    def text_characters(value: object) -> int:
+        if isinstance(value, dict):
+            return sum(
+                len(str(child))
+                if key in {"name", "description", "value"}
+                and isinstance(child, (str, int, float))
+                else text_characters(child)
+                for key, child in value.items()
+            )
+        if isinstance(value, list):
+            return sum(text_characters(child) for child in value)
+        return 0
+
+    assert all(text_characters(page.to_dict(tree)) <= 4000 for page in role_pages)

@@ -695,7 +695,10 @@ class HamtaroHubCog(commands.Cog):
                 continue
             score = 10 if original == command_name else 1
             root_name = command.qualified_name.split()[0]
-            if preferred_role and root_name == preferred_role:
+            if preferred_role and (
+                root_name == preferred_role
+                or root_name.startswith(preferred_role + "_")
+            ):
                 score += 20
             callback = getattr(command, "callback", None)
             module = str(getattr(callback, "__module__", ""))
