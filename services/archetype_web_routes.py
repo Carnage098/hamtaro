@@ -13,6 +13,12 @@ if TYPE_CHECKING:
 
 LOGGER = logging.getLogger(__name__)
 _REGISTER_FLAG = "hamtaro_archetype_routes_registered"
+HIDDEN_ARCHETYPE_KEYS = frozenset({"d / d", "d / d / d"})
+
+
+def _is_hidden_archetype(service: ArchetypeMetaService, name: Any) -> bool:
+    """Empêche les archétypes retirés du site de revenir via l'historique."""
+    return service.deck_key(name) in HIDDEN_ARCHETYPE_KEYS
 
 
 def _row_dict(row: Any | None) -> dict[str, Any] | None:
@@ -228,12 +234,16 @@ async def _merged_archetypes(
     merged: dict[str, dict[str, Any]] = {}
     for row in historical:
         item = dict(row)
+        if _is_hidden_archetype(service, item.get("deck")):
+            continue
         key = service.deck_key(item.get("deck"))
         if key:
             merged[key] = item
 
     for catalog in catalog_rows:
         canonical_name = service.normalize_deck_name(catalog.get("name"))
+        if _is_hidden_archetype(service, canonical_name):
+            continue
         key = service.deck_key(canonical_name)
         if not key:
             continue
