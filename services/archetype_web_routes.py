@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 LOGGER = logging.getLogger(__name__)
 _REGISTER_FLAG = "hamtaro_archetype_routes_registered"
-HIDDEN_ARCHETYPE_KEYS = frozenset({"d / d", "d / d / d"})
+HIDDEN_ARCHETYPE_KEYS = frozenset({"d / d"})
 
 
 def _is_hidden_archetype(service: ArchetypeMetaService, name: Any) -> bool:
