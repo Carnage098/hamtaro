@@ -108,6 +108,24 @@ def test_organization_actions_are_not_exposed_in_player_space() -> None:
     assert all(path.startswith("staff") for path in paths)
 
 
+def test_direct_artworks_menu_stays_visible_only_to_staff() -> None:
+    _bot, tree = _tree()
+    artworks = app_commands.Group(
+        name="artworks",
+        description="Validation des artworks",
+        default_permissions=discord.Permissions(manage_messages=True),
+    )
+    artworks.add_command(_command("approuver", "cogs.archetype_artworks"))
+    tree.add_command(artworks)
+
+    compact_command_tree(tree)
+
+    menu = tree.get_command("artworks")
+    assert isinstance(menu, app_commands.Group)
+    assert menu.default_permissions.manage_messages
+    assert menu.get_command("approuver") is not None
+
+
 def test_large_role_space_is_split_below_discord_character_limit() -> None:
     _bot, tree = _tree()
     for index in range(45):

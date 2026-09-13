@@ -22,6 +22,7 @@ DIRECT_COMMAND_RENAMES = {
 }
 DIRECT_COMMANDS = {
     "hamtaro",
+    "artworks",
     *DIRECT_COMMAND_RENAMES.keys(),
     *DIRECT_COMMAND_RENAMES.values(),
 }

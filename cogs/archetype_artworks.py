@@ -11,7 +11,13 @@ from utils.permissions import staff_only
 class ArchetypeArtworkCog(commands.Cog):
     artwork = app_commands.Group(
         name="artwork",
-        description="Artworks des archétypes et decks affichés sur le site Hamtaro",
+        description="Proposer et consulter les artworks Hamtaro",
+    )
+    artworks_staff = app_commands.Group(
+        name="artworks",
+        description="Valider les artworks proposés sur le site Hamtaro",
+        guild_only=True,
+        default_permissions=discord.Permissions(manage_messages=True),
     )
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -87,7 +93,7 @@ class ArchetypeArtworkCog(commands.Cog):
             embed.set_image(url=str(image_url))
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
-    @artwork.command(name="pending", description="Lister les propositions d'artworks en attente")
+    @artworks_staff.command(name="en_attente", description="Lister les propositions d'artworks en attente")
     @staff_only()
     async def pending(self, interaction: discord.Interaction) -> None:
         if interaction.guild_id is None:
@@ -109,9 +115,9 @@ class ArchetypeArtworkCog(commands.Cog):
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @artwork.command(name="approve", description="Approuver une proposition d'artwork")
+    @artworks_staff.command(name="approuver", description="Approuver une proposition d'artwork")
     @staff_only()
-    @app_commands.describe(proposition_id="ID affiché dans /artwork pending")
+    @app_commands.describe(proposition_id="ID affiché dans /artworks en_attente")
     async def approve(self, interaction: discord.Interaction, proposition_id: int) -> None:
         if interaction.guild_id is None:
             await interaction.response.send_message("Serveur requis.", ephemeral=True)
@@ -130,10 +136,10 @@ class ArchetypeArtworkCog(commands.Cog):
         embed.set_image(url=row["image_url"])
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
-    @artwork.command(name="reject", description="Refuser une proposition d'artwork")
+    @artworks_staff.command(name="refuser", description="Refuser une proposition d'artwork")
     @staff_only()
     @app_commands.describe(
-        proposition_id="ID affiché dans /artwork pending",
+        proposition_id="ID affiché dans /artworks en_attente",
         raison="Motif facultatif du refus",
     )
     async def reject(
@@ -161,7 +167,7 @@ class ArchetypeArtworkCog(commands.Cog):
             ephemeral=True,
         )
 
-    @artwork.command(name="default", description="Définir l'artwork Hamtaro par défaut d'un deck")
+    @artworks_staff.command(name="par_defaut", description="Définir l'artwork Hamtaro par défaut d'un deck")
     @staff_only()
     @app_commands.describe(
         deck="Nom du deck",
@@ -194,7 +200,7 @@ class ArchetypeArtworkCog(commands.Cog):
             ephemeral=True,
         )
 
-    @artwork.command(name="reset", description="Revenir à l'artwork Hamtaro par défaut")
+    @artworks_staff.command(name="reinitialiser", description="Revenir à l'artwork Hamtaro par défaut")
     @staff_only()
     @app_commands.describe(deck="Nom du deck")
     async def reset(self, interaction: discord.Interaction, deck: str) -> None:
