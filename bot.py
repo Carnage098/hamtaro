@@ -95,6 +95,7 @@ REQUIRED_COGS = (
     "cogs.casual_results_plus",
     "cogs.community_tools",
     "cogs.tournament_start_preview",
+    "cogs.tournament_auto_start",
     "cogs.tournament_manage",
     "cogs.archetype_catalog",
 )
