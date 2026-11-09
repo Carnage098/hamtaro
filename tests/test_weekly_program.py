@@ -183,3 +183,27 @@ def test_schedule_exceptions_keep_ids_and_cancel_creation(tmp_path, monkeypatch)
     assert not any(s['scheduled_slot_id']=='auto-2026-12-05' for s in specs)
     modified=next(s for s in specs if s['scheduled_slot_id']=='auto-2026-12-06')
     assert modified['start']=='17:00' and modified['structure']=='swiss'
+
+
+@pytest.mark.asyncio
+async def test_real_loader_keeps_command_budget_without_discord_connection(monkeypatch):
+    import copy
+    import importlib
+    import inspect
+    from bot import HamtaroBot
+    bot=HamtaroBot()
+    async def load_metadata(extension, *, required_failures):
+        module=importlib.import_module(extension)
+        for _, cls in inspect.getmembers(module,inspect.isclass):
+            if cls.__module__ == extension and issubclass(cls,commands.Cog):
+                for command in cls.__cog_app_commands__:
+                    if bot.tree.get_command(command.name) is None:
+                        bot.tree.add_command(copy.deepcopy(command))
+    monkeypatch.setattr(bot,'_load_one_extension',load_metadata)
+    try:
+        await bot._load_extensions()
+        report=compact_command_tree(bot.tree)
+        assert report.roots_after < 100
+        names={cmd.qualified_name for cmd in bot.tree.walk_commands() if isinstance(cmd,discord.app_commands.Command) and cmd.callback.__module__=='cogs.weekly_program'}
+        assert names == {'staff planning affiche','staff planning publier_affiche','staff planning configurer_annonce','staff planning etat_annonce'}
+    finally: await bot.close()
