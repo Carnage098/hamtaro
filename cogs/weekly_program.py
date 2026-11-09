@@ -34,6 +34,30 @@ class WeeklyProgramCog(commands.Cog):
     def publication_authorized() -> bool:
         return os.getenv("HAMTARO_WEEKLY_ENABLED", "false").lower() in {"true", "1", "yes"}
 
+    async def initialize_from_environment(self):
+        """Configuration initiale facultative, sans modifier un réglage du staff."""
+        channel_id = os.getenv("HAMTARO_WEEKLY_CHANNEL_ID", "").strip()
+        if not channel_id:
+            return
+        guild_id = (os.getenv("GUILD_ID") or os.getenv("PUBLIC_GUILD_ID") or "").strip()
+        if not guild_id.isdecimal() or not channel_id.isdecimal():
+            LOGGER.error("Configuration affiche refusée : identifiants de serveur/salon invalides.")
+            return
+        guild = self.bot.get_guild(int(guild_id))
+        channel = guild.get_channel(int(channel_id)) if guild else None
+        if not isinstance(channel, discord.TextChannel) or channel.guild.id != int(guild_id):
+            LOGGER.error("Configuration affiche refusée : salon=%s absent du serveur=%s. Aucun autre salon utilisé.", channel_id, guild_id)
+            return
+        automatic = os.getenv("HAMTARO_WEEKLY_AUTOMATIC", "false").strip().lower() in {"true", "1", "yes"}
+        changed = await self.db.update("""INSERT INTO weekly_program_settings
+            (guild_id,channel_id,weekday,hour,minute,enabled) VALUES (?,?,2,18,0,?)
+            ON CONFLICT(guild_id) DO NOTHING""", (guild_id, channel_id, int(automatic)))
+        if changed:
+            LOGGER.info("Configuration affiche initialisée : serveur=%s (%s), salon=#%s (%s), mercredi 18:00 Paris, automatique=%s, publication autorisée=%s. Aucun message envoyé par l’initialisation.",
+                        guild.name, guild_id, channel.name, channel_id, automatic, self.publication_authorized())
+        else:
+            LOGGER.info("Configuration affiche existante conservée pour serveur=%s ; variables initiales non réappliquées.", guild_id)
+
     async def publish(self, guild_id: str, *, refresh: bool = False) -> str:
         if not self.publication_authorized():
             raise ValueError("Publication désactivée : activation Railway requise après accord du propriétaire.")
@@ -112,6 +136,10 @@ class WeeklyProgramCog(commands.Cog):
     @weekly_scan.before_loop
     async def before_scan(self):
         await self.bot.wait_until_ready()
+        try:
+            await self.initialize_from_environment()
+        except Exception:
+            LOGGER.exception("Initialisation du salon hebdomadaire impossible ; aucun réglage de remplacement appliqué.")
 
     @app_commands.command(name="schedule_poster", description="Générer en privé l’affiche des tournois de la semaine.")
     @app_commands.guild_only()

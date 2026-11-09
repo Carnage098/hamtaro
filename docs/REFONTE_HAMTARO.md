@@ -43,14 +43,44 @@ Protection contre les doublons : une seule publication par serveur et par semain
 
 ## Activation après accord
 
-1. Terminer l’inventaire des salons Hamtaro dans Fun Row. L’accès Discord disponible demande une connexion. Seul le salon `🏸・matchs`, ID `1537598665181495307`, a été confirmé par les logs Railway du 8 novembre ; ce n’est pas un inventaire complet.
+1. Inventaire relevé le 10 novembre 2026 sur les deux captures du propriétaire : 17 salons textuels et 4 vocaux, détaillés ci-dessous. L’identifiant fourni pour le salon de publication est `1256190735787753575`. Les captures ne permettent pas d’associer cet identifiant à un nom ; le bot résout le salon dans le serveur configuré et inscrit son nom dans les logs. Le salon `🏸・matchs`, ID `1537598665181495307`, a également été confirmé par les logs Railway du 8 novembre.
 2. Valider le salon d’annonce, les permissions nécessaires et les changements de commandes avec le propriétaire. Aucune création/suppression de salon, aucun changement de rôle ou message public n’a été effectué pendant la préparation.
 3. Fusionner puis déployer après accord. Vérifier le succès du déploiement, le chargement de `WeeklyProgramCog`, l’absence d’erreur de synchronisation et `/health`.
-4. Choisir le salon dans la commande de configuration ; autoriser Hamtaro à y voir le salon, lire l’historique, envoyer des messages, intégrer des liens et joindre des fichiers, uniquement après accord sur ces permissions.
+4. Choisir le salon dans la commande de configuration, ou préparer depuis Railway `HAMTARO_WEEKLY_CHANNEL_ID=1256190735787753575`, `HAMTARO_WEEKLY_AUTOMATIC=true` et `HAMTARO_WEEKLY_ENABLED=false` avant le premier déploiement autorisé. L’initialisation n’envoie rien, vérifie le type de salon et son appartenance au serveur `GUILD_ID` (ou `PUBLIC_GUILD_ID`), puis enregistre mercredi 18 h Paris. Elle ne remplace jamais un réglage existant du staff. Vérifier le nom résolu dans les logs. Hamtaro doit déjà pouvoir voir le salon, lire l’historique, envoyer des messages, intégrer des liens et joindre des fichiers ; toute modification de permissions réclame un accord distinct.
 5. Configurer `HAMTARO_WEEKLY_ENABLED=true` sur le service Railway et activer la récurrence dans les réglages du programme. Sans ce double réglage, aucune publication hebdomadaire automatique n’est possible. L’aperçu staff reste disponible.
 6. Tester l’aperçu privé, puis un envoi public seulement après accord. Vérifier le lien du message et le salon dans les logs.
 
 Le moteur de départ utilise le salon d’annonce explicitement configuré ou le salon des matchs déjà enregistré par `progression_setup`. Il ne choisit plus un premier salon accessible au hasard et refuse un salon situé dans un autre serveur.
+
+## Inventaire Fun Row transmis par le propriétaire
+
+Catégorie visible : `🐹 ~HAMTARO CUP~`. Noms transcrits sans leurs préfixes décoratifs. Cet inventaire ne modifie ni les salons ni leurs permissions ; les cadenas visibles ne suffisent pas à déterminer les rôles autorisés.
+
+| Type | Salon |
+|---|---|
+| Texte | annonces-spéciales |
+| Texte | règlement-tournois |
+| Texte | guide-hamtaro |
+| Texte | planning-tournois |
+| Texte | tips-hamtaro |
+| Texte | annonces-tournois |
+| Texte | suggestions-hamtaro |
+| Texte | discussion-tournois |
+| Texte | inscriptions |
+| Texte | commandes-hamtaro |
+| Texte | matchs |
+| Texte | rondes-suisses |
+| Texte | classement-rondes-suisses |
+| Texte | tournois-à-éliminations-directe |
+| Texte | staff-logs-hamtaro |
+| Texte | matchs-casuels |
+| Texte | matchs-vedettes |
+| Vocal | Duel 1 |
+| Vocal | Duel 2 |
+| Vocal | Staff Only |
+| Vocal | Salon Streaming |
+
+Répartition proposée sans réorganisation du serveur : l’affiche dans le salon explicitement désigné par le propriétaire, `planning-tournois` pour le calendrier, `inscriptions` pour le parcours d’inscription, `commandes-hamtaro` pour les interactions, les salons de matchs et de classement pour le suivi, `staff-logs-hamtaro` pour la supervision. Aucun nouveau salon nécessaire pour cette refonte.
 
 ## Aperçus et validation
 
@@ -58,7 +88,7 @@ Le moteur de départ utilise le salon d’annonce explicitement configuré ou le
 - [Accueil autonome](previews/hamtaro-accueil.html) et [planning autonome](previews/hamtaro-planning.html) : télécharger les deux fichiers dans le même dossier pour naviguer entre les deux. Les autres liens pointent vers les routes habituelles du site et ne sont pas simulés.
 - `python scripts/preview_reform.py` lance un aperçu local sur le port 8765, sans connexion Discord et sans base de production.
 - Les pages ont été rendues avec Jinja et une base SQLite temporaire initialisée avec le vrai schéma. La vérification interactive dans le navigateur distant est bloquée pour les fichiers locaux ; le rendu mobile reste à vérifier avant fusion.
-- Les nouveaux tests couvrent la rotation, les dates limites et changements d’heure, les exceptions, la création idempotente, la publication unique après redémarrage, une réponse réseau incertaine, les commandes staff, le manque de joueurs, le départ manqué et le refus d’un salon hors serveur.
+- Les nouveaux tests couvrent la rotation, les dates limites et changements d’heure, les exceptions, la création idempotente, la publication unique après redémarrage, une réponse réseau incertaine, les commandes staff, le manque de joueurs, le départ manqué et le refus d’un salon hors serveur. L’initialisation Railway est également vérifiée : aucune publication sans activation, aucun remplacement d’un réglage staff, refus des salons absents ou hors serveur et des identifiants invalides.
 - Cinq tests de `tests/test_professional_suite.py` échouent déjà sur la base `085a32f` : modules et configuration d’un ancien pack absents. Ils ont été reproduits dans une copie intacte avant comparaison. Ils ne sont ni supprimés ni masqués.
 
 Retour arrière : redéployer le commit précédent conserve les tables ajoutées et les données. Il faudra synchroniser les commandes de la version restaurée. La désactivation immédiate des seules affiches est possible avec `HAMTARO_WEEKLY_ENABLED=false`.

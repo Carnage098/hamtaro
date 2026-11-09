@@ -74,6 +74,61 @@ def test_weekly_commands_are_staff_only_after_compaction():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('automatic', [False, True])
+async def test_initial_channel_requires_publication_gate_and_preserves_staff_settings(monkeypatch, automatic):
+    monkeypatch.setenv('GUILD_ID', '1')
+    monkeypatch.setenv('HAMTARO_WEEKLY_CHANNEL_ID', '2')
+    monkeypatch.delenv('HAMTARO_WEEKLY_AUTOMATIC', raising=False)
+    if automatic:
+        monkeypatch.setenv('HAMTARO_WEEKLY_AUTOMATIC', 'true')
+    monkeypatch.delenv('HAMTARO_WEEKLY_ENABLED', raising=False)
+    db = DatabaseService()
+    db.conn = await aiosqlite.connect(':memory:')
+    db.conn.row_factory = aiosqlite.Row
+    try:
+        await init_weekly_schema(db)
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.id, channel.name = 2, 'annonces-tournois'
+        channel.send = AsyncMock()
+        guild = SimpleNamespace(id=1, name='Fun Row', get_channel=lambda _: channel)
+        channel.guild = guild
+        cog = WeeklyProgramCog(SimpleNamespace(db=db, get_guild=lambda _: guild))
+        await cog.initialize_from_environment()
+        row = await db.fetchone('SELECT * FROM weekly_program_settings WHERE guild_id=?', ('1',))
+        assert (row['channel_id'], row['weekday'], row['hour'], row['enabled']) == ('2', 2, 18, int(automatic))
+        assert not cog.publication_authorized()
+        await db.update('UPDATE weekly_program_settings SET channel_id=?,weekday=3,hour=19,enabled=0', ('7',))
+        monkeypatch.setenv('HAMTARO_WEEKLY_AUTOMATIC', 'true')
+        await cog.initialize_from_environment()
+        row = await db.fetchone('SELECT * FROM weekly_program_settings WHERE guild_id=?', ('1',))
+        assert (row['channel_id'], row['weekday'], row['hour'], row['enabled']) == ('7', 3, 19, 0)
+        channel.send.assert_not_awaited()
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('case', ['missing', 'wrong_guild', 'invalid_id'])
+async def test_initial_channel_never_falls_back(monkeypatch, case):
+    monkeypatch.setenv('GUILD_ID', '1')
+    monkeypatch.setenv('HAMTARO_WEEKLY_CHANNEL_ID', 'bad' if case == 'invalid_id' else '2')
+    monkeypatch.setenv('HAMTARO_WEEKLY_AUTOMATIC', 'true')
+    db = DatabaseService()
+    db.conn = await aiosqlite.connect(':memory:')
+    db.conn.row_factory = aiosqlite.Row
+    try:
+        await init_weekly_schema(db)
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.guild = SimpleNamespace(id=999)
+        guild = SimpleNamespace(get_channel=lambda _: None if case == 'missing' else channel)
+        cog = WeeklyProgramCog(SimpleNamespace(db=db, get_guild=lambda _: guild))
+        await cog.initialize_from_environment()
+        assert await db.fetchall('SELECT * FROM weekly_program_settings') == []
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
 async def test_create_only_when_open_and_never_duplicate():
     db=DatabaseService(); db.conn=await aiosqlite.connect(':memory:'); db.conn.row_factory=aiosqlite.Row
     try:
