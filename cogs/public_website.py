@@ -29,7 +29,7 @@ from services.format_routes import register_format_routes
 from services.site_experience_routes import register_site_experience_routes
 from services.trophy_routes import register_trophy_routes
 from services.team_routes import register_team_routes
-from services.tournament_schedule_service import public_schedule
+from services.tournament_schedule_service import public_schedule, weekly_schedule, registration_error
 
 
 LOGGER = logging.getLogger(__name__)
@@ -980,7 +980,7 @@ class PublicWebsiteCog(commands.Cog):
         self,
         request: web.Request,
     ) -> web.Response:
-        tournaments = await self.service.list_tournaments(limit=80)
+        tournaments = await self.service.list_tournaments(limit=200, include_cancelled=True)
 
         open_statuses = {
             "registration",
@@ -1002,6 +1002,7 @@ class PublicWebsiteCog(commands.Cog):
             item
             for item in tournaments
             if self._status(item.get("status")) in open_statuses
+            and not registration_error(item.get("scheduled_slot_id"))
         ]
 
         current_tournaments = [
@@ -1047,13 +1048,15 @@ class PublicWebsiteCog(commands.Cog):
             featured_tournaments=featured_tournaments,
             recent_results=recent_results,
             home_stats=home_stats,
+            weekly_program=weekly_schedule(tournaments),
+            current_tournaments=current_tournaments,
         )
 
     async def index_page(
         self,
         request: web.Request,
     ) -> web.Response:
-        tournaments = await self.service.list_tournaments(limit=80)
+        tournaments = await self.service.list_tournaments(limit=200, include_cancelled=True)
 
         open_statuses = {
             "registration",
@@ -1075,6 +1078,7 @@ class PublicWebsiteCog(commands.Cog):
             item
             for item in tournaments
             if self._status(item.get("status")) in open_statuses
+            and not registration_error(item.get("scheduled_slot_id"))
         ]
 
         current_tournaments = [
@@ -1089,12 +1093,13 @@ class PublicWebsiteCog(commands.Cog):
             if self._status(item.get("status")) in FINISHED_STATUSES
         ][:8]
 
-        schedule = public_schedule(tournaments)
+        schedule = public_schedule(tournaments, upcoming_only=True)
 
         return self.render(
             "index.html",
             request=request,
             schedule=schedule,
+            weekly_program=weekly_schedule(tournaments),
             open_tournaments=open_tournaments,
             current_tournaments=current_tournaments,
             recent_archives=recent_archives,

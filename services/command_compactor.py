@@ -76,6 +76,7 @@ CATEGORY_DESCRIPTIONS = {
 }
 
 MODULE_GROUPS = (
+    ("cogs.weekly_program", "planning"),
     ("cogs.tournament_start_preview", "tournament"),
     ("cogs.tournament_progression", "tournament"),
     ("cogs.tournament_extensions", "tournament"),
@@ -146,6 +147,8 @@ ROOT_TO_SUB = {
 # ``_hamtaro_original_name`` pour que les boutons et intégrations historiques
 # continuent de retrouver la bonne action.
 FRENCH_ACTION_NAMES = {
+    "schedule_poster": "affiche", "schedule_publish": "publier_affiche",
+    "schedule_settings": "configurer_annonce", "schedule_status": "etat_annonce",
     "achievements": "succes", "add": "ajouter",
     "admin_add_player": "ajouter_joueur",
     "admin_change_deck": "modifier_deck",

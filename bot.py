@@ -96,6 +96,7 @@ REQUIRED_COGS = (
     "cogs.community_tools",
     "cogs.tournament_start_preview",
     "cogs.tournament_auto_start",
+    "cogs.weekly_program",
     "cogs.tournament_manage",
     "cogs.archetype_catalog",
 )

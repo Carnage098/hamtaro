@@ -1294,6 +1294,11 @@ class DatabaseService:
                 "Les inscriptions ne sont pas ouvertes pour ce tournoi."
             )
 
+        from services.tournament_schedule_service import registration_error
+        error = registration_error(tournament.scheduled_slot_id)
+        if error:
+            raise ValueError(error)
+
         if await self.is_registered(tournament_id, discord_id):
             raise ValueError("Ce joueur est déjà inscrit à ce tournoi.")
 

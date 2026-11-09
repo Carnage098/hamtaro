@@ -373,6 +373,11 @@ class Team2v2Cog(commands.Cog):
         if interaction.guild_id is None:
             raise ValueError("Cette commande doit être utilisée sur un serveur.")
 
+        from services.tournament_schedule_service import registration_error
+        error = registration_error(getattr(tournament, "scheduled_slot_id", None))
+        if error:
+            raise ValueError(error)
+
         team = await self._pick_team_for_user(
             guild_id=interaction.guild_id,
             user_id=interaction.user.id,

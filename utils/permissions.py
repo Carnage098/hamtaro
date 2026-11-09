@@ -9,6 +9,7 @@ STAFF_ROLE_NAMES = {
     "Admin",
     "Staff",
     "Tournament Staff",
+    "Staff Tournoi",
     "Organisateur",
     "Organisateur Tournoi",
     "Modo",
