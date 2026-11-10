@@ -26,6 +26,12 @@ Ce sont des exemples, aucune pause de Noël n’est actuellement imposée. La ca
 
 L’affiche PNG est composée par Hamtaro avec ses données réelles : semaine, dates, horaires, formats, plateforme, structure, code, clôture, minimum de joueurs et parcours d’inscription. Une version textuelle accompagne le fichier pour la lisibilité et l’accessibilité. Aucun fournisseur d’IA ni abonnement n’est nécessaire.
 
+Le rendu est désormais géré par `services/weekly_poster_renderer.py` : affiche verticale de 1080 pixels de large, hauteur calculée en fonction des textes, un bloc par tournoi, états d’inscription en couleur, capacité et minimum, date d’ouverture ou de clôture adaptée à l’état du tournoi. Les titres, plateformes et codes longs passent à la ligne sans être tronqués. Les semaines vides et les changements d’année sont pris en charge. Les instructions utilisent `/inscription` avec le code exact du tournoi pour éviter toute ambiguïté entre plusieurs tournois ouverts.
+
+La commande privée et la publication réutilisent le même générateur et le même bloc Discord (texte, image et pied de message). L’aperçu reste éphémère et n’appelle jamais la publication, même si les publications sont activées. Il reflète les données au moment de la commande ; une modification ultérieure du planning se retrouvera dans l’annonce suivante.
+
+Une mascotte statique est embarquée dans `web/static/weekly-poster-mascot.webp`. Cet élément décoratif a été créé une fois avec l’outil d’image intégré, à partir de la mascotte déjà présente dans le dépôt, puis intégré au générateur. Intention du prompt : conserver le hamster orange et crème, remplacer sa pancarte par trois dos de cartes bleu nuit et or, fond transparent et aucun texte. Les affiches hebdomadaires n’appellent aucun service de génération d’images : toutes les informations sont composées localement par Pillow.
+
 Commandes après regroupement de l’interface :
 
 | Commande | Effet |
@@ -89,6 +95,7 @@ Répartition proposée sans réorganisation du serveur : l’affiche dans le sal
 - `python scripts/preview_reform.py` lance un aperçu local sur le port 8765, sans connexion Discord et sans base de production.
 - Les pages ont été rendues avec Jinja et une base SQLite temporaire initialisée avec le vrai schéma. La vérification interactive dans le navigateur distant est bloquée pour les fichiers locaux ; le rendu mobile reste à vérifier avant fusion.
 - Les nouveaux tests couvrent la rotation, les dates limites et changements d’heure, les exceptions, la création idempotente, la publication unique après redémarrage, une réponse réseau incertaine, les commandes staff, le manque de joueurs, le départ manqué et le refus d’un salon hors serveur. L’initialisation Railway est également vérifiée : aucune publication sans activation, aucun remplacement d’un réglage staff, refus des salons absents ou hors serveur et des identifiants invalides.
+- Le rendu de l’affiche est vérifié avec zéro, un, deux et quatre tournois, des textes et codes longs, différents statuts et une semaine à cheval sur deux années. Les limites de chaque texte sont contrôlées dans l’image finale ; un test vérifie également que l’aperçu Discord reste privé et ne déclenche pas la publication. Au 10 novembre : 61 tests passent hors l’ancien pack professionnel mentionné ci-dessous.
 - Cinq tests de `tests/test_professional_suite.py` échouent déjà sur la base `085a32f` : modules et configuration d’un ancien pack absents. Ils ont été reproduits dans une copie intacte avant comparaison. Ils ne sont ni supprimés ni masqués.
 
 Retour arrière : redéployer le commit précédent conserve les tables ajoutées et les données. Il faudra synchroniser les commandes de la version restaurée. La désactivation immédiate des seules affiches est possible avec `HAMTARO_WEEKLY_ENABLED=false`.

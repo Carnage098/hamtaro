@@ -18,6 +18,16 @@ from utils.permissions import staff_only
 LOGGER = logging.getLogger("hamtaro.weekly_program")
 
 
+def announcement_payload(program: dict, image: bytes) -> tuple[discord.Embed, discord.File]:
+    """Le même contenu Discord pour l’aperçu privé et la publication."""
+    filename = f"hamtaro-{program['key']}.png"
+    embed = discord.Embed(title="Le programme Hamtaro de la semaine",
+                          description=program_description(program), color=0xF4C66A)
+    embed.set_image(url=f"attachment://{filename}")
+    embed.set_footer(text=f"Hamtaro · programme {program['key']}")
+    return embed, discord.File(io.BytesIO(image), filename=filename)
+
+
 class WeeklyProgramCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot, self.db = bot, bot.db
@@ -89,10 +99,7 @@ class WeeklyProgramCog(commands.Cog):
             if previous and previous["status"] == "sent" and not refresh:
                 return f"https://discord.com/channels/{guild_id}/{previous['channel_id']}/{previous['message_id']}"
             image = await asyncio.to_thread(render_weekly_poster, program)
-            file = discord.File(io.BytesIO(image), filename=f"hamtaro-{key}.png")
-            embed = discord.Embed(title="Le programme Hamtaro de la semaine", description=program_description(program), color=0xF4C66A)
-            embed.set_image(url=f"attachment://hamtaro-{key}.png")
-            embed.set_footer(text=marker)
+            embed, file = announcement_payload(program, image)
             if previous and previous["status"] == "sent":
                 # Une commande manuelle actualise le message existant, sans spam.
                 old_channel = guild.get_channel(int(previous["channel_id"]))
@@ -149,7 +156,8 @@ class WeeklyProgramCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         program = await get_week_program(self.db, str(interaction.guild_id), week_offset=int(semaine_suivante))
         image = await asyncio.to_thread(render_weekly_poster, program)
-        await interaction.followup.send(content=program_description(program), file=discord.File(io.BytesIO(image), filename=f"hamtaro-{program['key']}.png"), ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        embed, file = announcement_payload(program, image)
+        await interaction.followup.send(embed=embed, file=file, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
 
     @app_commands.command(name="schedule_publish", description="Publier l’affiche dans le salon configuré, ou actualiser celle déjà publiée.")
     @app_commands.guild_only()
