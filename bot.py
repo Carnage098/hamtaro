@@ -96,6 +96,7 @@ REQUIRED_COGS = (
     "cogs.community_tools",
     "cogs.tournament_start_preview",
     "cogs.tournament_auto_start",
+    "cogs.weekly_program",
     "cogs.tournament_manage",
     "cogs.archetype_catalog",
 )
@@ -312,9 +313,10 @@ class HamtaroBot(commands.Bot):
         #   6. compaction finale déjà effectuée par setup_hook.
         required_failures: list[str] = []
         catalog_extension = "cogs.archetype_catalog"
+        weekly_extension = "cogs.weekly_program"
 
         for extension in REQUIRED_COGS:
-            if extension == catalog_extension:
+            if extension in {catalog_extension, weekly_extension}:
                 continue
             await self._load_one_extension(
                 extension,
@@ -342,6 +344,14 @@ class HamtaroBot(commands.Bot):
         self._log_application_command_budget(
             "après compaction pré-optionnels"
         )
+
+        # Les quatre actions hebdomadaires sont ajoutées après réduction de
+        # l’arbre : le noyau historique contient déjà 96 commandes racines.
+        if weekly_extension in REQUIRED_COGS:
+            await self._load_one_extension(
+                weekly_extension,
+                required_failures=required_failures,
+            )
 
         for extension in OPTIONAL_COGS:
             await self._load_one_extension(

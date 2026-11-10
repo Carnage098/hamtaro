@@ -189,6 +189,7 @@ class BracketExportService:
         self,
         *,
         limit: int = 60,
+        include_cancelled: bool = False,
     ) -> list[dict[str, Any]]:
         limit = max(1, min(200, int(limit)))
 
@@ -200,13 +201,14 @@ class BracketExportService:
                     SELECT COUNT(*)
                     FROM registrations r
                     WHERE r.tournament_id = t.id
+                    AND COALESCE(r.dropped, 0)=0 AND COALESCE(r.disqualified, 0)=0
                 ) AS participant_count
             FROM tournaments t
-            WHERE LOWER(COALESCE(t.status, '')) != 'cancelled'
+            WHERE (? OR LOWER(COALESCE(t.status, '')) != 'cancelled')
             ORDER BY t.id DESC
             LIMIT ?
             """,
-            (limit,),
+            (int(include_cancelled), limit),
         )
 
     async def list_archives(
