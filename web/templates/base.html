@@ -24,13 +24,44 @@
     <script src="/static/trophies.js?v=20260815-mobile-v2" defer></script>
     <link rel="stylesheet" href="/static/deck_builder.css?v=20260817-v90">
     <script src="/static/deck_builder.js?v=20260817-v90" defer></script>
-    <link rel="stylesheet" href="/static/refonte.css?v=20261109">
+    <link rel="stylesheet" href="/static/refonte.css?v=20261116">
 </head>
 <body>
     <a class="skip-link" href="#main-content">Aller au contenu principal</a>
-    <div class="community-strip"><span>FUN ROW</span> Les tournois de la communauté Jjetgames <a href="{{ social_links.youtube }}" target="_blank" rel="noopener noreferrer">YouTube ↗</a></div>
+    <section class="owner-banner" aria-label="Jjetgames">
+        <a
+            class="owner-banner-image-link"
+            href="{{ social_links.youtube }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Ouvrir la chaîne YouTube Jjetgames"
+        >
+            <img
+                class="owner-banner-image"
+                src="/static/jjetgames-banner.png"
+                alt="Bannière officielle Jjetgames"
+            >
+        </a>
+    </section>
     <header class="site-header">
-        <a class="brand" href="/" aria-label="Hamtaro, accueil"><span class="brand-mark">H</span><span><strong>HAMTARO</strong><small>LE RENDEZ-VOUS DES DUELLISTES</small></span></a>
+        <a class="brand" href="/" aria-label="Hamtaro, accueil">
+            <span class="brand-mark brand-avatar">
+                {% if bot_avatar_url %}
+                <img
+                    src="{{ bot_avatar_url }}"
+                    alt="Photo de profil Discord de Hamtaro"
+                    width="44"
+                    height="44"
+                >
+                {% else %}
+                <span aria-hidden="true">H</span>
+                {% endif %}
+            </span>
+            <span>
+                <strong>HAMTARO</strong>
+                <small>TOURNAMENTS</small>
+            </span>
+        </a>
         <button class="site-mobile-menu-button" type="button" aria-expanded="false" aria-controls="hamtaro-site-navigation" aria-label="Ouvrir le menu" data-mobile-menu-toggle>Menu</button>
         <nav class="main-navigation" id="hamtaro-site-navigation" data-mobile-navigation-links aria-label="Navigation principale">
             <a href="/"{% if request.path == '/' %} aria-current="page"{% endif %}>Accueil</a>

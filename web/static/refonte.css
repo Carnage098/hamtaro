@@ -9,3 +9,14 @@ body{background:#0c1322;line-height:1.6}.community-strip{display:flex;align-item
 @media(max-width:1080px){.site-header{flex-wrap:wrap;justify-content:space-between;gap:10px}.site-mobile-menu-button{display:block;margin-left:auto;padding:8px 14px;border:1px solid #435169;border-radius:8px;background:transparent;color:var(--text)}.main-navigation{display:none;flex-basis:100%;width:100%;margin:12px 0 0}.main-navigation.is-open{display:flex;flex-direction:column;align-items:stretch}.nav-dropdown{position:static;width:100%;margin:8px 0;box-shadow:none}.main-navigation .nav-discord{margin-left:0}.cup-hero{gap:35px}.cup-join{grid-template-columns:1fr}.cup-event-top{align-items:flex-start;flex-wrap:wrap}}
 @media(max-width:640px){.community-strip{padding:8px 18px;font-size:10px;gap:10px}.community-strip>a{display:none}.site-header{padding:17px 18px}.page-shell{padding:0 18px 36px}.brand small{font-size:7px}.cup-hero{grid-template-columns:1fr;padding:42px 0 10px;gap:25px}.cup-hero h1{font-size:42px}.cup-intro{font-size:15px}.cup-hero-aside{display:none}.cup-actions{gap:18px}.cup-week-grid,.cup-resource-grid{grid-template-columns:1fr}.section-heading{align-items:start}.section-heading h2,.cup-join h2{font-size:26px}.section-heading .text-link{font-size:11px}.cup-event{padding:22px}.cup-event-top{flex-direction:column;gap:8px}.cup-event-facts{font-size:12px}.cup-join{padding:24px;gap:25px}.cup-steps{grid-template-columns:1fr;gap:10px}.cup-steps li:before{margin-bottom:6px}.cup-steps p{margin:7px 0 10px}.cup-resource-grid{gap:0}.cup-section{margin-top:35px}.hero h1{font-size:34px}.cup-event-facts>div{gap:8px}.schedule-timezone{font-size:10px}.schedule-grid{grid-template-columns:1fr}.schedule-slot{min-width:0}.schedule-slot-copy{min-width:0}.schedule-slot-meta{min-width:0}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{transition:none!important;animation:none!important}}
+
+
+.site-header .brand-avatar {
+    background: #111827;
+    transform: none;
+}
+
+.home-hero[data-home-page] {
+    min-height: 0;
+    margin-top: 28px;
+}
