@@ -8,7 +8,7 @@
     <p>Les règles, pools et outils de validation des formats communautaires Hamtaro.</p>
 </section>
 
-<section class="format-grid">
+<section class="format-grid" aria-label="Formats disponibles">
     {% for item in formats %}
     <a class="format-card" href="/formats/{{ item.id }}">
         <span class="format-icon" aria-hidden="true">{{ item.emoji }}</span>
@@ -41,5 +41,5 @@
         </div>
     </a>
     {% endfor %}
-    </section>
+</section>
 {% endblock %}
