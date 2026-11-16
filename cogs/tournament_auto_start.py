@@ -4,7 +4,7 @@ import asyncio
 import logging
 import math
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -14,6 +14,8 @@ from discord.ext import commands, tasks
 from services.bracket_service import BracketService
 from services.swiss_service import SwissService
 from services.tournament_schedule_service import get_schedule_slot, load_schedule
+from services.tournament_schedule_service import ensure_schedule_tournaments
+from config import GUILD_ID
 
 
 LOGGER = logging.getLogger("hamtaro.tournament_auto_start")
@@ -82,8 +84,7 @@ class TournamentAutoStartCog(commands.Cog):
             )
         else:
             LOGGER.info(
-                "Salon d'annonce : progression_setup, contexte tournoi, "
-                "salon systeme, puis premier salon textuel disponible."
+                "Salon d’annonce : progression_setup uniquement ; aucun repli arbitraire."
             )
 
     async def cog_unload(self) -> None:
@@ -174,68 +175,22 @@ class TournamentAutoStartCog(commands.Cog):
             return None
 
     async def _announcement_channel(self, tournament: Any) -> Any | None:
-        # 1. Variable Railway explicite.
-        channel = await self._channel_from_id(self.forced_channel_id)
-        if channel is not None:
-            return channel
-
+        # Un salon explicite reste obligatoire ; pas de repli vers un salon arbitraire.
         guild_id = str(getattr(tournament, "guild_id", "") or "")
-        tournament_id = int(getattr(tournament, "id"))
-
-        # 2. Salon des matchs configure avec /progression_setup.
-        try:
-            row = await self.db.fetchone(
-                """
-                SELECT matches_channel_id
-                FROM progression_settings
-                WHERE guild_id = ?
-                """,
-                (guild_id,),
-            )
-            if row is not None:
-                channel = await self._channel_from_id(row["matches_channel_id"])
-                if channel is not None:
-                    return channel
-        except Exception:
-            LOGGER.debug("progression_settings indisponible.", exc_info=True)
-
-        # 3. Dernier salon ayant selectionne le tournoi.
-        try:
-            row = await self.db.fetchone(
-                """
-                SELECT channel_id
-                FROM tournament_contexts
-                WHERE tournament_id = ?
-                ORDER BY updated_at DESC
-                LIMIT 1
-                """,
-                (tournament_id,),
-            )
-            if row is not None:
-                channel = await self._channel_from_id(row["channel_id"])
-                if channel is not None:
-                    return channel
-        except Exception:
-            LOGGER.debug("tournament_contexts indisponible.", exc_info=True)
-
-        # 4. Salon systeme puis premier salon textuel accessible.
-        try:
-            guild = self.bot.get_guild(int(guild_id))
-        except (TypeError, ValueError):
-            guild = None
-
-        if guild is None:
-            return None
-
-        me = guild.me
-        if guild.system_channel is not None:
-            if me is None or guild.system_channel.permissions_for(me).send_messages:
-                return guild.system_channel
-
-        for text_channel in guild.text_channels:
-            if me is None or text_channel.permissions_for(me).send_messages:
-                return text_channel
-
+        channel_id = self.forced_channel_id
+        if not channel_id:
+            try:
+                row = await self.db.fetchone(
+                    "SELECT matches_channel_id FROM progression_settings WHERE guild_id = ?",
+                    (guild_id,),
+                )
+                channel_id = row["matches_channel_id"] if row else None
+            except Exception:
+                LOGGER.warning("Salon de progression non configuré pour serveur=%s", guild_id)
+        channel = await self._channel_from_id(channel_id)
+        if channel is not None and str(getattr(getattr(channel, "guild", None), "id", "")) == guild_id:
+            return channel
+        LOGGER.warning("Salon d’annonce absent ou hors serveur=%s : aucun envoi", guild_id)
         return None
 
     async def _send_announcement(
@@ -557,6 +512,9 @@ class TournamentAutoStartCog(commands.Cog):
             now = datetime.now(self._timezone())
             today = now.date()
 
+            if GUILD_ID:
+                await ensure_schedule_tournaments(self.db, GUILD_ID, now=now)
+
             rows = await self.db.fetchall(
                 """
                 SELECT id, scheduled_slot_id
@@ -586,7 +544,7 @@ class TournamentAutoStartCog(commands.Cog):
                 if slot_date > today:
                     continue
 
-                if slot_date < today:
+                if slot.get("cancelled") or now > start_at + timedelta(minutes=5):
                     await self._process_past(int(row["id"]), slot)
                     continue
 

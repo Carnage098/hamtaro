@@ -1,0 +1,13 @@
+<div class="cup-week-grid" data-weekly-program>
+{% for slot in weekly_program.slots %}
+{% set tournament = slot.tournament or {} %}
+<article class="cup-event{% if slot.kind == 'classic' %} cup-event-classic{% endif %}">
+ <div class="cup-event-top"><span>{{ slot.day_label }}</span><span class="cup-badge">{{ slot.status_label }}</span></div>
+ <p class="cup-event-time">{{ slot.start }}<small> → {{ slot.end }}*</small></p>
+ <h3>{{ tournament.format or slot.format }}</h3><p class="cup-event-platform">{{ slot.platform }}</p>
+ <dl class="cup-event-facts"><div><dt>Structure</dt><dd>{{ 'Rondes suisses' if (tournament.format or slot.format) == 'Suisse' else 'Élimination directe' }}</dd></div><div><dt>Inscriptions</dt><dd>{% if tournament %}{{ tournament.participant_count or 0 }} / {{ tournament.max_players }} joueurs{% else %}Ouverture {{ slot.registration_opens }}{% endif %}</dd></div><div><dt>Clôture</dt><dd>{{ slot.registration_closes }}</dd></div></dl>
+ <div class="cup-event-bottom"><code>{{ tournament.code or slot.code }}</code>{% if tournament %}<a href="/tournaments/{{ tournament.id }}">Voir le tournoi →</a>{% else %}<a href="/formats">Lire le règlement →</a>{% endif %}</div>
+</article>
+{% else %}<div class="cup-empty"><strong>Une pause dans l’arène.</strong><p>Aucun tournoi n’est programmé cette semaine. Consulte le planning pour les prochaines dates.</p></div>{% endfor %}
+</div>
+<p class="cup-note">*Fin indicative. Inscriptions de J−7 à 30 minutes avant le départ. Minimum par défaut : 4 joueurs.</p>

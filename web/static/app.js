@@ -376,13 +376,14 @@
 (() => {
     "use strict";
 
-    const page = document.querySelector("[data-tournaments-page]");
+    const page = document.querySelector("[data-tournaments-page], [data-home-page]");
 
     if (!page) {
         return;
     }
 
     const selectors = [
+        '[data-weekly-program]',
         '[data-tournament-list="open"]',
         '[data-tournament-list="current"]',
         '[data-tournament-list="archives"]',
@@ -398,7 +399,7 @@
         refreshInProgress = true;
 
         try {
-            const url = new URL("/tournaments", window.location.origin);
+            const url = new URL(window.location.pathname, window.location.origin);
             url.searchParams.set("refresh", Date.now().toString());
 
             const response = await fetch(url, {

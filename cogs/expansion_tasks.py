@@ -9,7 +9,6 @@ from services.automation_service import AutomationService
 from services.community_service import CommunityService
 from services.competitive_service import CompetitiveService
 from services.expansion_database import init_expansion_schema
-from services.tournament_automation_service import TournamentAutomationService
 
 
 LOGGER = logging.getLogger(__name__)
@@ -21,7 +20,6 @@ class ExpansionTasksCog(commands.Cog):
         self.automation = AutomationService()
         self.community = CommunityService()
         self.competitive = CompetitiveService()
-        self.tournament_automation = TournamentAutomationService(bot)
 
     async def cog_load(self) -> None:
         await init_expansion_schema()
@@ -37,7 +35,7 @@ class ExpansionTasksCog(commands.Cog):
             await self._send_season_summaries(closed_seasons)
             await self.competitive.sync_completed_matches()
             await self.automation.sync_deck_statistics()
-            await self._start_planned_tournaments()
+            # Le planning officiel est traité exclusivement par TournamentAutoStartCog.
             await self._send_schedule_events()
             await self._send_player_notifications()
             await self.community.close_expired()
@@ -99,16 +97,6 @@ class ExpansionTasksCog(commands.Cog):
                 )
             await channel.send(embed=embed)
             await self.competitive.mark_season_summary_sent(int(season["id"]))
-
-    async def _start_planned_tournaments(self) -> None:
-        for result in await self.tournament_automation.start_due_tournaments():
-            LOGGER.info(
-                "Démarrage automatique %s (%s) : %s joueur(s), résultat=%s",
-                result["code"],
-                result["scheduled_slot_id"],
-                result["players"],
-                result["result"],
-            )
 
     async def _send_schedule_events(self) -> None:
         for event in await self.automation.due_schedule_events():
