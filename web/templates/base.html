@@ -24,7 +24,8 @@
     <script src="/static/trophies.js?v=20260815-mobile-v2" defer></script>
     <link rel="stylesheet" href="/static/deck_builder.css?v=20260817-v90">
     <script src="/static/deck_builder.js?v=20260817-v90" defer></script>
-    <link rel="stylesheet" href="/static/refonte.css?v=20261116">
+    <link rel="stylesheet" href="/static/refonte.css?v=20261116-2">
+    <link rel="stylesheet" href="/static/hamtaro-interface.css?v=1">
 </head>
 <body>
     <a class="skip-link" href="#main-content">Aller au contenu principal</a>
@@ -67,13 +68,31 @@
             <a href="/"{% if request.path == '/' %} aria-current="page"{% endif %}>Accueil</a>
             <a href="/tournaments"{% if request.path.startswith('/tournaments') %} aria-current="page"{% endif %}>Tournois & planning</a>
             <a href="/matches"{% if request.path == '/matches' %} aria-current="page"{% endif %}>Matchs</a>
-            <a href="/formats"{% if request.path.startswith('/formats') %} aria-current="page"{% endif %}>Règlements</a>
-            <details class="nav-group"><summary>Explorer</summary><div class="nav-dropdown">
-                <strong>Joueurs & compétition</strong><a href="/profiles">Profils</a><a href="/equipes">Équipes</a><a href="/competitive">Classements</a><a href="/competitive/seasons">Saisons</a><a href="/participants">Participants</a>
-                <strong>Résultats & palmarès</strong><a href="/results">Résultats</a><a href="/trophies">Trophées</a><a href="/archives">Archives</a>
-                <strong>Préparer son deck</strong><a href="/banlists">Banlists</a><a href="/decks">Statistiques des decks</a><a href="/deck-builder">Générateur de decks</a><a href="/archetypes">Archétypes</a><a href="/search">Recherche</a>
-            </div></details>
-            <a href="/guide">Aide</a>
+            <a href="/formats"{% if request.path.startswith('/formats') %} aria-current="page"{% endif %}>Formats</a>
+            <details class="nav-group">
+                <summary>Communauté</summary>
+                <div class="nav-dropdown">
+                    <a href="/profiles"{% if request.path == '/profiles' or request.path.startswith('/profiles/') %} aria-current="page"{% endif %}>Profils</a>
+                    <a href="/participants"{% if request.path == '/participants' or request.path.startswith('/participants/') %} aria-current="page"{% endif %}>Participants</a>
+                    <a href="/equipes"{% if request.path == '/equipes' or request.path.startswith('/equipes/') %} aria-current="page"{% endif %}>Équipes</a>
+                    <a href="/competitive"{% if request.path == '/competitive' %} aria-current="page"{% endif %}>Classements</a>
+                    <a href="/competitive/seasons"{% if request.path == '/competitive/seasons' or request.path.startswith('/competitive/seasons/') %} aria-current="page"{% endif %}>Saisons</a>
+                    <a href="/results"{% if request.path == '/results' or request.path.startswith('/results/') %} aria-current="page"{% endif %}>Résultats</a>
+                    <a href="/trophies"{% if request.path == '/trophies' or request.path.startswith('/trophies/') %} aria-current="page"{% endif %}>Trophées</a>
+                    <a href="/archives"{% if request.path == '/archives' or request.path.startswith('/archives/') %} aria-current="page"{% endif %}>Archives</a>
+                </div>
+            </details>
+            <details class="nav-group">
+                <summary>Decks</summary>
+                <div class="nav-dropdown">
+                    <a href="/decks"{% if request.path == '/decks' or request.path.startswith('/decks/') %} aria-current="page"{% endif %}>Statistiques des decks</a>
+                    <a href="/deck-builder"{% if request.path == '/deck-builder' or request.path.startswith('/deck-builder/') %} aria-current="page"{% endif %}>Générateur de decks</a>
+                    <a href="/archetypes"{% if request.path == '/archetypes' or request.path.startswith('/archetypes/') %} aria-current="page"{% endif %}>Archétypes</a>
+                    <a href="/banlists"{% if request.path == '/banlists' or request.path.startswith('/banlists/') %} aria-current="page"{% endif %}>Banlists</a>
+                </div>
+            </details>
+            <a href="/guide"{% if request.path == '/guide' or request.path.startswith('/guide/') %} aria-current="page"{% endif %}>Guide</a>
+            <a href="/search"{% if request.path == '/search' or request.path.startswith('/search/') %} aria-current="page"{% endif %}>Recherche</a>
             <a class="nav-discord" href="{{ social_links.discord }}" target="_blank" rel="noopener noreferrer">Rejoindre Discord ↗</a>
         </nav>
     </header>
@@ -83,19 +102,8 @@
 
     <footer class="site-footer">
         <p><strong>HAMTARO CUP</strong> · Fun Row</p>
-        <p>
-            Site de tournois du serveur de Jjetgames ·
-            statistiques issues des résultats validés.
-        </p>
+        <a href="{{ social_links.youtube }}" target="_blank" rel="noopener noreferrer">Jjetgames</a>
     </footer>
 
-    <button
-        class="site-share-button"
-        type="button"
-        aria-label="Partager cette page"
-        data-site-share
-    >
-        ↗ Partager
-    </button>
 </body>
 </html>

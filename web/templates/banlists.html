@@ -4,16 +4,10 @@
 
 {% block content %}
 <section class="hero banlist-hero" data-banlists-page data-banlist-revision="{{ revision }}">
-    <p class="eyebrow">HAMTARO DATABASE</p>
-    <h1>Les banlists classées par format</h1>
-    <p class="hero-text">
-        Retrouve chaque liste dans sa propre catégorie : format actuel papier,
-        jeux numériques, formats historiques Time Wizard et formats alternatifs.
-    </p>
+    <h1>Banlists par format</h1>
 
     <div class="banlist-hero-stats" aria-label="Informations du catalogue">
         <span><strong>{{ format_count }}</strong> formats référencés</span>
-        <span><strong>{{ category_count }}</strong> catégories</span>
         <span>Mise à jour : <strong>{{ data_updated_at }}</strong></span>
         <span
             class="banlist-sync-chip banlist-sync-chip-{{ sync.status }}"

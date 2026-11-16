@@ -26,12 +26,7 @@
 
 {% block content %}
 <section class="hero" data-tournaments-page>
-    <p class="eyebrow">HAMTARO CUP</p>
     <h1>Tournois & planning</h1>
-    <p class="hero-text">
-        Suis les inscriptions, les matchs et les brackets officiels
-        depuis une seule interface.
-    </p>
 </section>
 
 <nav class="cup-anchor-nav" aria-label="Sections des tournois"><a href="#cette-semaine">Cette semaine</a><a href="#schedule-title">Calendrier</a><a href="#tournois-ouverts">Inscriptions</a><a href="#tournois-en-cours">En cours</a></nav>
@@ -42,13 +37,11 @@
             <p class="eyebrow">{{ schedule.season | upper }}</p>
             <h2 id="schedule-title">Planning des tournois</h2>
         </div>
-        <p class="schedule-timezone">Horaires de Paris · {{ schedule.timezone }}</p>
+        <p class="schedule-timezone">Heure de Paris</p>
     </div>
 
     <p class="schedule-intro">
-        Deux rendez-vous chaque week-end : un tournoi classique et un format
-        différent. Clique sur un créneau pour afficher sa fiche, son code et
-        le nombre d'inscrits dès que le tournoi est ouvert.
+        Sélectionne un créneau pour voir son horaire, son statut et les modalités d’inscription.
     </p>
 
     <div class="schedule-month-tabs" role="tablist" aria-label="Mois du planning">

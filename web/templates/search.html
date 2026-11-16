@@ -4,22 +4,17 @@
 
 {% block content %}
 <section class="hx-hero">
-    <span class="hx-kicker">RECHERCHE GLOBALE</span>
-    <h1>Tout retrouver sur Hamtaro</h1>
-    <p>
-        Recherche un joueur, un tournoi, un deck ou une commande depuis
-        une seule page.
-    </p>
+    <h1>Rechercher sur Hamtaro</h1>
 
     <form class="hx-global-search-form" action="/search" method="get">
         <input
             type="search"
             name="q"
             value="{{ query }}"
+            aria-label="Joueur, tournoi, deck ou commande"
             placeholder="Nom d’un joueur, tournoi, deck, commande…"
             minlength="2"
             required
-            autofocus
         >
         <button class="hx-button" type="submit">Rechercher</button>
     </form>

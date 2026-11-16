@@ -1,0 +1,200 @@
+/* Shared presentation for the public site. Feature-specific layout lives in its own stylesheet. */
+:root {
+    --site-surface: #141e30;
+    --site-border: #33415a;
+    --site-radius: 16px;
+}
+
+.site-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+    padding-block: 16px;
+}
+
+.main-navigation > a,
+.nav-group > summary {
+    padding-inline: 9px;
+}
+
+.nav-group[open] > summary,
+.nav-group:has([aria-current="page"]) > summary,
+.nav-dropdown > a[aria-current="page"] {
+    background: #23324a;
+    color: var(--text);
+}
+
+.nav-dropdown {
+    width: max-content;
+    min-width: 180px;
+    max-width: 100%;
+    padding: 8px;
+    border-radius: 12px;
+}
+
+@media (min-width: 1161px) {
+    .nav-dropdown { max-width: 264px; }
+}
+
+.main-navigation .nav-discord:hover,
+.page-shell .primary-button:hover {
+    background: #ffda89;
+    color: #101a2b;
+}
+
+:where(.site-header, .page-shell, .site-footer, .owner-banner) :focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+}
+
+.page-shell :is(.hero, .hx-hero, .format-hero, .competitive-hero,
+    .teams-hero, .participants-hero, .guide-hero, .db-hero,
+    .trophy-page-header, .tournament-hero, .home-hero[data-home-page]) {
+    margin-block: 24px 20px;
+    padding: clamp(20px, 3vw, 38px);
+    min-height: 0;
+    border: 1px solid var(--site-border);
+    border-radius: var(--site-radius);
+    background: linear-gradient(145deg, #1b2840, #141e30 68%);
+    box-shadow: none;
+}
+
+.page-shell :is(.hero, .hx-hero, .format-hero, .competitive-hero,
+    .teams-hero, .participants-hero, .guide-hero, .db-hero,
+    .trophy-page-header, .tournament-hero, .home-hero[data-home-page]) h1 {
+    max-width: 26ch;
+    margin-block: 0 0.3em;
+    color: var(--text);
+    font-size: clamp(30px, 4.1vw, 58px);
+    line-height: 1.1;
+    letter-spacing: -0.035em;
+    overflow-wrap: anywhere;
+}
+
+.page-shell [data-tournaments-page] h1 {
+    margin-bottom: 0;
+}
+
+.page-shell :is(.db-hero, .guide-hero) {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.page-shell .home-hero-text {
+    margin-bottom: 18px;
+    font-size: clamp(15px, 1.5vw, 18px);
+}
+
+.page-shell .home-status-panel {
+    padding: clamp(14px, 2vw, 22px);
+    border-radius: var(--site-radius);
+    background: #0e1727;
+    box-shadow: none;
+}
+
+.page-shell :is(.home-stat-grid article, .tournament-card, .cup-event,
+    .hx-panel, .hx-match-card, .hx-deck-card, .format-card, .team-card,
+    .guide-command-card, .archetype-card, .participant-card,
+    .banlist-category-card, .profile-search-card) {
+    border-radius: var(--site-radius);
+}
+
+.page-shell :is(.tournament-card, .cup-event, .hx-match-card, .hx-deck-card,
+    .format-card, .team-card, .archetype-card):hover {
+    border-color: #687d9b;
+}
+
+.page-shell :is(.section-heading, .hx-section-heading, .teams-section-heading) h2 {
+    font-size: clamp(23px, 3vw, 34px);
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+}
+
+.page-shell .cup-section {
+    margin-top: clamp(28px, 4vw, 48px);
+}
+
+.page-shell .cup-join {
+    border-radius: var(--site-radius);
+    background: var(--site-surface);
+}
+
+.page-shell .cup-steps li::before {
+    content: none;
+}
+
+.page-shell .cup-steps li strong {
+    color: var(--text);
+}
+
+.page-shell .cup-anchor-nav {
+    flex-wrap: wrap;
+}
+
+.site-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px 20px;
+    text-align: left;
+}
+
+.site-footer a {
+    color: var(--muted);
+    text-underline-offset: 3px;
+}
+
+@media (max-width: 1160px) {
+    .site-header {
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .site-header .site-mobile-menu-button {
+        display: block;
+        margin-left: auto;
+        padding: 8px 14px;
+        border: 1px solid var(--site-border);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text);
+    }
+
+    .main-navigation {
+        display: none;
+        flex-basis: 100%;
+        width: 100%;
+        margin: 8px 0 0;
+    }
+
+    .main-navigation.is-open {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        overflow: visible;
+    }
+
+    .nav-dropdown {
+        position: static;
+        width: 100%;
+        margin: 4px 0;
+        box-shadow: none;
+    }
+
+    .main-navigation .nav-discord { margin-left: 0; }
+}
+
+@media (max-width: 640px) {
+    .page-shell .home-hero[data-home-page] {
+        gap: 18px;
+    }
+
+    .page-shell .home-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .page-shell .home-stat-grid small {
+        overflow-wrap: anywhere;
+    }
+}

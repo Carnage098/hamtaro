@@ -5,10 +5,10 @@
 {% block content %}
 <section class="hx-hero hx-hero-split">
     <div>
-        <span class="hx-kicker">CLASSEMENT COMPÉTITIF</span>
+        <span class="hx-kicker">CLASSEMENTS</span>
         <h1>{{ data.selected_format }}</h1>
         <p>
-            Classements ELO officiels, progression récente et statistiques
+            Classements Elo officiels, progression récente et statistiques
             de la saison Hamtaro.
         </p>
         {% if data.season %}
@@ -23,9 +23,6 @@
         <a class="hx-button hx-button-secondary" href="/competitive/seasons">
             Voir toutes les saisons
         </a>
-        <button class="hx-button" type="button" data-share-page>
-            Partager le classement
-        </button>
     </div>
 </section>
 
